@@ -1,0 +1,8 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "tasks": {
+    "typecheck": { "dependsOn": ["^typecheck"] },
+    "test": { "env": ["DATABASE_URL_TEST"] },
+    "dev": { "cache": false, "persistent": true }
+  }
+}
