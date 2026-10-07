@@ -315,7 +315,7 @@ v1 is built in phases. Each phase is a vertical slice that gets its own implemen
 | — | 3D spike (optional, throwaway) | Minimal R3F scene: one seeded, palette-recoloured island, isometric ortho camera, pan/zoom; tested on a real phone | Performance and feel validated, or risks recorded |
 | 2 | Task core | Projects/milestones/tasks CRUD, complete/reopen (no rewards), `GET /world`, plot assignment (section 11.1), plain responsive list UI (bottom sheet on mobile / side panel on desktop), routing for the three states | Usable task manager on phone and desktop |
 | 3 | Economy | Ledger, complete/reopen with rewards, milestone bonus, streaks, daily bonus, `GET /economy`, reward events in the UI | Completing tasks earns Supplies, reversals are correct |
-| 4 | World (4a scene, 4b camera; section 13) | R3F scene: archipelago, islands, districts, task structures + states, landmarks, camera states, overflow panning, island switcher, edge indicators | The game renders the real data |
+| 4 | World (4a scene, section 13; 4b camera, section 14) | R3F scene: archipelago, islands, districts, task structures + states, landmarks, camera states, overflow panning, island switcher, edge indicators | The game renders the real data |
 | 5 | Shop & polish | Shop catalogue, decoration placement, reward animations, performance pass on a real device | Decorations purchasable and placeable; 60fps target met |
 | 6 | Ship | PWA + offline viewing, web build served by Caddy with HTTPS on the VPS, backups, Playwright smoke tests on both viewports | Live on the VPS and installable |
 
@@ -450,7 +450,7 @@ This replaces `newBalance` in section 6.1 with `balance`. Create and update resp
 
 ## 13. Phase 4a Design Addendum (approved 2026-10-07)
 
-Phase 4 ships in two halves. **4a (this section)** replaces the placeholder cards with the 3D scene: terrain, sea, districts, landmarks and task structures with every state, a camera framed per route, and taps that navigate or select. **4b** (a later addendum) adds fly-in transitions, soft pan bounds, opening focus, edge indicators, island-switcher placement and sheet-aware framing. This section refines sections 7.3, 7.4 and 7.6; where they disagree, this section wins.
+Phase 4 ships in two halves. **4a (this section)** replaces the placeholder cards with the 3D scene: terrain, sea, districts, landmarks and task structures with every state, a camera framed per route, and taps that navigate or select. **4b** (section 14) adds fly-in transitions, soft pan bounds, opening focus, edge indicators, island-switcher placement and sheet-aware framing. This section refines sections 7.3, 7.4 and 7.6; where they disagree, this section wins.
 
 ### 13.1 Stack
 
@@ -515,3 +515,67 @@ No Three.js imports; all of it is unit-tested.
 - **Scene graph** (`@react-three/test-renderer`): instance counts and colours per kind match the model; an island click navigates; a structure click selects; a click with delta > 6px does nothing; reduced motion runs no ticker.
 - **App** (RTL): existing world-screen tests still pass on the WebGL fallback. Selection and HUD tests replace the lazy scene module with a stub that calls `onSelect` / renders the HUD: selecting highlights and scrolls the row and raises the sheet; HUD buttons open the right editors.
 - **Manual:** `bun dev` on desktop and on a phone over the LAN; real-device fps tuning is Phase 5.
+
+## 14. Phase 4b Design Addendum (approved 2026-10-08)
+
+4b completes the world's camera on top of the 4a scene (section 13): fly-in transitions, soft pan bounds, opening focus, sheet-aware framing, edge indicators and the island switcher's final place. It also closes three parked 4a items: scene-boundary recovery, bounds that shrink after a refetch, and the archipelago zoom floor. It refines sections 7.4 and 13.4–13.5; where they disagree, this section wins.
+
+### 14.1 Camera motion (pure, `apps/web/src/scene/model/camera-motion.ts`)
+
+No Three.js imports; unit-tested. `CameraRig` keeps drei `MapControls` and drives these functions from `useFrame`.
+
+- **Fly-in:** a change of `focusKey` starts a flight from the current view `{x, z, zoom}` to `cameraTarget(...)`. A refetch never moves the camera.
+  - `flyFrame(from, to, t)` → `{x, z, zoom}` for `t ∈ [0, 1]`. Position follows ease-in-out cubic. Zoom interpolates in log space.
+  - **Hop:** when the two endpoints do not both fit on screen at the smaller of the two zooms, zoom dips mid-flight to the zoom at which both fit, then returns. A short flight does not dip.
+  - `flyDuration(from, to, viewport)` → 450–900ms, growing with the on-screen distance travelled.
+  - **Interruption:** a pointer-down or wheel on the canvas (MapControls `start`) ends the flight where it is; the user takes over.
+  - During a flight the pan clamp and zoom limits are suspended; they apply again on landing.
+- **Soft bounds (rubber band):** while dragging, the rig keeps the raw target MapControls would have reached and shows a banded one. Overshoot past a bound edge is displayed as `band(over, limit) = limit · (1 − 1/(over/limit + 1))`, where `limit` is a quarter of the uncovered viewport's short side in world units at the current zoom.
+  - **Spring-back:** when the drag and its momentum end outside the bounds, the momentum is cancelled and the target eases back to the clamped point over 300ms (ease-out).
+  - The same spring runs when a refetch shrinks `model.bounds` while the camera sits outside them and nobody is touching it.
+- **Reduced motion:** flight and spring durations are 0 (snap). The 4a momentum-spend before a snap stays.
+- **Zoom floor:** archipelago `minZoom` stays 10, the section 7.4 readability floor. A large archipelago is covered by panning, the switcher and edge indicators, not by zooming out.
+
+### 14.2 Opening focus
+
+- Whenever the route becomes `/`, the archipelago camera (zoom 10) centres on `openingIsland(summaries, previous, lastViewed)`, first match wins:
+  1. **Stepping out:** the island of the previous route, if the user came from `/p/:id` or one of its districts.
+  2. **Urgency:** the island with the most overdue tasks, ties broken by more due-soon tasks, then switcher order; it needs at least one of either.
+  3. **Last viewed:** the island in localStorage `archipelago.lastIsland`, written whenever an island or district route is shown. Reads and writes are wrapped in try/catch. A deleted island is ignored.
+  4. **Fallback:** the centre of `model.bounds`, as in 4a.
+- Section 7.4 says "due-today"; due-soon covers today and tomorrow, so ranking overdue first and due-soon second keeps today's work on top without a new summary field.
+- It runs only on a route change into `/`, never on a refetch. The first view after a page load snaps; later entries fly.
+
+### 14.3 Sheet-aware framing
+
+- **Phone and tablet (< 1024px):** `PanelFrame` reports the sheet's top edge through a `ResizeObserver`. `WorldView` turns it into `coveredBottom`: canvas pixels hidden behind the sheet, including the switcher strip riding on it.
+- `camera.setViewOffset` shifts the projection so the look-at point sits in the centre of the uncovered area. Cover counts up to 50dvh; at the 92dvh detent the framing stays as at the middle detent.
+- The offset eases over 250ms (snaps under reduced motion) when the detent settles, not during a drag.
+- Pan bounds and edge indicators measure against the uncovered area.
+- **Desktop:** the side panel sits beside the canvas, so `coveredBottom` is 0.
+
+### 14.4 Edge indicators
+
+- One per island that has overdue or due-soon tasks, is not the current island, and lies wholly outside the uncovered viewport. Shown in every view.
+- **Placement (pure):** `edgeIndicators(islands, viewport, inset)` projects each island centre to the screen, casts a ray from the centre of the uncovered area toward it, and places the marker where the ray meets the viewport rectangle inset by 28px, with an arrow angle pointing at the island. Markers closer than 48px along an edge are pushed apart.
+- **Look:** a 44px circular button, `error` for overdue and `warning` for due-soon, with an arrow and the island's urgent-task count. Accessible name, e.g. "Alpha island, 3 overdue, off screen". Tapping navigates to `/p/:id`, which flies.
+- **Plumbing:** an in-canvas component computes the list after each rendered frame and reports it upward only when it changes (positions rounded to whole pixels). `WorldView` renders the markers as DOM buttons at z-10, under the HUD (z-20) and the sheet (z-30).
+
+### 14.5 Island switcher placement
+
+- Resolves section 7.4's "a chip strip above the task panel".
+- **Phone and tablet:** the chip strip sits directly above the sheet's top edge (`bottom: 100%` of the sheet) and moves with it; detent heights are unchanged. The strip background is transparent; each chip keeps its own surface and shadow. Its height counts toward `coveredBottom`.
+- **Desktop:** a strip at the top of the side panel, above its content.
+- `PanelFrame` gains an `accessory` slot; the top bar above the world is removed. Chip behaviour and `aria-current` are unchanged, and the switcher still hides when there are no islands.
+
+### 14.6 Recovery and sheet fixes
+
+- **Scene boundary:** `SceneBoundary` resets on route change, so a transient failure retries on the next navigation, at most 2 resets per page load. After that the card view stays.
+- **Sheet drag (parked from Phase 2b):** the `dragged` flag clears on the next pointer-down instead of in a microtask, so a mouse drag's trailing click no longer toggles the detent. A pointer cancel restores the previous detent instead of snapping to the detent nearest `clientY` 0.
+
+### 14.7 Testing
+
+- **Model:** `flyFrame` endpoints exact, monotonic easing, log-space zoom midpoint at the geometric mean, a long hop dips and keeps both endpoints in view, a short hop does not; `flyDuration` within 450–900ms and growing with distance; `band` zero at the edge, monotonic, below the limit, continuous; spring lands on the clamped point; `openingIsland` precedence, ties, the deleted last-viewed island and the bounds fallback; `edgeIndicators` for on-screen islands, all four edges and corners, angle, inset, push-apart and a covered bottom; framing offset is half the covered height, capped at 50dvh, and 0 on desktop.
+- **Scene graph** (`@react-three/test-renderer`, frames driven with `advanceFrames`): a route change lands on the target after the duration and sits partway mid-flight; a controls `start` stops the flight in place; reduced motion snaps in one frame; a bounds-shrinking refetch springs the camera back inside; an off-screen urgent island reports an indicator and the current island never does.
+- **App** (RTL, stub-scene seam): the switcher renders in the sheet accessory on phone and in the side panel on desktop, the top bar is gone, chips navigate; a stub-reported indicator renders as a labelled button that navigates; `coveredBottom` follows the detent, caps at 50dvh, and is 0 on desktop; the last-viewed island is written on island routes and throwing storage is harmless; `SceneBoundary` falls back, retries on route change, and stays on cards after two failures; a mouse drag then click does not toggle the detent; a pointer cancel restores the previous detent.
+- **Manual:** fly feel on desktop and on a phone over the LAN, the rubber band at all four edges, framing at each detent, indicators while panning, switcher chips over the world.
