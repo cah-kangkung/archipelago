@@ -4,11 +4,23 @@ import * as THREE from 'three'
 import { solidMaterial } from './materials'
 import { LAND_HEIGHT, type Point } from './model/hex-space'
 import { JIB_PIVOT, modelGeometry } from './models/structures'
+import { onTap } from './tap'
 
 const matrix = new THREE.Matrix4()
 
-/** The turning arm on every crane; it swings only while animation is allowed. */
-export function CraneJibs({ points, animate }: { points: readonly Point[]; animate: boolean }) {
+/**
+ * The turning arm on every crane; it swings only while animation is allowed. `onPick` receives
+ * the tapped crane's index.
+ */
+export function CraneJibs({
+  points,
+  animate,
+  onPick,
+}: {
+  points: readonly Point[]
+  animate: boolean
+  onPick?: (index: number) => void
+}) {
   const ref = useRef<THREE.InstancedMesh>(null)
 
   const place = (time: number) => {
@@ -36,6 +48,13 @@ export function CraneJibs({ points, animate }: { points: readonly Point[]; anima
       ref={ref}
       name="jib"
       args={[modelGeometry('jib'), solidMaterial, points.length]}
+      onClick={
+        onPick
+          ? onTap<MouseEvent>((event) => {
+              if (event.instanceId !== undefined) onPick(event.instanceId)
+            })
+          : undefined
+      }
     />
   )
 }

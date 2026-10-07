@@ -132,6 +132,30 @@ describe('WorldContents', () => {
     expect(onSelect).toHaveBeenCalledWith(tasks[3]?.id)
   })
 
+  test('in district view only that district’s structures select; others clear', async () => {
+    const { world, beta, mvp, tasks } = seeded()
+    const { renderer, onSelect } = await render(world, {
+      kind: 'district',
+      projectId: beta.id,
+      milestoneId: mvp.id,
+    })
+    const scaffolds = one(one(renderer.scene, `island:${beta.id}`), 'scaffold')
+    // Scaffold 0 is the commons task 'Late'; scaffold 1 is the MVP task 'Next'.
+    await renderer.fireEvent(scaffolds, 'click', { instanceId: 0, delta: 0 })
+    await renderer.fireEvent(scaffolds, 'click', { instanceId: 1, delta: 0 })
+    expect(onSelect.mock.calls).toEqual([[null], [tasks[3]?.id]])
+  })
+
+  test('marker and crane-jib taps select the structure that carries them', async () => {
+    const { world, beta, tasks } = seeded()
+    const { renderer, onSelect } = await render(world, { kind: 'island', projectId: beta.id })
+    const island = one(renderer.scene, `island:${beta.id}`)
+    await renderer.fireEvent(one(island, 'storm'), 'click', { instanceId: 0, delta: 0 })
+    await renderer.fireEvent(one(island, 'lantern'), 'click', { instanceId: 0, delta: 0 })
+    await renderer.fireEvent(one(island, 'jib'), 'click', { instanceId: 0, delta: 0 })
+    expect(onSelect.mock.calls).toEqual([[tasks[0]?.id], [tasks[1]?.id], [tasks[1]?.id]])
+  })
+
   test('terrain and sea taps clear the selection', async () => {
     const { world, beta } = seeded()
     const { renderer, onSelect } = await render(world, { kind: 'island', projectId: beta.id })
@@ -191,6 +215,17 @@ describe('WorldContents', () => {
     expect(named(one(elsewhere.renderer.scene, `island:${beta.id}`), 'selection')).toHaveLength(0)
     const gone = await render(world, { kind: 'island', projectId: beta.id }, 'deleted-task')
     expect(named(gone.renderer.scene, 'selection')).toHaveLength(0)
+  })
+
+  test('a refetch with the same seed and radius keeps the terrain geometry', async () => {
+    const { world, beta } = seeded()
+    const focus: Focus = { kind: 'island', projectId: beta.id }
+    const { renderer } = await render(world, focus)
+    const terrain = () => one(one(renderer.scene, `island:${beta.id}`), 'terrain').props.geometry
+    const before = terrain()
+    const props = { focus, selectedTaskId: null, animate: false, ...handlers() }
+    await renderer.update(<WorldContents model={buildSceneModel({ ...world }, today)} {...props} />)
+    expect(terrain()).toBe(before)
   })
 
   test('instance counts follow the data when tasks are added or removed', async () => {

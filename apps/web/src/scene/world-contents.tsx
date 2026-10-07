@@ -1,7 +1,7 @@
 import type { Focus } from '../world/selectors'
 import { Island } from './island'
 import { scenePalette } from './model/palette'
-import type { SceneModel } from './model/scene-model'
+import type { SceneModel, SceneStructure } from './model/scene-model'
 import { Sea } from './sea'
 
 // Lambert divides by π; ×π lets a top face lit by both lights read near its token (§13.3).
@@ -30,6 +30,9 @@ export function WorldContents({
   ...handlers
 }: WorldContentsProps) {
   const focusedId = focus.kind === 'archipelago' ? null : focus.projectId
+  // In a district only its own structures select; the rest of the island behaves like terrain.
+  const pickable = (s: SceneStructure) =>
+    focus.kind !== 'district' || s.milestoneId === focus.milestoneId
   return (
     <>
       <hemisphereLight args={[scenePalette.wall, scenePalette.sea, HEMISPHERE_INTENSITY]} />
@@ -40,6 +43,7 @@ export function WorldContents({
           key={island.projectId}
           island={island}
           focused={island.projectId === focusedId}
+          pickable={pickable}
           selectedTaskId={selectedTaskId}
           animate={animate}
           {...handlers}

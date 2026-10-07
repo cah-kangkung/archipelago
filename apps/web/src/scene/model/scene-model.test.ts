@@ -117,6 +117,7 @@ describe('buildSceneModel', () => {
       today,
     ).islands
     expect(island?.name).toBe('Beta')
+    expect(island?.seed).toBe(9)
     expect(island?.radius).toBe(7)
     expect(island?.origin).toEqual({ x: 0, z: 0 })
     expect(island?.districts).toEqual([
@@ -129,7 +130,13 @@ describe('buildSceneModel', () => {
       },
     ])
     expect(island?.structures).toEqual([
-      { taskId: t.id, kind: 'workshop', marker: null, position: hexToWorld({ q: 4, r: 1 }) },
+      {
+        taskId: t.id,
+        milestoneId: m.id,
+        kind: 'workshop',
+        marker: null,
+        position: hexToWorld({ q: 4, r: 1 }),
+      },
     ])
   })
 

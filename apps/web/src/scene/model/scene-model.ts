@@ -5,6 +5,8 @@ import { islandRadius, islandTerrain, type TerrainTile } from './terrain'
 
 export type SceneStructure = {
   taskId: string
+  /** The district the task belongs to; null for the island commons. */
+  milestoneId: string | null
   kind: StructureKind
   marker: Marker
   position: Point
@@ -19,6 +21,8 @@ export type SceneDistrict = {
 export type SceneIsland = {
   projectId: string
   name: string
+  /** The project's terrain seed; with `radius` it fully determines `tiles`. */
+  seed: number
   origin: Point
   radius: number
   tiles: TerrainTile[]
@@ -53,6 +57,7 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
   const islands = prepared.map(({ project, milestones, tasks, radius }) => ({
     projectId: project.id,
     name: project.name,
+    seed: project.islandSeed,
     origin: hexToWorld(hexScale({ q: project.archipelagoX, r: project.archipelagoY }, spacing)),
     radius,
     tiles: islandTerrain(project.islandSeed, radius),
@@ -67,6 +72,7 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
     })),
     structures: tasks.map((t) => ({
       taskId: t.id,
+      milestoneId: t.milestoneId,
       ...structureFor(t, today),
       position: hexToWorld({ q: t.plotX, r: t.plotY }),
     })),
