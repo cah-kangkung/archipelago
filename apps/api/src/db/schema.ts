@@ -1,4 +1,5 @@
 import { LEDGER_KINDS, TASK_PRIORITIES, TASK_SIZES, TASK_STATUSES } from '@archipelago/shared'
+import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
   date,
@@ -19,7 +20,8 @@ export const taskStatus = pgEnum('task_status', TASK_STATUSES)
 export const ledgerKind = pgEnum('ledger_kind', LEDGER_KINDS)
 
 const timestamptz = () => timestamp({ withTimezone: true })
-const createdAt = () => timestamptz().notNull().defaultNow()
+// clock_timestamp() advances within a transaction, unlike now(), so creation order is stable.
+const createdAt = () => timestamptz().notNull().default(sql`clock_timestamp()`)
 
 export const users = pgTable('users', {
   id: uuid().primaryKey().defaultRandom(),
@@ -72,7 +74,10 @@ export const projects = pgTable(
     archivedAt: timestamptz(),
     createdAt: createdAt(),
   },
-  (t) => [index('projects_user_id_idx').on(t.userId)],
+  (t) => [
+    index('projects_user_id_idx').on(t.userId),
+    uniqueIndex('projects_user_slot_unique').on(t.userId, t.archipelagoX, t.archipelagoY),
+  ],
 )
 
 export const milestones = pgTable(
@@ -85,10 +90,16 @@ export const milestones = pgTable(
     name: text().notNull(),
     sortOrder: integer().notNull().default(0),
     landmarkType: text().notNull(),
+    // Axial hex centre of this milestone's district on its island; the landmark stands here.
+    districtQ: integer().notNull(),
+    districtR: integer().notNull(),
     completedAt: timestamptz(),
     createdAt: createdAt(),
   },
-  (t) => [index('milestones_project_id_idx').on(t.projectId)],
+  (t) => [
+    index('milestones_project_id_idx').on(t.projectId),
+    uniqueIndex('milestones_project_district_unique').on(t.projectId, t.districtQ, t.districtR),
+  ],
 )
 
 export const tasks = pgTable(
@@ -113,11 +124,12 @@ export const tasks = pgTable(
     externalId: text(),
     externalUrl: text(),
     createdAt: createdAt(),
-    updatedAt: timestamptz().notNull().defaultNow(),
+    updatedAt: timestamptz().notNull().default(sql`clock_timestamp()`),
   },
   (t) => [
     index('tasks_project_id_idx').on(t.projectId),
     index('tasks_milestone_id_idx').on(t.milestoneId),
+    uniqueIndex('tasks_project_plot_unique').on(t.projectId, t.plotX, t.plotY),
     // NULLs are distinct in Postgres, so native tasks (both columns null) never collide.
     uniqueIndex('tasks_external_ref_unique').on(t.externalSource, t.externalId),
   ],
@@ -154,7 +166,7 @@ export const buildings = pgTable(
     plotX: integer().notNull(),
     plotY: integer().notNull(),
     rotation: smallint().notNull().default(0),
-    placedAt: timestamptz().notNull().defaultNow(),
+    placedAt: timestamptz().notNull().default(sql`clock_timestamp()`),
   },
   (t) => [uniqueIndex('buildings_project_plot_unique').on(t.projectId, t.plotX, t.plotY)],
 )

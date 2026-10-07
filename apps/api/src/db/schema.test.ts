@@ -56,7 +56,9 @@ describe('schema', () => {
       const user = await insertUser(tx)
       const [project] = await tx.insert(projects).values(newProject(user.id)).returning()
       if (!project) throw new Error('no project')
-      await tx.insert(tasks).values([newTask(project.id), newTask(project.id)])
+      await tx
+        .insert(tasks)
+        .values([newTask(project.id), newTask(project.id, { plotX: 1, plotY: 0 })])
     })
   })
 
@@ -68,7 +70,21 @@ describe('schema', () => {
       if (!project) throw new Error('no project')
       const ref = { externalSource: 'gitlab', externalId: '123' }
       await tx.insert(tasks).values(newTask(project.id, ref))
-      await tx.insert(tasks).values(newTask(project.id, ref))
+      await tx.insert(tasks).values(newTask(project.id, { ...ref, plotX: 1, plotY: 0 }))
+    }).catch((err) => {
+      caught = err
+    })
+    expect(isUniqueViolation(caught)).toBe(true)
+  })
+
+  test('two tasks cannot share a plot on the same island', async () => {
+    let caught: unknown
+    await withRollback(async (tx) => {
+      const user = await insertUser(tx)
+      const [project] = await tx.insert(projects).values(newProject(user.id)).returning()
+      if (!project) throw new Error('no project')
+      await tx.insert(tasks).values(newTask(project.id))
+      await tx.insert(tasks).values(newTask(project.id))
     }).catch((err) => {
       caught = err
     })
