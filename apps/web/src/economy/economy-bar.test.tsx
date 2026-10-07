@@ -52,4 +52,23 @@ describe('EconomyBar', () => {
     renderApp({ api, path: '/' })
     expect(await screen.findByLabelText('-40 Supplies')).toHaveClass('text-error')
   })
+
+  test('the claim button is disabled while the claim is pending', async () => {
+    const fake = createFakeApi({ today: TODAY })
+    const original = fake.api.claimDaily
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    fake.api.claimDaily = async () => {
+      await gate
+      return original()
+    }
+    const { user } = renderApp({ api: fake.api, path: '/' })
+    const claim = await screen.findByRole('button', { name: 'Claim +15' })
+    await user.click(claim)
+    await waitFor(() => expect(claim).toBeDisabled())
+    release()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Claim +15' })).toBeNull())
+  })
 })

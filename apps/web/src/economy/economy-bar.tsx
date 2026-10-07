@@ -1,7 +1,7 @@
 import { useWorld } from '../world/use-world'
 import { useClaimDaily } from './use-claim-daily'
 
-const pill = 'rounded-full bg-surface-primary px-3 py-1 text-sm font-semibold tabular-nums'
+const pill = 'rounded-full bg-surface-primary px-2 py-1 sm:px-3 text-sm font-semibold tabular-nums'
 
 export function EconomyBar() {
   const { data: world } = useWorld()
@@ -11,7 +11,7 @@ export function EconomyBar() {
   const next = streak.next ? `Next bonus at ${streak.next.days} days: +${streak.next.amount}` : ''
 
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
       <span
         role="img"
         aria-label={`${balance} Supplies`}
@@ -30,11 +30,17 @@ export function EconomyBar() {
       {!daily.claimedToday && (
         <button
           type="button"
+          aria-label={`Claim +${daily.amount}`}
           disabled={claim.isPending}
           onClick={() => claim.mutate()}
           className="min-h-11 rounded-md bg-brand-secondary px-3 text-sm font-semibold text-text-on-brand disabled:opacity-60"
         >
-          Claim +{daily.amount}
+          <span aria-hidden className="sm:hidden">
+            +{daily.amount}
+          </span>
+          <span aria-hidden className="hidden sm:inline">
+            Claim +{daily.amount}
+          </span>
         </button>
       )}
     </div>
