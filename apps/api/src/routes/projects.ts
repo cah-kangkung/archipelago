@@ -1,7 +1,12 @@
-import { createProjectInputSchema, updateProjectInputSchema } from '@archipelago/shared'
+import {
+  createMilestoneInputSchema,
+  createProjectInputSchema,
+  updateProjectInputSchema,
+} from '@archipelago/shared'
 import { Hono } from 'hono'
 import { requireAuth } from '../auth/middleware'
 import { idParam } from '../http/params'
+import { createMilestone } from '../milestones/service'
 import { createProject, deleteProject, listProjects, updateProject } from '../projects/service'
 import type { AppEnv, Deps } from '../types'
 import { jsonBody } from '../validate'
@@ -25,5 +30,10 @@ export function projectRoutes(deps: Deps) {
     .delete('/:id', async (c) => {
       await deleteProject(db, c.get('user').id, idParam(c.req.param('id'), 'Project'))
       return c.body(null, 204)
+    })
+    .post('/:id/milestones', jsonBody(createMilestoneInputSchema), async (c) => {
+      const projectId = idParam(c.req.param('id'), 'Project')
+      const milestone = await createMilestone(db, c.get('user').id, projectId, c.req.valid('json'))
+      return c.json({ milestone }, 201)
     })
 }
