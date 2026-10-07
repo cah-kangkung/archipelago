@@ -12,7 +12,8 @@ export function Field({
   errors?: string[]
   children: ReactElement<{ id?: string }>
 }) {
-  const id = useId()
+  const generatedId = useId()
+  const id = children.props.id ?? generatedId
   return (
     <div className="space-y-1">
       <label htmlFor={id} className="block text-sm text-text-secondary">

@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import { ApiError } from '../api/api'
 import { createFakeApi, fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
@@ -146,5 +146,15 @@ describe('editors', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/'))
     expect(calls).toContain('deleteProject')
     confirm.mockRestore()
+  })
+
+  test('closes the editor when the edited task is deleted elsewhere', async () => {
+    const { api, state, beta } = seeded()
+    const { user, queryClient } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    await user.click(await screen.findByRole('button', { name: 'Edit "Ship"' }))
+    expect(dialog()).toBeInTheDocument()
+    state.world.tasks = state.world.tasks.filter((t) => t.title !== 'Ship')
+    await act(() => queryClient.invalidateQueries({ queryKey: ['world'] }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 })

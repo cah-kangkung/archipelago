@@ -1,6 +1,5 @@
-import type { MilestoneDto, ProjectDto, TaskDto } from '@archipelago/shared'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { EditorFrame } from '../editors/editor-frame'
 import { MilestoneForm } from '../editors/milestone-form'
 import { ProjectForm } from '../editors/project-form'
@@ -16,11 +15,11 @@ import { useShortcuts } from './use-shortcuts'
 
 type Editor =
   | { kind: 'new-project' }
-  | { kind: 'edit-project'; project: ProjectDto }
+  | { kind: 'edit-project'; projectId: string }
   | { kind: 'new-milestone'; projectId: string }
-  | { kind: 'edit-milestone'; milestone: MilestoneDto }
+  | { kind: 'edit-milestone'; milestoneId: string }
   | { kind: 'new-task'; projectId: string; milestoneId: string | null }
-  | { kind: 'edit-task'; task: TaskDto }
+  | { kind: 'edit-task'; taskId: string }
 
 const editorTitle: Record<Editor['kind'], string> = {
   'new-project': 'New island',
@@ -52,6 +51,26 @@ export function WorldScreen() {
       setEditor({ kind: 'new-task', projectId: focus.projectId, milestoneId: focus.milestoneId })
     }
   }
+
+  const editedProject =
+    editor?.kind === 'edit-project'
+      ? world.data?.projects.find((p) => p.id === editor.projectId)
+      : undefined
+  const editedMilestone =
+    editor?.kind === 'edit-milestone'
+      ? world.data?.milestones.find((m) => m.id === editor.milestoneId)
+      : undefined
+  const editedTask =
+    editor?.kind === 'edit-task' ? world.data?.tasks.find((t) => t.id === editor.taskId) : undefined
+  const editedMissing =
+    world.data !== undefined &&
+    ((editor?.kind === 'edit-project' && !editedProject) ||
+      (editor?.kind === 'edit-milestone' && !editedMilestone) ||
+      (editor?.kind === 'edit-task' && !editedTask))
+
+  useEffect(() => {
+    if (editedMissing) setEditor(null)
+  }, [editedMissing])
 
   useShortcuts({
     enabled: isDesktop,
@@ -108,9 +127,13 @@ export function WorldScreen() {
           onNewMilestone={
             project ? () => setEditor({ kind: 'new-milestone', projectId: project.id }) : undefined
           }
-          onEditProject={project ? () => setEditor({ kind: 'edit-project', project }) : undefined}
+          onEditProject={
+            project ? () => setEditor({ kind: 'edit-project', projectId: project.id }) : undefined
+          }
           onEditMilestone={
-            milestone ? () => setEditor({ kind: 'edit-milestone', milestone }) : undefined
+            milestone
+              ? () => setEditor({ kind: 'edit-milestone', milestoneId: milestone.id })
+              : undefined
           }
         />
       </div>
@@ -122,24 +145,24 @@ export function WorldScreen() {
           today={today}
           searchRef={searchRef}
           onNewTask={openNewTask}
-          onEditTask={(task) => setEditor({ kind: 'edit-task', task })}
+          onEditTask={(task) => setEditor({ kind: 'edit-task', taskId: task.id })}
         />
       </PanelFrame>
 
-      {editor && (
+      {editor && !editedMissing && (
         <EditorFrame title={editorTitle[editor.kind]} onClose={closeEditor}>
           {editor.kind === 'new-project' && <ProjectForm onDone={closeEditor} />}
-          {editor.kind === 'edit-project' && (
-            <ProjectForm project={editor.project} onDone={afterRemoval('/')} />
+          {editor.kind === 'edit-project' && editedProject && (
+            <ProjectForm project={editedProject} onDone={afterRemoval('/')} />
           )}
           {editor.kind === 'new-milestone' && (
             <MilestoneForm projectId={editor.projectId} onDone={closeEditor} />
           )}
-          {editor.kind === 'edit-milestone' && (
+          {editor.kind === 'edit-milestone' && editedMilestone && (
             <MilestoneForm
-              projectId={editor.milestone.projectId}
-              milestone={editor.milestone}
-              onDone={afterRemoval(`/p/${editor.milestone.projectId}`)}
+              projectId={editedMilestone.projectId}
+              milestone={editedMilestone}
+              onDone={afterRemoval(`/p/${editedMilestone.projectId}`)}
             />
           )}
           {editor.kind === 'new-task' && (
@@ -150,11 +173,11 @@ export function WorldScreen() {
               onDone={closeEditor}
             />
           )}
-          {editor.kind === 'edit-task' && (
+          {editor.kind === 'edit-task' && editedTask && (
             <TaskForm
               world={world.data}
-              projectId={editor.task.projectId}
-              task={editor.task}
+              projectId={editedTask.projectId}
+              task={editedTask}
               onDone={closeEditor}
             />
           )}

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
@@ -13,11 +13,14 @@ export function useShortcuts({
   onSearch: () => void
   onEscape: () => void
 }) {
+  const handlers = useRef({ onNew, onSearch, onEscape })
+  handlers.current = { onNew, onSearch, onEscape }
+
   useEffect(() => {
     if (!enabled) return
     const handler = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onEscape()
+        handlers.current.onEscape()
         return
       }
       const target = event.target instanceof HTMLElement ? event.target : null
@@ -26,13 +29,13 @@ export function useShortcuts({
       if (typing || event.metaKey || event.ctrlKey || event.altKey) return
       if (event.key === 'n' || event.key === 'N') {
         event.preventDefault()
-        onNew()
+        handlers.current.onNew()
       } else if (event.key === '/') {
         event.preventDefault()
-        onSearch()
+        handlers.current.onSearch()
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [enabled, onNew, onSearch, onEscape])
+  }, [enabled])
 }
