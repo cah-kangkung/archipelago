@@ -152,3 +152,49 @@ export async function deleteTask(db: Db, userId: string, taskId: string, now: Da
     await syncMilestoneCompletion(tx, task.milestoneId, now)
   })
 }
+
+export async function completeTask(
+  db: Db,
+  userId: string,
+  taskId: string,
+  now: Date,
+): Promise<{ task: TaskDto; milestoneCompleted: boolean }> {
+  return db.transaction(async (tx) => {
+    await lockOwnedTaskProject(tx, userId, taskId)
+    // Re-read under the project lock so the checks below cannot be stale.
+    const task = await findOwnedTask(tx, userId, taskId)
+    if (!task) throw notFound()
+    if (task.status === 'done') throw new AppError('conflict', 'Task is already done')
+    const [row] = await tx
+      .update(tasks)
+      .set({ status: 'done', completedAt: now, updatedAt: now })
+      .where(eq(tasks.id, taskId))
+      .returning()
+    if (!row) throw notFound()
+    const milestone = await syncMilestoneCompletion(tx, row.milestoneId, now)
+    return { task: toTaskDto(row), milestoneCompleted: milestone === 'completed' }
+  })
+}
+
+export async function reopenTask(
+  db: Db,
+  userId: string,
+  taskId: string,
+  now: Date,
+): Promise<{ task: TaskDto; milestoneReopened: boolean }> {
+  return db.transaction(async (tx) => {
+    await lockOwnedTaskProject(tx, userId, taskId)
+    // Re-read under the project lock so the checks below cannot be stale.
+    const task = await findOwnedTask(tx, userId, taskId)
+    if (!task) throw notFound()
+    if (task.status !== 'done') throw new AppError('conflict', 'Task is not done')
+    const [row] = await tx
+      .update(tasks)
+      .set({ status: 'todo', completedAt: null, updatedAt: now })
+      .where(eq(tasks.id, taskId))
+      .returning()
+    if (!row) throw notFound()
+    const milestone = await syncMilestoneCompletion(tx, row.milestoneId, now)
+    return { task: toTaskDto(row), milestoneReopened: milestone === 'reopened' }
+  })
+}
