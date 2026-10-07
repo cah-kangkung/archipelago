@@ -208,7 +208,7 @@ UI spacing follows the A'raf scale: 4, 8, 12, 16, 20, 24, 32, 40, 48, 64. Radii 
 
 | Breakpoint | Layout |
 |---|---|
-| < 768px (phone, primary target) | Full-screen world, 3-detent bottom sheet (`vaul`), full-screen editor sheets, touch gestures, ≥ 44px targets |
+| < 768px (phone, primary target) | Full-screen world, 3-detent non-modal bottom sheet (custom), full-screen editor sheets (`vaul`, modal), touch gestures, ≥ 44px targets |
 | 768–1023px (tablet) | Same as phone, sheet max-width ~640px, centred |
 | ≥ 1024px (desktop) | Resizable right side panel (~400px default) replacing the sheet. Editors and shop open as centred dialogs. Wheel zoom, click-drag pan, hover tooltips (title + due date). Shortcuts: `N` new task, `Esc` back, `/` search |
 
@@ -361,7 +361,7 @@ Multi-user features, tags, subtasks, recurring tasks, attachments, task dependen
 - **App:** Vite + React + TypeScript, TanStack Router (typed routes `/login`, `/`, `/p/$projectId`, `/p/$projectId/m/$milestoneId`), TanStack Query.
 - **API calls:** Hono's typed client (`hono/client`) over the API's exported `AppType`.
 - **Styling:** Tailwind CSS with A'raf tokens from `packages/ui-tokens`.
-- **Task panel:** `vaul` bottom sheet below 1024px, resizable side panel at 1024px and up.
+- **Task panel:** a custom non-modal 3-detent bottom sheet below 1024px (the world above stays interactive), and a resizable side panel at 1024px and up. `vaul` is used only for the modal editor sheets: vaul 1.1.2 cannot render a non-modal drawer because it never passes `modal` through to the Radix dialog.
 - **Dev setup:** the Vite dev server proxies `/api` to the API, so the session cookie is same-origin.
 - **Tests:** Vitest + React Testing Library.
 
