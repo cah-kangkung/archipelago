@@ -4,6 +4,10 @@ import { scenePalette } from './model/palette'
 import type { SceneModel } from './model/scene-model'
 import { Sea } from './sea'
 
+// Lambert divides by π; ×π lets a top face lit by both lights read near its token (§13.3).
+const HEMISPHERE_INTENSITY = Math.PI * 0.55
+const DIRECTIONAL_INTENSITY = Math.PI * 0.6
+
 export type SceneHandlers = {
   onSelect: (taskId: string | null) => void
   onOpenIsland: (projectId: string) => void
@@ -28,8 +32,8 @@ export function WorldContents({
   const focusedId = focus.kind === 'archipelago' ? null : focus.projectId
   return (
     <>
-      <hemisphereLight args={[scenePalette.wall, scenePalette.sea, 0.9]} />
-      <directionalLight position={[12, 20, 6]} intensity={1.6} />
+      <hemisphereLight args={[scenePalette.wall, scenePalette.sea, HEMISPHERE_INTENSITY]} />
+      <directionalLight position={[12, 20, 6]} intensity={DIRECTIONAL_INTENSITY} />
       <Sea bounds={model.bounds} animate={animate} onTapSea={() => handlers.onSelect(null)} />
       {model.islands.map((island) => (
         <Island

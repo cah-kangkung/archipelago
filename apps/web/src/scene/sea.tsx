@@ -6,8 +6,11 @@ import type { Bounds } from './model/scene-model'
 import { SEA_LEVEL } from './models/terrain-geometry'
 import { onTap } from './tap'
 
-/** Open water beyond the outermost island, in world units. */
-const SEA_MARGIN = 60
+/** Open water beyond the outermost island, in world units: enough to fill a desktop viewport at
+ * archipelago zoom. */
+const SEA_MARGIN = 250
+/** Plane segments per side; the margin grew, so this keeps the wave's resolution. */
+const SEA_SEGMENTS = 96
 const WAVE_HEIGHT = 0.05
 
 export function Sea({
@@ -24,8 +27,8 @@ export function Sea({
     const g = new THREE.PlaneGeometry(
       maxX - minX + SEA_MARGIN * 2,
       maxZ - minZ + SEA_MARGIN * 2,
-      48,
-      48,
+      SEA_SEGMENTS,
+      SEA_SEGMENTS,
     )
     g.rotateX(-Math.PI / 2)
     g.translate((minX + maxX) / 2, SEA_LEVEL, (minZ + maxZ) / 2)
