@@ -15,6 +15,7 @@ import {
   DISTRICT_ZOOM,
   focusKey,
   ISLAND_ZOOM,
+  openingIsland,
 } from './camera'
 import { hexToWorld, islandExtent, LAND_HEIGHT, SQRT3 } from './hex-space'
 import { mulberry32 } from './random'
@@ -253,5 +254,43 @@ describe('camera', () => {
     expect(focusKey({ kind: 'island', projectId: 'a' })).not.toBe(
       focusKey({ kind: 'island', projectId: 'b' }),
     )
+  })
+
+  test('cameraTarget centres an archipelago anchor island, and ignores an unknown one', () => {
+    const home = fakeProject({ archipelagoX: 0, archipelagoY: 0 })
+    const p = fakeProject({ archipelagoX: 1, archipelagoY: 0 })
+    const model = buildSceneModel(world({ projects: [home, p] }), today)
+    const island = model.islands.find((i) => i.projectId === p.id)
+    expect(cameraTarget(model, { kind: 'archipelago' }, p.id)).toEqual({
+      ...island?.origin,
+      zoom: ARCHIPELAGO_ZOOM,
+    })
+    expect(cameraTarget(model, { kind: 'archipelago' }, 'gone')).toEqual(
+      cameraTarget(model, { kind: 'archipelago' }),
+    )
+    // The anchor only matters in archipelago view.
+    expect(cameraTarget(model, { kind: 'island', projectId: home.id }, p.id).zoom).toBe(ISLAND_ZOOM)
+  })
+
+  test('openingIsland: stepping out, then urgency, then last viewed, else none', () => {
+    const s = (id: string, overdue: number, dueSoon: number) => ({
+      project: { id },
+      overdue,
+      dueSoon,
+    })
+    const calm = [s('a', 0, 0), s('b', 0, 0)]
+    const urgent = [s('a', 0, 3), s('b', 1, 0), s('c', 1, 2)]
+    expect(openingIsland(urgent, 'a', 'b')).toBe('a')
+    expect(openingIsland(urgent, null, 'a')).toBe('c') // overdue first, due-soon breaks the tie
+    expect(openingIsland([s('a', 1, 0), s('b', 1, 0)], null, null)).toBe('a') // switcher order
+    expect(openingIsland(calm, null, 'b')).toBe('b')
+    expect(openingIsland(calm, null, null)).toBeNull()
+  })
+
+  test('openingIsland skips a deleted previous or last-viewed island', () => {
+    const s = (id: string, overdue: number) => ({ project: { id }, overdue, dueSoon: 0 })
+    expect(openingIsland([s('a', 0), s('b', 2)], 'deleted', null)).toBe('b')
+    expect(openingIsland([s('a', 0)], 'deleted', 'also-deleted')).toBeNull()
+    expect(openingIsland([s('a', 0)], 'deleted', 'a')).toBe('a')
   })
 })

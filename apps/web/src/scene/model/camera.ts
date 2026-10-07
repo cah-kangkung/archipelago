@@ -9,15 +9,27 @@ export const MAX_ZOOM_FACTOR = 3
 
 export type CameraTarget = { x: number; z: number; zoom: number }
 
-/** Where the camera looks for a route, in world coordinates. Unknown ids fall back a level. */
-export function cameraTarget(model: SceneModel, focus: Focus): CameraTarget {
+/**
+ * Where the camera looks for a route, in world coordinates. Unknown ids fall back a level. In
+ * archipelago view a known `anchor` island is centred instead of the middle of the world.
+ */
+export function cameraTarget(
+  model: SceneModel,
+  focus: Focus,
+  anchor: string | null = null,
+): CameraTarget {
   const { bounds } = model
   const overview = {
     x: (bounds.minX + bounds.maxX) / 2,
     z: (bounds.minZ + bounds.maxZ) / 2,
     zoom: ARCHIPELAGO_ZOOM,
   }
-  if (focus.kind === 'archipelago') return overview
+  if (focus.kind === 'archipelago') {
+    const anchored = model.islands.find((i) => i.projectId === anchor)
+    return anchored
+      ? { x: anchored.origin.x, z: anchored.origin.z, zoom: ARCHIPELAGO_ZOOM }
+      : overview
+  }
   const island = model.islands.find((i) => i.projectId === focus.projectId)
   if (!island) return overview
   const islandTarget = { x: island.origin.x, z: island.origin.z, zoom: ISLAND_ZOOM }
@@ -29,6 +41,36 @@ export function cameraTarget(model: SceneModel, focus: Focus): CameraTarget {
     z: island.origin.z + district.position.z,
     zoom: DISTRICT_ZOOM,
   }
+}
+
+type OpeningCandidate = { project: { id: string }; overdue: number; dueSoon: number }
+
+/**
+ * The island the archipelago opens on (spec §14.2): the island just stepped out of, else the most
+ * urgent one (overdue first, then due soon, then switcher order), else the last viewed. Ids that
+ * are no longer in `summaries` are skipped.
+ */
+export function openingIsland(
+  summaries: readonly OpeningCandidate[],
+  previous: string | null,
+  lastViewed: string | null,
+): string | null {
+  const known = (id: string | null): id is string =>
+    id !== null && summaries.some((s) => s.project.id === id)
+  if (known(previous)) return previous
+  let best: OpeningCandidate | undefined
+  for (const s of summaries) {
+    if (s.overdue + s.dueSoon === 0) continue
+    if (
+      !best ||
+      s.overdue > best.overdue ||
+      (s.overdue === best.overdue && s.dueSoon > best.dueSoon)
+    ) {
+      best = s
+    }
+  }
+  if (best) return best.project.id
+  return known(lastViewed) ? lastViewed : null
 }
 
 export function clampToBounds(bounds: Bounds, x: number, z: number): { x: number; z: number } {
