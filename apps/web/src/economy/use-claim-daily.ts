@@ -13,6 +13,7 @@ export function useClaimDaily() {
 
   return useMutation({
     mutationFn: () => api.claimDaily(),
+    onMutate: () => queryClient.cancelQueries({ queryKey: key }),
     onSuccess: ({ reward, economy }) => {
       queryClient.setQueryData(key, (world) => (world ? { ...world, economy } : world))
       const message = formatRewards([reward])

@@ -29,7 +29,7 @@ export function TaskRow({
   const onDelete = () => {
     const prompt =
       task.status === 'done'
-        ? `Delete "${task.title}"? Its Supplies will be taken back.`
+        ? `Delete "${task.title}"? Any Supplies it earned will be taken back.`
         : `Delete "${task.title}"?`
     if (window.confirm(prompt)) remove.mutate(task)
   }

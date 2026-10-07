@@ -117,4 +117,15 @@ describe('economySnapshot', () => {
       daily: { amount: 15, claimedToday: false },
     })
   })
+
+  test('localDate stays correct when zones are interleaved and reused', () => {
+    const instant = new Date('2026-10-07T20:00:00Z')
+    const results = [
+      localDate(instant, 'UTC'),
+      localDate(instant, 'Asia/Jakarta'),
+      localDate(instant, 'UTC'),
+      localDate(instant, 'Asia/Jakarta'),
+    ]
+    expect(results).toEqual(['2026-10-07', '2026-10-08', '2026-10-07', '2026-10-08'])
+  })
 })

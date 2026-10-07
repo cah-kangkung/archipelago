@@ -213,7 +213,9 @@ describe('TaskPanel', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const { user } = renderApp({ api, path, desktop: true })
     await user.click(await screen.findByRole('button', { name: 'Delete "Finished"' }))
-    expect(confirm).toHaveBeenCalledWith('Delete "Finished"? Its Supplies will be taken back.')
+    expect(confirm).toHaveBeenCalledWith(
+      'Delete "Finished"? Any Supplies it earned will be taken back.',
+    )
     confirm.mockRestore()
   })
 })

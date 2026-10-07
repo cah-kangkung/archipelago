@@ -1,6 +1,7 @@
 import {
   type AuthUserDto,
   type CompleteTaskResultDto,
+  DAILY_BONUS,
   economySnapshot,
   type LedgerKind,
   localDate,
@@ -117,6 +118,7 @@ export function createFakeApi(seed: Partial<FakeState> = {}) {
     if (!task) throw new ApiError(404, 'not_found', 'Task not found')
     return task
   }
+  // Streak bonuses are not simulated here (covered by server tests), so streakDays is always null.
   const toReward = (e: FakeEntry): RewardDto => ({
     kind: e.kind as RewardDto['kind'],
     amount: e.amount,
@@ -332,7 +334,12 @@ export function createFakeApi(seed: Partial<FakeState> = {}) {
       if (economy().daily.claimedToday) {
         throw new ApiError(409, 'conflict', 'Daily bonus already claimed today')
       }
-      const reward = pay({ kind: 'daily_bonus', amount: 15, taskId: null, milestoneId: null })
+      const reward = pay({
+        kind: 'daily_bonus',
+        amount: DAILY_BONUS,
+        taskId: null,
+        milestoneId: null,
+      })
       return { reward, economy: economy() }
     },
   }

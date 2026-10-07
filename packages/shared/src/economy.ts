@@ -22,14 +22,21 @@ export function milestoneBonus(sizes: readonly TaskSize[]): number {
   return Math.floor(sum * MILESTONE_BONUS_RATE)
 }
 
+const formatters = new Map<string, Intl.DateTimeFormat>()
+
 export function localDate(instant: Date, timeZone: string): string {
-  // en-CA formats as YYYY-MM-DD.
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(instant)
+  let formatter = formatters.get(timeZone)
+  if (!formatter) {
+    // en-CA formats as YYYY-MM-DD.
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+    formatters.set(timeZone, formatter)
+  }
+  return formatter.format(instant)
 }
 
 export function addDays(isoDate: string, days: number): string {
