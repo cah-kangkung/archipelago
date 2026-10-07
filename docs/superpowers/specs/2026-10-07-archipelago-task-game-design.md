@@ -512,5 +512,5 @@ No Three.js imports; all of it is unit-tested.
 - **Model:** hex maths, island radius growth, no-overlap spacing over random worlds, terrain determinism with a flat interior under every plot, the full structure-state table (including the 48h boundary and a non-UTC `today`), landmark progress (0 tasks, partial, `completedAt`), camera targets per focus.
 - **Model geometry:** each builder returns a non-empty indexed geometry inside its hex footprint, coloured only from the palette.
 - **Scene graph** (`@react-three/test-renderer`): instance counts and colours per kind match the model; an island click navigates; a structure click selects; a click with delta > 6px does nothing; reduced motion runs no ticker.
-- **App** (RTL on the WebGL fallback): existing world-screen tests still pass; selecting highlights and scrolls the row and raises the sheet; HUD buttons open the right editors.
+- **App** (RTL): existing world-screen tests still pass on the WebGL fallback. Selection and HUD tests replace the lazy scene module with a stub that calls `onSelect` / renders the HUD: selecting highlights and scrolls the row and raises the sheet; HUD buttons open the right editors.
 - **Manual:** `bun dev` on desktop and on a phone over the LAN; real-device fps tuning is Phase 5.
