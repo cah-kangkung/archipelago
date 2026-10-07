@@ -6,6 +6,7 @@ import {
   Outlet,
   type RouterHistory,
   redirect,
+  useRouter,
 } from '@tanstack/react-router'
 import { type Api, ApiError } from '../api/api'
 import { LoginPage } from '../auth/login-page'
@@ -15,7 +16,28 @@ import { meQuery } from '../world/use-world'
 
 export type RouterContext = { queryClient: QueryClient; api: Api }
 
-const rootRoute = createRootRouteWithContext<RouterContext>()({ component: Outlet })
+function RouterError() {
+  const router = useRouter()
+  return (
+    <div className="space-y-3 p-4">
+      <div role="alert" className="text-error">
+        Something went wrong loading Archipelago.
+      </div>
+      <button
+        type="button"
+        onClick={() => void router.invalidate()}
+        className="min-h-11 rounded-md bg-brand px-4 font-medium text-text-on-brand"
+      >
+        Try again
+      </button>
+    </div>
+  )
+}
+
+const rootRoute = createRootRouteWithContext<RouterContext>()({
+  component: Outlet,
+  errorComponent: RouterError,
+})
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,

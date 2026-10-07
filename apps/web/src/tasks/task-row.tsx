@@ -60,7 +60,7 @@ export function TaskRow({
           type="button"
           aria-label={`Edit "${task.title}"`}
           onClick={() => onEdit(task)}
-          className="min-h-11 rounded-md px-2 text-sm text-brand"
+          className="min-h-11 min-w-11 rounded-md px-2 text-sm text-brand"
         >
           Edit
         </button>
@@ -70,7 +70,7 @@ export function TaskRow({
         aria-label={`Delete "${task.title}"`}
         disabled={busy}
         onClick={onDelete}
-        className="min-h-11 rounded-md px-2 text-sm text-error disabled:opacity-60"
+        className="min-h-11 min-w-11 rounded-md px-2 text-sm text-error disabled:opacity-60"
       >
         Delete
       </button>
