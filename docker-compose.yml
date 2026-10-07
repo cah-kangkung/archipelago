@@ -16,5 +16,19 @@ services:
       timeout: 3s
       retries: 15
 
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://archipelago:archipelago@postgres:5432/archipelago
+      COOKIE_SECURE: "false"
+      TRUST_PROXY: "false"
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   pgdata:
