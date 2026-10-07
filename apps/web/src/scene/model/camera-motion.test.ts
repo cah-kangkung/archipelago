@@ -93,13 +93,22 @@ describe('flight', () => {
     }
   })
 
-  test('the hop fits the visible area, not the part under the sheet', () => {
+  test('the hop fits the framed area, not the part under the sheet', () => {
     const a: View = { x: 0, z: 0, zoom: 48 }
     const b: View = { x: 0, z: 9, zoom: 48 }
     const open: Frame = { width: 400, height: 800, covered: 0, framed: 0 }
-    const sheet: Frame = { width: 400, height: 800, covered: 600, framed: 400 }
+    const sheet: Frame = { width: 400, height: 800, covered: 600, framed: 600 }
     expect(hopZoom(a, b, open)).toBeNull()
     expect(hopZoom(a, b, sheet)).not.toBeNull()
+  })
+
+  test('a tall sheet at the top detent does not zero the zoom', () => {
+    const a: View = { x: 0, z: 0, zoom: 48 }
+    const b: View = { x: 60, z: -20, zoom: 48 }
+    const tallSheet: Frame = { width: 400, height: 800, covered: 800, framed: 400 }
+    const zoom = flyFrame(a, b, 0.5, tallSheet).zoom
+    expect(Number.isFinite(zoom)).toBe(true)
+    expect(zoom).toBeGreaterThan(0)
   })
 
   test('duration stays within 450–900ms and grows with travel', () => {

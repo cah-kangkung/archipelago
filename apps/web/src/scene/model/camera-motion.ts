@@ -23,11 +23,12 @@ export const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3
 
 /**
  * The zoom a flight dips to so both endpoints stay on screen mid-flight, or null when they already
- * fit at the smaller of the two zooms.
+ * fit at the smaller of the two zooms. Fits against the framed area so a tall sheet cannot zero it.
  */
 export function hopZoom(from: View, to: View, frame: Frame): number | null {
   const { sx, sy } = toScreen(to.x - from.x, to.z - from.z, 1)
-  const { width, height } = visibleSize(frame)
+  const width = frame.width
+  const height = Math.max(1, frame.height - frame.framed)
   const fit = Math.min(
     sx === 0 ? Infinity : (width * HOP_FILL) / Math.abs(sx),
     sy === 0 ? Infinity : (height * HOP_FILL) / Math.abs(sy),
