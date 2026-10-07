@@ -11,6 +11,7 @@ import {
   hopZoom,
   isOutside,
   springFrame,
+  unbandedTarget,
 } from './camera-motion'
 import {
   type Frame,
@@ -150,6 +151,19 @@ describe('rubber band', () => {
     expect(p.x).toBeLessThan(14)
     expect(p.z).toBeLessThan(-5)
     expect(p.z).toBeGreaterThan(-9)
+  })
+
+  test('unbandedTarget inverts bandedTarget, inside and outside, on both axes', () => {
+    for (const p of [
+      { x: 3, z: -2 },
+      { x: 30, z: -25 },
+      { x: -17, z: 9 },
+      { x: 12, z: 0 },
+    ]) {
+      const back = unbandedTarget(bounds, bandedTarget(bounds, p, 4), 4)
+      expect(back.x).toBeCloseTo(p.x)
+      expect(back.z).toBeCloseTo(p.z)
+    }
   })
 
   test('isOutside and the spring that brings the target home', () => {

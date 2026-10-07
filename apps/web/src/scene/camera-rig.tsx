@@ -11,6 +11,7 @@ import {
   isOutside,
   SPRING_MS,
   springFrame,
+  unbandedTarget,
 } from './model/camera-motion'
 import type { Point } from './model/hex-space'
 import type { SceneModel } from './model/scene-model'
@@ -202,7 +203,13 @@ export function CameraRig({
     if (m.kind === 'idle') return
     motion.current = IDLE
     const here = viewOf(camera)
-    pan.current = { raw: null, shown: { x: here.x, z: here.z } }
+    // Keep the stretch: the shown point may be banded, so the raw drag is its inverse.
+    const { bounds, frame: f } = latest.current
+    const shown = { x: here.x, z: here.z }
+    pan.current = {
+      raw: unbandedTarget(bounds, shown, bandLimit(f, camera.zoom)),
+      shown,
+    }
     if (m.kind === 'fly') {
       setZoomLimits(
         Math.min(m.to.zoom, here.zoom),

@@ -90,6 +90,27 @@ export function bandedTarget(bounds: Bounds, p: Point, limit: number): Point {
   }
 }
 
+/** The raw overshoot that `band` shows as `shown`: the inverse of `band`. */
+export function unband(shown: number, limit: number): number {
+  if (shown <= 0 || limit <= 0) return 0
+  const b = Math.min(shown, limit * (1 - 1e-9))
+  return (limit * b) / (limit - b)
+}
+
+function unbandAxis(value: number, min: number, max: number, limit: number): number {
+  if (value < min) return min - unband(min - value, limit)
+  if (value > max) return max + unband(value - max, limit)
+  return value
+}
+
+/** The inverse of `bandedTarget`: where a drag must have been to be shown at `p`. */
+export function unbandedTarget(bounds: Bounds, p: Point, limit: number): Point {
+  return {
+    x: unbandAxis(p.x, bounds.minX, bounds.maxX, limit),
+    z: unbandAxis(p.z, bounds.minZ, bounds.maxZ, limit),
+  }
+}
+
 export function isOutside(bounds: Bounds, p: Point): boolean {
   const inside = clampToBounds(bounds, p.x, p.z)
   return inside.x !== p.x || inside.z !== p.z

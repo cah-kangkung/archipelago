@@ -166,6 +166,22 @@ describe('CameraRig', () => {
     expect(view().x).toBeCloseTo(maxX)
   })
 
+  test('grabbing a spring-back mid-way leaves the camera where it is', async () => {
+    const r = await mount({ model: both, focus: onGamma })
+    const c = controls()
+    c.dispatchEvent({ type: 'start' })
+    const push = both.bounds.maxX + 50 - c.target.x
+    c.target.x += push
+    camera().position.x += push
+    c.dispatchEvent({ type: 'change' })
+    c.dispatchEvent({ type: 'end' })
+    await r.advanceFrames(2, 0.1)
+    const mid = view().x
+    c.dispatchEvent({ type: 'start' })
+    c.dispatchEvent({ type: 'change' })
+    expect(view().x).toBeCloseTo(mid)
+  })
+
   test('a refetch that shrinks the world springs a resting camera back inside', async () => {
     const r = await mount({ model: both, focus: archipelago })
     const before = view()
