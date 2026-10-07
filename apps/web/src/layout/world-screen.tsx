@@ -89,6 +89,9 @@ export function WorldScreen() {
 
   // The island of the latest island or district route: where the archipelago opens on step-out.
   const lastProject = useRef<string | null>(null)
+  // An island just deleted or archived: the world cache still lists it until the refetch lands, so
+  // the archipelago must not open on it.
+  const removedProject = useRef<string | null>(null)
   const shownProjectId = resolved?.project?.id
   useEffect(() => {
     if (!shownProjectId) return
@@ -137,7 +140,11 @@ export function WorldScreen() {
   const summaries = islandSummaries(world.data, today)
   const anchor =
     resolved.focus.kind === 'archipelago'
-      ? openingIsland(summaries, lastProject.current, readLastIsland())
+      ? openingIsland(
+          summaries.filter((s) => s.project.id !== removedProject.current),
+          lastProject.current,
+          readLastIsland(),
+        )
       : null
   const selectedTask = world.data.tasks.find((t) => t.id === selectedTaskId)
   const panelTitle = resolved.milestone?.name ?? resolved.project?.name ?? 'Due today & overdue'
@@ -145,10 +152,15 @@ export function WorldScreen() {
 
   const closeEditor = () => setEditor(null)
   const afterRemoval =
-    (to: string) =>
+    (to: string, removedProjectId?: string) =>
     async ({ removed }: { removed: boolean }) => {
       setEditor(null)
-      if (removed) await navigate({ to })
+      if (!removed) return
+      if (removedProjectId) {
+        removedProject.current = removedProjectId
+        if (lastProject.current === removedProjectId) lastProject.current = null
+      }
+      await navigate({ to })
     }
 
   return (
@@ -218,7 +230,7 @@ export function WorldScreen() {
         <EditorFrame title={editorTitle[editor.kind]} onClose={closeEditor}>
           {editor.kind === 'new-project' && <ProjectForm onDone={closeEditor} />}
           {editor.kind === 'edit-project' && editedProject && (
-            <ProjectForm project={editedProject} onDone={afterRemoval('/')} />
+            <ProjectForm project={editedProject} onDone={afterRemoval('/', editedProject.id)} />
           )}
           {editor.kind === 'new-milestone' && (
             <MilestoneForm projectId={editor.projectId} onDone={closeEditor} />

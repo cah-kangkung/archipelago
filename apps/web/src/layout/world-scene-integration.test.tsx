@@ -4,6 +4,9 @@ import type { WorldSceneProps } from '../scene/world-scene'
 import { createFakeApi, fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
 import { renderApp } from '../test/render-app'
 
+// Every anchor the stub scene was ever rendered with, in order.
+const seenAnchors = vi.hoisted((): string[] => [])
+
 vi.mock('../scene/webgl', () => ({ hasWebGL: () => true, resetWebGLProbe: () => {} }))
 
 // Stands in for the WebGL canvas: exposes the scene's callbacks as plain buttons.
@@ -18,55 +21,58 @@ vi.mock('../scene/world-scene', () => ({
     coveredBottom,
     indicators,
     anchor,
-  }: WorldSceneProps) => (
-    <div
-      data-testid="scene"
-      data-focus={focus.kind}
-      data-selected={selectedTaskId ?? ''}
-      data-covered={coveredBottom}
-      data-anchor={anchor ?? ''}
-    >
-      <button
-        type="button"
-        onClick={() =>
-          indicators.set([
-            {
-              projectId: model.islands[0]?.projectId ?? '',
-              name: model.islands[0]?.name ?? '',
-              urgency: 'overdue',
-              count: 2,
-              left: 10,
-              top: 20,
-              angle: 0,
-            },
-          ])
-        }
+  }: WorldSceneProps) => {
+    seenAnchors.push(anchor ?? '')
+    return (
+      <div
+        data-testid="scene"
+        data-focus={focus.kind}
+        data-selected={selectedTaskId ?? ''}
+        data-covered={coveredBottom}
+        data-anchor={anchor ?? ''}
       >
-        report indicator
-      </button>
-      {model.islands.map((island) => (
-        <div key={island.projectId}>
-          <button type="button" onClick={() => onOpenIsland(island.projectId)}>
-            open {island.name}
-          </button>
-          {island.districts.map((d) => (
-            <button
-              key={d.milestoneId}
-              type="button"
-              onClick={() => onOpenDistrict(island.projectId, d.milestoneId)}
-            >
-              open district {d.name}
+        <button
+          type="button"
+          onClick={() =>
+            indicators.set([
+              {
+                projectId: model.islands[0]?.projectId ?? '',
+                name: model.islands[0]?.name ?? '',
+                urgency: 'overdue',
+                count: 2,
+                left: 10,
+                top: 20,
+                angle: 0,
+              },
+            ])
+          }
+        >
+          report indicator
+        </button>
+        {model.islands.map((island) => (
+          <div key={island.projectId}>
+            <button type="button" onClick={() => onOpenIsland(island.projectId)}>
+              open {island.name}
             </button>
-          ))}
-          {island.structures.map((s) => (
-            <button key={s.taskId} type="button" onClick={() => onSelect(s.taskId)}>
-              select {s.taskId}
-            </button>
-          ))}
-        </div>
-      ))}
-    </div>
-  ),
+            {island.districts.map((d) => (
+              <button
+                key={d.milestoneId}
+                type="button"
+                onClick={() => onOpenDistrict(island.projectId, d.milestoneId)}
+              >
+                open district {d.name}
+              </button>
+            ))}
+            {island.structures.map((s) => (
+              <button key={s.taskId} type="button" onClick={() => onSelect(s.taskId)}>
+                select {s.taskId}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+    )
+  },
 }))
 
 function seeded() {
@@ -199,6 +205,34 @@ describe('World screen with the 3D scene', () => {
   })
 
   describe('opening focus', () => {
+    test.each([
+      ['Delete island', true],
+      ['Archive island', false],
+    ])(
+      '%s on the island you are on never opens the archipelago on it',
+      async (button, confirms) => {
+        const beta = fakeProject({ name: 'Beta', archipelagoX: 0 })
+        const gamma = fakeProject({ name: 'Gamma', archipelagoX: 1 })
+        // Beta is overdue, so a stale cache would pick it by urgency as well as by stepping out.
+        const late = fakeTask({ projectId: beta.id, title: 'Late', dueDate: '2000-01-01' })
+        const { api } = createFakeApi({
+          world: { projects: [beta, gamma], milestones: [], tasks: [late], buildings: [] },
+        })
+        const confirm = vi.spyOn(window, 'confirm').mockReturnValue(confirms)
+        seenAnchors.length = 0
+        const { user, router } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+        await user.click(await screen.findByRole('button', { name: 'Edit island' }))
+        await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: button }))
+        await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+        // The refetch has landed once the deleted island leaves the scene.
+        await waitFor(() => expect(screen.queryByRole('button', { name: 'open Beta' })).toBeNull())
+        expect(screen.getByRole('button', { name: 'open Gamma' })).toBeInTheDocument()
+        // Not even for one render: the rig would capture that origin as its flight target.
+        expect(seenAnchors).not.toContain(beta.id)
+        confirm.mockRestore()
+      },
+    )
+
     function twoIslands({ gammaOverdue }: { gammaOverdue: boolean }) {
       const beta = fakeProject({ name: 'Beta', archipelagoX: 0 })
       const gamma = fakeProject({ name: 'Gamma', archipelagoX: 1 })
