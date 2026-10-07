@@ -1,6 +1,7 @@
 export * from './auth'
 export * from './domain'
 export * from './dto'
+export * from './economy'
 export * from './errors'
 export * from './hex'
 export * from './resources'
