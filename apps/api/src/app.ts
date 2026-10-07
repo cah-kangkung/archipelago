@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { errorBody, handleError } from './errors'
 import { authRoutes } from './routes/auth'
+import { projectRoutes } from './routes/projects'
 import { tokenRoutes } from './routes/tokens'
 import type { AppEnv, Deps } from './types'
 
@@ -13,6 +14,7 @@ export function createApp(deps: Deps) {
     .get('/health', (c) => c.json({ ok: true }))
     .route('/auth', authRoutes(deps))
     .route('/tokens', tokenRoutes(deps))
+    .route('/projects', projectRoutes(deps))
 }
 
 export type AppType = ReturnType<typeof createApp>
