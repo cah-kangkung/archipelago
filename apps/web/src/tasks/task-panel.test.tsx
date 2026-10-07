@@ -158,4 +158,20 @@ describe('TaskPanel', () => {
       await within(await findPanel()).findByText('Nothing due today. Nice work.'),
     ).toBeInTheDocument()
   })
+
+  test('due state follows the user timezone, not the machine clock', async () => {
+    // 18:30 UTC on Oct 6 is already Oct 7 in Asia/Jakarta (UTC+7), so a task due Oct 7 is due today.
+    vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-10-06T18:30:00Z'))
+    try {
+      const { api, path } = islandWith([{ title: 'Jakarta day', dueDate: '2026-10-07' }])
+      renderApp({ api, path, desktop: true })
+      expect(
+        await within(await findPanel()).findByText('Due soon · 2026-10-07'),
+      ).toBeInTheDocument()
+      expect(within(panel()).queryByText(/Overdue/)).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

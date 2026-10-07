@@ -1,6 +1,7 @@
 import { act, screen, waitFor } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
-import { createFakeApi, fakeProject } from '../test/fake-api'
+import { ApiError } from '../api/api'
+import { createFakeApi, fakeProject, fakeTask } from '../test/fake-api'
 import { renderApp } from '../test/render-app'
 
 describe('auth flow', () => {
@@ -65,5 +66,34 @@ describe('auth flow', () => {
     await act(() => queryClient.invalidateQueries({ queryKey: ['world'] }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  })
+
+  test('a 401 from a mutation sends the user to /login', async () => {
+    const project = fakeProject({ name: 'Beta' })
+    const { api, state } = createFakeApi({
+      world: {
+        projects: [project],
+        milestones: [],
+        tasks: [fakeTask({ projectId: project.id, title: 'Ship' })],
+        buildings: [],
+      },
+    })
+    const { user, router } = renderApp({ api, path: `/p/${project.id}` })
+    const button = await screen.findByRole('button', { name: 'Mark "Ship" as doing' })
+    state.user = null
+    await user.click(button)
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+  })
+
+  test('a failed logout keeps the session and says so', async () => {
+    const { api } = createFakeApi()
+    api.logout = async () => {
+      throw new ApiError(500, 'internal', 'boom')
+    }
+    const { user, router } = renderApp({ api, path: '/' })
+    await user.click(await screen.findByRole('button', { name: 'Log out' }))
+    expect(await screen.findByText("Couldn't log out. Try again.")).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/')
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument()
   })
 })

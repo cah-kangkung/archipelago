@@ -89,4 +89,11 @@ describe('createApi', () => {
     expect(err).toBeInstanceOf(ApiError)
     expect(err).toMatchObject({ status: 502, code: 'internal' })
   })
+
+  test('an error body without an error object still becomes ApiError(internal)', async () => {
+    const { api } = harness(() => json({}, 500))
+    const err = await api.world().catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ApiError)
+    expect(err).toMatchObject({ status: 500, code: 'internal', message: 'Request failed (500)' })
+  })
 })

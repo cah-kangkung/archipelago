@@ -39,9 +39,9 @@ async function unwrap<T>(res: RawResponse): Promise<T> {
   }
   throw new ApiError(
     res.status,
-    body?.error.code ?? 'internal',
-    body?.error.message ?? `Request failed (${res.status})`,
-    body?.error.fields ?? {},
+    body?.error?.code ?? 'internal',
+    body?.error?.message ?? `Request failed (${res.status})`,
+    body?.error?.fields ?? {},
   )
 }
 
