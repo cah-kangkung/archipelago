@@ -169,6 +169,9 @@ describe('rubber band', () => {
   test('isOutside and the spring that brings the target home', () => {
     expect(isOutside(bounds, { x: 10, z: 5 })).toBe(false)
     expect(isOutside(bounds, { x: 10.01, z: 0 })).toBe(true)
+    // Float drift from the controls' spherical round trip is not an overshoot.
+    expect(isOutside(bounds, { x: 10 + 1e-12, z: 5 })).toBe(false)
+    expect(isOutside(bounds, { x: 10 + 1e-3, z: 5 })).toBe(true)
     const from = { x: 13, z: 0 }
     const to = { x: 10, z: 0 }
     expect(springFrame(from, to, 0)).toEqual(from)

@@ -111,9 +111,12 @@ export function unbandedTarget(bounds: Bounds, p: Point, limit: number): Point {
   }
 }
 
+/** World units past an edge that still count as on it: the controls' float drift is ~1e-13. */
+export const EDGE_TOLERANCE = 1e-6
+
 export function isOutside(bounds: Bounds, p: Point): boolean {
   const inside = clampToBounds(bounds, p.x, p.z)
-  return inside.x !== p.x || inside.z !== p.z
+  return Math.abs(inside.x - p.x) > EDGE_TOLERANCE || Math.abs(inside.z - p.z) > EDGE_TOLERANCE
 }
 
 /** The target `t` (0–1) of the way through a spring back to the bounds. */

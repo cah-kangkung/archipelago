@@ -195,4 +195,39 @@ describe('CameraRig', () => {
       zoom: before.zoom,
     })
   })
+
+  test('a spring that lands on the edge settles: float drift past it starts no new spring', async () => {
+    const r = await mount({ model: both, focus: onGamma })
+    const { maxX } = both.bounds
+    const c = controls()
+    c.dispatchEvent({ type: 'start' })
+    const push = maxX + 50 - c.target.x
+    c.target.x += push
+    camera().position.x += push
+    c.dispatchEvent({ type: 'change' })
+    c.dispatchEvent({ type: 'end' })
+    await r.advanceFrames(8, 0.1)
+    expect(view().x).toBeCloseTo(maxX)
+    // controls.update() rebuilds the camera from a spherical round trip, drifting it by ~1e-13.
+    camera().position.x = maxX + ISO_DISTANCE + 1e-13
+    const place = vi.spyOn(camera().position, 'set')
+    await r.advanceFrames(6, 0.1)
+    expect(place).not.toHaveBeenCalled()
+    place.mockRestore()
+  })
+
+  test('reduced motion: a release past the edge snaps straight to the edge', async () => {
+    const r = await mount({ model: both, focus: onGamma, animate: false })
+    const { maxX } = both.bounds
+    const c = controls()
+    c.dispatchEvent({ type: 'start' })
+    const push = maxX + 50 - c.target.x
+    c.target.x += push
+    camera().position.x += push
+    c.dispatchEvent({ type: 'change' })
+    expect(view().x).toBeGreaterThan(maxX)
+    c.dispatchEvent({ type: 'end' })
+    await r.advanceFrames(1, 0.016)
+    expect(view().x).toBeCloseTo(maxX)
+  })
 })
