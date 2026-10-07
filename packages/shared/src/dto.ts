@@ -57,3 +57,9 @@ export type WorldDto = {
   tasks: TaskDto[]
   buildings: BuildingDto[]
 }
+
+export type AuthUserDto = {
+  id: string
+  email: string
+  timezone: string
+}

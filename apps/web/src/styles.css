@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+/* A'raf Design System palette. Must match @archipelago/ui-tokens (see styles.test.ts). */
+@theme {
+  --color-*: initial;
+  --color-brand: #004990;
+  --color-brand-secondary: #0069d2;
+  --color-surface-primary: #ffffff;
+  --color-surface-secondary: #f9fafb;
+  --color-text-primary: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-tertiary: #9ca3af;
+  --color-text-on-brand: #ffffff;
+  --color-border-primary: #e5e7eb;
+  --color-border-secondary: #d1d5db;
+  --color-success: #16a34a;
+  --color-warning: #ba7517;
+  --color-error: #dc2626;
+  --color-info: #0069d2;
+}
