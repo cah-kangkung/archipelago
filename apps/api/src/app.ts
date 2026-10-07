@@ -1,0 +1,13 @@
+import { Hono } from 'hono'
+import { errorBody, handleError } from './errors'
+import type { AppEnv, Deps } from './types'
+
+export function createApp(_deps: Deps) {
+  const app = new Hono<AppEnv>().basePath('/api/v1')
+  app.onError(handleError)
+  app.notFound((c) => c.json(errorBody('not_found', 'Route not found'), 404))
+
+  return app.get('/health', (c) => c.json({ ok: true }))
+}
+
+export type AppType = ReturnType<typeof createApp>
