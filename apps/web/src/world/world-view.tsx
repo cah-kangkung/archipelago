@@ -2,6 +2,7 @@ import type { WorldDto } from '@archipelago/shared'
 import { useNavigate } from '@tanstack/react-router'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { createIndicatorStore } from '../scene/indicator-store'
+import { focusKey } from '../scene/model/camera'
 import type { IslandUrgency } from '../scene/model/indicators'
 import { buildSceneModel } from '../scene/model/scene-model'
 import { hasWebGL } from '../scene/webgl'
@@ -25,6 +26,7 @@ export function WorldView({
   today,
   selectedTaskId,
   coveredBottom,
+  anchor,
   onSelect,
   onNewProject,
   onNewMilestone,
@@ -37,6 +39,7 @@ export function WorldView({
   today: string
   selectedTaskId: string | null
   coveredBottom: number
+  anchor: string | null
   onSelect: (taskId: string | null) => void
   onNewProject?: () => void
   onNewMilestone?: () => void
@@ -69,7 +72,7 @@ export function WorldView({
   // If the scene fails, the cards replace the whole section, HUD included: they carry their own
   // controls.
   return (
-    <SceneBoundary fallback={cards}>
+    <SceneBoundary fallback={cards} resetKey={focusKey(resolved.focus)}>
       <section
         aria-label={label}
         className="relative isolate min-h-0 flex-1 overflow-hidden bg-brand"
@@ -81,6 +84,7 @@ export function WorldView({
               focus={resolved.focus}
               selectedTaskId={selectedTaskId}
               coveredBottom={coveredBottom}
+              anchor={anchor}
               onSelect={onSelect}
               urgent={urgent}
               indicators={indicators}

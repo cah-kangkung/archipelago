@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import type { WorldSceneProps } from '../scene/world-scene'
 import { createFakeApi, fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
@@ -17,12 +17,14 @@ vi.mock('../scene/world-scene', () => ({
     onOpenDistrict,
     coveredBottom,
     indicators,
+    anchor,
   }: WorldSceneProps) => (
     <div
       data-testid="scene"
       data-focus={focus.kind}
       data-selected={selectedTaskId ?? ''}
       data-covered={coveredBottom}
+      data-anchor={anchor ?? ''}
     >
       <button
         type="button"
@@ -194,5 +196,59 @@ describe('World screen with the 3D scene', () => {
     expect(marker).toHaveStyle({ left: '10px', top: '20px' })
     await user.click(marker)
     expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
+  })
+
+  describe('opening focus', () => {
+    function twoIslands({ gammaOverdue }: { gammaOverdue: boolean }) {
+      const beta = fakeProject({ name: 'Beta', archipelagoX: 0 })
+      const gamma = fakeProject({ name: 'Gamma', archipelagoX: 1 })
+      const tasks = gammaOverdue
+        ? [fakeTask({ projectId: gamma.id, title: 'Late', dueDate: '2000-01-01' })]
+        : []
+      const { api } = createFakeApi({
+        world: { projects: [beta, gamma], milestones: [], tasks, buildings: [] },
+      })
+      return { api, beta, gamma }
+    }
+
+    test('a fresh load centres the most urgent island; stepping out centres the one left', async () => {
+      const { api, beta, gamma } = twoIslands({ gammaOverdue: true })
+      const { user } = renderApp({ api, path: '/' })
+      expect(await screen.findByTestId('scene')).toHaveAttribute('data-anchor', gamma.id)
+      await user.click(screen.getByRole('button', { name: 'open Beta' }))
+      await user.click(await screen.findByRole('link', { name: '← Archipelago' }))
+      await waitFor(() =>
+        expect(screen.getByTestId('scene')).toHaveAttribute('data-anchor', beta.id),
+      )
+    })
+
+    test('with nothing urgent, the last-viewed island from an earlier visit is centred', async () => {
+      const { api, gamma } = twoIslands({ gammaOverdue: false })
+      localStorage.setItem('archipelago.lastIsland', gamma.id)
+      renderApp({ api, path: '/' })
+      expect(await screen.findByTestId('scene')).toHaveAttribute('data-anchor', gamma.id)
+    })
+
+    test('showing an island remembers it; storage that throws breaks nothing', async () => {
+      const { api, beta } = twoIslands({ gammaOverdue: false })
+      renderApp({ api, path: `/p/${beta.id}` })
+      await screen.findByTestId('scene')
+      await waitFor(() => expect(localStorage.getItem('archipelago.lastIsland')).toBe(beta.id))
+      cleanup()
+
+      const deny = () => {
+        throw new Error('storage denied')
+      }
+      const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(deny)
+      const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(deny)
+      const { router } = renderApp({ api, path: `/p/${beta.id}` })
+      await screen.findByTestId('scene')
+      await router.navigate({ to: '/' })
+      await waitFor(() =>
+        expect(screen.getByTestId('scene')).toHaveAttribute('data-anchor', beta.id),
+      )
+      get.mockRestore()
+      set.mockRestore()
+    })
   })
 })

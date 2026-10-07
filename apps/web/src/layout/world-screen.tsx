@@ -4,8 +4,10 @@ import { EditorFrame } from '../editors/editor-frame'
 import { MilestoneForm } from '../editors/milestone-form'
 import { ProjectForm } from '../editors/project-form'
 import { TaskForm } from '../editors/task-form'
+import { openingIsland } from '../scene/model/camera'
 import { TaskPanel } from '../tasks/task-panel'
 import { IslandSwitcher } from '../world/island-switcher'
+import { readLastIsland, writeLastIsland } from '../world/last-island'
 import { islandSummaries, parentPath, resolveFocus, todayIn } from '../world/selectors'
 import { useMe, useWorld } from '../world/use-world'
 import { WorldView } from '../world/world-view'
@@ -85,6 +87,15 @@ export function WorldScreen() {
     setSelectedTaskId(null)
   }, [params.projectId, params.milestoneId])
 
+  // The island of the latest island or district route: where the archipelago opens on step-out.
+  const lastProject = useRef<string | null>(null)
+  const shownProjectId = resolved?.project?.id
+  useEffect(() => {
+    if (!shownProjectId) return
+    lastProject.current = shownProjectId
+    writeLastIsland(shownProjectId)
+  }, [shownProjectId])
+
   useShortcuts({
     enabled: isDesktop,
     onNew: openNewTask,
@@ -124,6 +135,10 @@ export function WorldScreen() {
 
   const today = todayIn(me.data?.user.timezone ?? 'UTC')
   const summaries = islandSummaries(world.data, today)
+  const anchor =
+    resolved.focus.kind === 'archipelago'
+      ? openingIsland(summaries, lastProject.current, readLastIsland())
+      : null
   const selectedTask = world.data.tasks.find((t) => t.id === selectedTaskId)
   const panelTitle = resolved.milestone?.name ?? resolved.project?.name ?? 'Due today & overdue'
   const { project, milestone } = resolved
@@ -154,6 +169,7 @@ export function WorldScreen() {
           today={today}
           selectedTaskId={selectedTask ? selectedTaskId : null}
           coveredBottom={isDesktop ? 0 : cover}
+          anchor={anchor}
           onSelect={(taskId) => {
             setSelectedTaskId(taskId)
             // Show the selected row: a collapsed sheet rises; a taller one stays where it is.

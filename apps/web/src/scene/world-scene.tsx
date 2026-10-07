@@ -19,6 +19,7 @@ export type WorldSceneProps = SceneHandlers & {
   focus: Focus
   selectedTaskId: string | null
   coveredBottom: number
+  anchor: string | null
   urgent: readonly IslandUrgency[]
   indicators: IndicatorStore
 }
@@ -53,6 +54,7 @@ export function WorldScene(props: WorldSceneProps) {
         model={props.model}
         focus={props.focus}
         covered={props.coveredBottom}
+        anchor={props.anchor}
         animate={animate}
       />
       <Framing covered={props.coveredBottom} animate={animate} />
