@@ -215,6 +215,19 @@ describe('PATCH /tasks/:id', () => {
     })
   })
 
+  test('moving the last open task out completes the old milestone', async () => {
+    await withRollback(async (tx) => {
+      const { me, project, milestone, newMilestone, addTask } = await setup(tx)
+      const other = await newMilestone(project.id, 'Launch')
+      await insertTask(tx, project.id, { milestoneId: milestone.id, status: 'done' })
+      const open = await addTask({ title: 'Leaver', milestoneId: milestone.id })
+      const res = await me.patch(`${TASKS}/${open.id}`, { milestoneId: other.id })
+      expect(res.status).toBe(200)
+      const [m] = await tx.select().from(milestones).where(eq(milestones.id, milestone.id))
+      expect(m?.completedAt).not.toBeNull()
+    })
+  })
+
   test("another user's task and malformed ids → 404", async () => {
     await withRollback(async (tx) => {
       const { addTask } = await setup(tx)

@@ -30,6 +30,14 @@ export async function findOwnedTask(
   return row ?? null
 }
 
+async function lockOwnedTaskProject(tx: Db, userId: string, taskId: string) {
+  const found = await findOwnedTask(tx, userId, taskId)
+  if (!found) throw notFound()
+  const project = await lockOwnedProject(tx, userId, found.projectId)
+  if (!project) throw notFound()
+  return project
+}
+
 export async function listTasks(db: Db, userId: string, query: TaskListQuery): Promise<TaskDto[]> {
   const filters: SQL[] = [eq(projects.userId, userId)]
   if (query.project) filters.push(eq(tasks.projectId, query.project))
@@ -92,10 +100,10 @@ export async function updateTask(
   now: Date,
 ): Promise<TaskDto> {
   return db.transaction(async (tx) => {
+    const project = await lockOwnedTaskProject(tx, userId, taskId)
+    // Re-read under the project lock so the checks below cannot be stale.
     const task = await findOwnedTask(tx, userId, taskId)
     if (!task) throw notFound()
-    const project = await lockOwnedProject(tx, userId, task.projectId)
-    if (!project) throw notFound()
     if (input.status !== undefined && task.status === 'done') {
       throw new AppError('conflict', 'Task is done; reopen it before changing its status')
     }
@@ -136,6 +144,8 @@ export async function updateTask(
 
 export async function deleteTask(db: Db, userId: string, taskId: string, now: Date): Promise<void> {
   await db.transaction(async (tx) => {
+    await lockOwnedTaskProject(tx, userId, taskId)
+    // Re-read under the project lock so the milestone sync sees current state.
     const task = await findOwnedTask(tx, userId, taskId)
     if (!task) throw notFound()
     await tx.delete(tasks).where(eq(tasks.id, taskId))
