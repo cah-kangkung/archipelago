@@ -90,7 +90,8 @@ tasks        id, project_id, milestone_id (nullable),
              plot_x, plot_y, sort_order,
              external_source, external_id, external_url
 
-ledger       id, user_id, kind, amount, ref_type, ref_id, reverses_id, created_at
+ledger       id, user_id, kind, amount, ref_type, ref_id, reverses_id,
+             source_task_id, streak_start, streak_days, created_at
 buildings    id, project_id, type, plot_x, plot_y, rotation, placed_at
 ```
 
