@@ -9,6 +9,18 @@ export const SESSION_COOKIE = 'session'
 
 const BEARER = /^Bearer\s+(\S+)$/i
 
+// Cookie-only guard for routes a bearer token must never reach (e.g. token management).
+export const requireSession = (deps: Deps) =>
+  createMiddleware<AppEnv>(async (c, next) => {
+    const now = deps.now?.() ?? new Date()
+    // Any Authorization header is rejected outright rather than falling back to the cookie.
+    const token = c.req.header('authorization') === undefined ? getCookie(c, SESSION_COOKIE) : null
+    const user = token ? await findSessionUser(deps.db, token, now) : null
+    if (!user) throw new AppError('unauthorized', 'Authentication required')
+    c.set('user', user)
+    await next()
+  })
+
 export const requireAuth = (deps: Deps) =>
   createMiddleware<AppEnv>(async (c, next) => {
     const now = deps.now?.() ?? new Date()

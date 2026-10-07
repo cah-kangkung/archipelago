@@ -134,4 +134,40 @@ describe('/tokens', () => {
       expect(((await bogus.json()) as ErrorBody).error.code).toBe('not_found')
     })
   })
+  test('token management rejects bearer tokens, even with a valid cookie', async () => {
+    await withRollback(async (tx) => {
+      const { app, cookie } = await signedIn(tx)
+      const created = (await (
+        await postJson(app, TOKENS, { name: 'ci' }, { cookie })
+      ).json()) as CreatedBody
+      const authorization = `Bearer ${created.token}`
+      const id = created.apiToken.id
+
+      const list = await app.request(TOKENS, { headers: { authorization } })
+      expect(list.status).toBe(401)
+      expect(((await list.json()) as ErrorBody).error.code).toBe('unauthorized')
+      expect((await postJson(app, TOKENS, { name: 'x' }, { authorization })).status).toBe(401)
+      const del = await app.request(`${TOKENS}/${id}`, {
+        method: 'DELETE',
+        headers: { authorization },
+      })
+      expect(del.status).toBe(401)
+
+      // An Authorization header is authoritative: a valid cookie does not rescue it.
+      const both = await app.request(TOKENS, { headers: { authorization, cookie } })
+      expect(both.status).toBe(401)
+
+      // The token is untouched.
+      const me = await app.request(ME, { headers: { authorization } })
+      expect(me.status).toBe(200)
+    })
+  })
+
+  test('unauthenticated DELETE → 401', async () => {
+    await withRollback(async (tx) => {
+      const app = createApp({ db: tx, config: testConfig })
+      const res = await app.request(`${TOKENS}/${crypto.randomUUID()}`, { method: 'DELETE' })
+      expect(res.status).toBe(401)
+    })
+  })
 })

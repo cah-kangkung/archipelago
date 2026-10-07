@@ -2,7 +2,7 @@ import { createApiTokenInputSchema } from '@archipelago/shared'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { createApiToken, deleteApiToken, listApiTokens } from '../auth/api-tokens'
-import { requireAuth } from '../auth/middleware'
+import { requireSession } from '../auth/middleware'
 import { AppError } from '../errors'
 import type { AppEnv, Deps } from '../types'
 import { jsonBody } from '../validate'
@@ -13,7 +13,7 @@ export function tokenRoutes(deps: Deps) {
   const { db } = deps
 
   return new Hono<AppEnv>()
-    .use(requireAuth(deps))
+    .use(requireSession(deps))
     .get('/', async (c) => c.json({ apiTokens: await listApiTokens(db, c.get('user').id) }))
     .post('/', jsonBody(createApiTokenInputSchema), async (c) => {
       const { name } = c.req.valid('json')
