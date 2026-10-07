@@ -48,7 +48,7 @@ Decorations bought with Supplies (trees, docks, gardens, etc.) are placed on fre
 - **Reopen safety:** reopening a completed task reverses every reward that completion produced (task reward, milestone bonus, and streak bonus if the threshold is no longer met). Toggling a task cannot farm Supplies.
 - **Overdraw:** if reversing a reward would make the balance negative, the balance is allowed to go negative. Purchases are blocked until it recovers.
 
-Out of v1, planned later: XP, levels, achievements, unlockable building sets, seasonal events (RPG phase). The ledger (section 5) holds full history so these can be derived from it.
+Out of v1, planned later: XP, levels, achievements, unlockable building sets, seasonal events (post-v1 RPG layer). The ledger (section 5) holds full history so these can be derived from it.
 
 ## 4. Architecture
 
@@ -303,11 +303,11 @@ A Playwright smoke test that logs in, creates a project and a task, completes it
 - Installable PWA with offline viewing.
 - Docker Compose deployment with backups.
 
-### v1 delivery slices
+### v1 delivery phases
 
-v1 is built in vertical slices. Each slice gets its own implementation plan, has passing tests, and leaves the app in a working state.
+v1 is built in phases. Each phase is a vertical slice that gets its own implementation plan, has passing tests, and leaves the app in a working state.
 
-| # | Slice | Contents | Done when |
+| # | Phase | Contents | Done when |
 |---|---|---|---|
 | 1 | Foundation | Turborepo + Bun scaffold, `packages/shared`, `ui-tokens`, `tsconfig`; Drizzle schema + migrations; auth (sessions, login rate limit, `seed:user`); error shape; Docker Compose (Postgres + API) for local dev | Can log in against a real DB; `turbo test` green |
 | — | 3D spike (optional, throwaway) | Minimal R3F scene: one seeded, palette-recoloured island, isometric ortho camera, pan/zoom; tested on a real phone | Performance and feel validated, or risks recorded |
@@ -317,7 +317,7 @@ v1 is built in vertical slices. Each slice gets its own implementation plan, has
 | 5 | Shop & polish | Shop catalogue, decoration placement, reward animations, performance pass on a real device | Decorations purchasable and placeable; 60fps target met |
 | 6 | Ship | PWA + offline viewing, web build served by Caddy with HTTPS on the VPS, backups, Playwright smoke tests on both viewports | Live on the VPS and installable |
 
-### Later phases (not in v1)
+### Post-v1 roadmap (not in v1)
 
 1. RPG layer: XP, levels, achievements, unlockable building sets, seasonal events.
 2. Integrations: inbound webhooks, GitLab/Jira importers using the `external_*` columns and API tokens.
