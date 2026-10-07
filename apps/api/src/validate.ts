@@ -29,3 +29,12 @@ export const jsonBody = <T extends z.ZodType>(schema: T) =>
     }
     return result.data
   })
+
+export const queryParams = <T extends z.ZodType>(schema: T) =>
+  validator('query', (value): z.output<T> => {
+    const result = schema.safeParse(value)
+    if (!result.success) {
+      throw new AppError('validation_failed', 'Query is invalid', toFieldErrors(result.error))
+    }
+    return result.data
+  })
