@@ -52,7 +52,10 @@ export function WorldView({
   // controls.
   return (
     <SceneBoundary fallback={cards}>
-      <section aria-label={label} className="relative min-h-0 flex-1 overflow-hidden bg-brand">
+      <section
+        aria-label={label}
+        className="relative isolate min-h-0 flex-1 overflow-hidden bg-brand"
+      >
         <div className="absolute inset-0">
           <Suspense fallback={<p className="p-4 text-text-on-brand">Loading the world…</p>}>
             <WorldScene

@@ -24,7 +24,7 @@ export function WorldHud({
 }) {
   const { focus, project, milestone } = resolved
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start gap-2 p-3">
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start gap-2 p-3">
       {focus.kind === 'archipelago' && (
         <>
           {onNewProject && (

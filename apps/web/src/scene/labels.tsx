@@ -3,6 +3,9 @@ import type { Focus } from '../world/selectors'
 import { LAND_HEIGHT } from './model/hex-space'
 import type { SceneModel } from './model/scene-model'
 
+/** drei's default range reaches millions; keep labels low so the HUD (z-20) sits above them. */
+const LABEL_Z: [number, number] = [10, 0]
+
 const tag =
   'pointer-events-none select-none whitespace-nowrap rounded-md bg-surface-primary/90 px-2 py-1 text-sm font-semibold text-text-primary shadow'
 
@@ -13,6 +16,7 @@ export function Labels({ model, focus }: { model: SceneModel; focus: Focus }) {
       <Html
         key={island.projectId}
         center
+        zIndexRange={LABEL_Z}
         position={[island.origin.x, LAND_HEIGHT + 1.6, island.origin.z]}
         className={tag}
       >
@@ -26,6 +30,7 @@ export function Labels({ model, focus }: { model: SceneModel; focus: Focus }) {
     <Html
       key={d.milestoneId}
       center
+      zIndexRange={LABEL_Z}
       position={[island.origin.x + d.position.x, LAND_HEIGHT + 2.2, island.origin.z + d.position.z]}
       className={tag}
     >
