@@ -312,7 +312,7 @@ v1 is built in phases. Each phase is a vertical slice that gets its own implemen
 |---|---|---|---|
 | 1 | Foundation | Turborepo + Bun scaffold, `packages/shared`, `ui-tokens`, `tsconfig`; Drizzle schema + migrations; auth (sessions, login rate limit, `seed:user`, personal API tokens + bearer auth); error shape; Docker Compose (Postgres + API) for local dev | Can log in against a real DB; `turbo test` green |
 | — | 3D spike (optional, throwaway) | Minimal R3F scene: one seeded, palette-recoloured island, isometric ortho camera, pan/zoom; tested on a real phone | Performance and feel validated, or risks recorded |
-| 2 | Task core | Projects/milestones/tasks CRUD, `GET /world`, plot assignment, plain responsive list UI (bottom sheet on mobile / side panel on desktop), routing for the three states | Usable task manager on phone and desktop |
+| 2 | Task core | Projects/milestones/tasks CRUD, complete/reopen (no rewards), `GET /world`, plot assignment (section 11.1), plain responsive list UI (bottom sheet on mobile / side panel on desktop), routing for the three states | Usable task manager on phone and desktop |
 | 3 | Economy | Ledger, complete/reopen with rewards, milestone bonus, streaks, daily bonus, `GET /economy`, reward events in the UI | Completing tasks earns Supplies, reversals are correct |
 | 4 | World | R3F scene: archipelago, islands, districts, task structures + states, landmarks, camera states, overflow panning, island switcher, edge indicators | The game renders the real data |
 | 5 | Shop & polish | Shop catalogue, decoration placement, reward animations, performance pass on a real device | Decorations purchasable and placeable; 60fps target met |
@@ -328,3 +328,49 @@ v1 is built in phases. Each phase is a vertical slice that gets its own implemen
 ### Explicitly excluded
 
 Multi-user features, tags, subtasks, recurring tasks, attachments, task dependencies, camera rotation.
+
+## 11. Phase 2 Design Addendum (approved 2026-10-07)
+
+### 11.1 Island and plot layout
+
+- **Grid:** each island is a hex grid using axial coordinates `(q, r)`. Plot columns are stored as `plot_x = q`, `plot_y = r`.
+- **Projects:** a new project takes the next free archipelago slot on a spiral of island slots around the archipelago origin, stored as `archipelago_x/y`. It gets a random 31-bit `island_seed`.
+- **Districts:**
+  - A new milestone takes the next free district centre on a spiral of centres 5 hexes apart around the island origin.
+  - The centre is stored on the milestone (`district_q`, `district_r`, added by a migration).
+  - The centre hex holds the landmark.
+  - `landmark_type` cycles through `lighthouse`, `town_hall`, `windmill`, `observatory`, `market` in milestone-creation order.
+- **Commons district:** loose tasks (no milestone) use a fixed commons district centred on the island origin `(0, 0)`. Milestone centres never use `(0, 0)`.
+- **Task plots:**
+  - A task takes the nearest free hex, by ring distance, around its district centre.
+  - The ring-walk start direction is chosen by `island_seed`, so islands differ.
+  - A hex is free if no task or building on the island occupies it and it is not a district centre.
+  - Moving a task to another milestone (or to loose) assigns a new plot in the target district.
+  - Plots never change otherwise.
+- **Ownership rule:** a task's milestone must belong to the task's own project. The API enforces this with a service check, and a mismatch returns `422`.
+
+### 11.2 Completion before the economy
+
+- `POST /tasks/:id/complete` and `/reopen` ship in Phase 2.
+- They set `status` and `completed_at`.
+- A milestone's `completed_at` is set when its last open task completes and cleared when any of its tasks reopens.
+- Phase 3 adds ledger rewards inside the same transaction.
+
+### 11.3 Web stack (`apps/web`)
+
+- **App:** Vite + React + TypeScript, TanStack Router (typed routes `/login`, `/`, `/p/$projectId`, `/p/$projectId/m/$milestoneId`), TanStack Query.
+- **API calls:** Hono's typed client (`hono/client`) over the API's exported `AppType`.
+- **Styling:** Tailwind CSS with A'raf tokens from `packages/ui-tokens`.
+- **Task panel:** `vaul` bottom sheet below 1024px, resizable side panel at 1024px and up.
+- **Dev setup:** the Vite dev server proxies `/api` to the API, so the session cookie is same-origin.
+- **Tests:** Vitest + React Testing Library.
+
+### 11.4 Phase 2 screens
+
+- **Login.**
+- **World screen:**
+  - A placeholder world area (one card per island until Phase 4).
+  - An island switcher strip.
+  - The task panel, filtered by route: due today and overdue across all projects, then one project, then one milestone.
+- **Editors:** project, milestone and task editors as sheets on mobile and dialogs on desktop.
+- **Task actions:** todo, doing and done toggles, and delete.
