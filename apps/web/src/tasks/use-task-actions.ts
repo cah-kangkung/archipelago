@@ -1,8 +1,14 @@
-import type { TaskDto, WorldDto } from '@archipelago/shared'
+import type {
+  CompleteTaskResultDto,
+  ReopenTaskResultDto,
+  TaskDto,
+  WorldDto,
+} from '@archipelago/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type Api, ApiError } from '../api/api'
 import { useApi } from '../api/context'
 import { useToast } from '../app/toast'
+import { formatReversals, formatRewards } from '../economy/format'
 import { worldQuery } from '../world/use-world'
 
 type Snapshot = { previousTask: TaskDto | undefined; index: number }
@@ -44,6 +50,13 @@ function useWorldCache() {
       }
       toast.show(error instanceof ApiError ? error.message : 'Something went wrong. Try again.')
     },
+    reward(result: AdvanceResult) {
+      if (!('balance' in result)) return
+      edit((w) => ({ ...w, economy: { ...w.economy, balance: result.balance } }))
+      const message =
+        'rewards' in result ? formatRewards(result.rewards) : formatReversals(result.reversals)
+      if (message) toast.show(message)
+    },
     settle() {
       // The settling mutation still counts itself; only refetch when it is the last one running.
       if (queryClient.isMutating({ mutationKey: MUTATION_KEY }) === 1) {
@@ -64,7 +77,9 @@ function nextState(task: TaskDto, now: Date): Partial<TaskDto> {
   return { status: 'todo', completedAt: null }
 }
 
-function advanceRequest(api: Api, task: TaskDto) {
+type AdvanceResult = { task: TaskDto } | CompleteTaskResultDto | ReopenTaskResultDto
+
+function advanceRequest(api: Api, task: TaskDto): Promise<AdvanceResult> {
   if (task.status === 'todo') return api.updateTask(task.id, { status: 'doing' })
   if (task.status === 'doing') return api.completeTask(task.id)
   return api.reopenTask(task.id)
@@ -79,6 +94,7 @@ export function useAdvanceTask() {
     onMutate: (task) =>
       cache.apply(task, (w) => patchTask(w, task.id, nextState(task, new Date()))),
     onError: (error, task, snapshot) => cache.rollback(error, task.id, snapshot, false),
+    onSuccess: (result) => cache.reward(result),
     onSettled: () => cache.settle(),
   })
 }

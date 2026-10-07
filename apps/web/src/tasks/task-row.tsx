@@ -27,7 +27,11 @@ export function TaskRow({
   const due = dueStatus(task, today)
 
   const onDelete = () => {
-    if (window.confirm(`Delete "${task.title}"?`)) remove.mutate(task)
+    const prompt =
+      task.status === 'done'
+        ? `Delete "${task.title}"? Its Supplies will be taken back.`
+        : `Delete "${task.title}"?`
+    if (window.confirm(prompt)) remove.mutate(task)
   }
 
   return (

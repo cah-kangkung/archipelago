@@ -2,7 +2,7 @@ import type { TaskDto } from '@archipelago/shared'
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import { ApiError } from '../api/api'
-import { createFakeApi, fakeProject, fakeTask } from '../test/fake-api'
+import { createFakeApi, fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
 import { renderApp } from '../test/render-app'
 import { addDays, todayIn } from '../world/selectors'
 
@@ -160,18 +160,60 @@ describe('TaskPanel', () => {
   })
 
   test('due state follows the user timezone, not the machine clock', async () => {
-    // 18:30 UTC on Oct 6 is already Oct 7 in Asia/Jakarta (UTC+7), so a task due Oct 7 is due today.
+    // 18:30 UTC on Oct 6 is already Oct 7 in Asia/Jakarta (UTC+7).
     vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true })
     vi.setSystemTime(new Date('2026-10-06T18:30:00Z'))
     try {
-      const { api, path } = islandWith([{ title: 'Jakarta day', dueDate: '2026-10-07' }])
+      const { api, path } = islandWith([{ title: 'Jakarta day', dueDate: '2026-10-06' }])
       renderApp({ api, path, desktop: true })
-      expect(
-        await within(await findPanel()).findByText('Due soon · 2026-10-07'),
-      ).toBeInTheDocument()
-      expect(within(panel()).queryByText(/Overdue/)).toBeNull()
+      // In UTC it is still Oct 6 (due today); in Jakarta it is Oct 7, so the task is overdue.
+      expect(await within(await findPanel()).findByText('Overdue · 2026-10-06')).toBeInTheDocument()
+      expect(within(panel()).queryByText(/Due soon/)).toBeNull()
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  test('completing shows the rewards and updates the balance; reopening takes them back', async () => {
+    const project = fakeProject({ name: 'Beta' })
+    const mvp = fakeMilestone({ projectId: project.id, name: 'MVP' })
+    const { api } = createFakeApi({
+      today: '2026-10-07',
+      world: {
+        projects: [project],
+        milestones: [mvp],
+        tasks: [
+          fakeTask({
+            projectId: project.id,
+            milestoneId: mvp.id,
+            title: 'Only',
+            size: 'M',
+            status: 'doing',
+          }),
+        ],
+        buildings: [],
+      },
+    })
+    const { user } = renderApp({ api, path: `/p/${project.id}`, desktop: true })
+    await user.click(await screen.findByRole('button', { name: 'Mark "Only" as done' }))
+    expect(await screen.findByText('+25 Supplies · Milestone bonus +12')).toBeInTheDocument()
+    expect(await screen.findByLabelText('37 Supplies')).toBeInTheDocument()
+
+    const undo = await screen.findByRole('button', { name: 'Mark "Only" as not done' })
+    await waitFor(() => expect(undo).toBeEnabled())
+    await user.click(undo)
+    expect(await screen.findByText('37 Supplies taken back')).toBeInTheDocument()
+    expect(await screen.findByLabelText('0 Supplies')).toBeInTheDocument()
+  })
+
+  test('deleting a done task warns that its Supplies will be taken back', async () => {
+    const { api, path } = islandWith([
+      { title: 'Finished', status: 'done', completedAt: '2026-10-07T00:00:00.000Z' },
+    ])
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const { user } = renderApp({ api, path, desktop: true })
+    await user.click(await screen.findByRole('button', { name: 'Delete "Finished"' }))
+    expect(confirm).toHaveBeenCalledWith('Delete "Finished"? Its Supplies will be taken back.')
+    confirm.mockRestore()
   })
 })
