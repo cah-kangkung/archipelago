@@ -42,7 +42,7 @@ export function WorldScene(props: WorldSceneProps) {
       <color attach="background" args={[scenePalette.sea]} />
       <WorldContents {...props} animate={animate} />
       <Labels model={props.model} focus={props.focus} />
-      <CameraRig model={props.model} focus={props.focus} />
+      <CameraRig model={props.model} focus={props.focus} animate={animate} />
       <AnimationTicker enabled={animate} />
     </Canvas>
   )
