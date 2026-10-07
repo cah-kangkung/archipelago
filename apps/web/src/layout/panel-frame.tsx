@@ -8,6 +8,49 @@ import {
 } from 'react'
 import { useIsDesktop } from './use-is-desktop'
 
+function storeWidth(width: number) {
+  try {
+    localStorage.setItem(STORAGE_KEY, String(width))
+  } catch {
+    // Storage can be unavailable (private mode); the width just isn't remembered.
+  }
+}
+
+/**
+ * Tracks one pointer drag. Move, up and cancel are listened for on the window so the drag survives
+ * leaving the handle; any live drag is torn down on unmount.
+ */
+function useDrag() {
+  const stop = useRef<(() => void) | null>(null)
+  useEffect(() => () => stop.current?.(), [])
+  return (
+    event: PointerEvent<HTMLElement>,
+    onMove: (move: globalThis.PointerEvent) => void,
+    onEnd: (end: globalThis.PointerEvent) => void,
+  ) => {
+    stop.current?.()
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    } catch {
+      // Capture is a nicety; the window listeners below do the work.
+    }
+    const remove = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+      stop.current = null
+    }
+    const up = (end: globalThis.PointerEvent) => {
+      remove()
+      onEnd(end)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+    stop.current = remove
+  }
+}
+
 const DEFAULT_WIDTH = 400
 const MIN_WIDTH = 320
 const MAX_WIDTH = 640
@@ -45,33 +88,38 @@ function MobileSheet({ title, children }: { title: string; children: ReactNode }
   const [dragHeight, setDragHeight] = useState<number | null>(null)
   const sectionRef = useRef<HTMLElement>(null)
   const dragged = useRef(false)
+  const startDrag = useDrag()
 
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     const startY = event.clientY
-    const startHeight = sectionRef.current?.getBoundingClientRect().height ?? 0
+    const measured = sectionRef.current?.getBoundingClientRect().height ?? 0
+    const startHeight = measured > 0 ? measured : (DETENTS[detent]?.px() ?? 0)
     dragged.current = false
     const maxHeight = () => window.innerHeight * 0.92
     const heightAt = (clientY: number) =>
       Math.min(maxHeight(), Math.max(120, startHeight + (startY - clientY)))
-    const onMove = (move: globalThis.PointerEvent) => {
-      if (Math.abs(startY - move.clientY) >= TAP_SLOP) dragged.current = true
-      if (dragged.current) setDragHeight(heightAt(move.clientY))
-    }
-    const onUp = (up: globalThis.PointerEvent) => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      if (!dragged.current) return
-      const height = heightAt(up.clientY)
-      let nearest = 0
-      DETENTS.forEach((d, i) => {
-        const best = DETENTS[nearest]
-        if (best && Math.abs(d.px() - height) < Math.abs(best.px() - height)) nearest = i
-      })
-      setDetent(nearest)
-      setDragHeight(null)
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
+    startDrag(
+      event,
+      (move) => {
+        if (Math.abs(startY - move.clientY) >= TAP_SLOP) dragged.current = true
+        if (dragged.current) setDragHeight(heightAt(move.clientY))
+      },
+      (end) => {
+        // A real drag is followed by a click on the handle; a missed one must not eat the next activation.
+        queueMicrotask(() => {
+          dragged.current = false
+        })
+        setDragHeight(null)
+        if (!dragged.current) return
+        const height = heightAt(end.clientY)
+        let nearest = 0
+        DETENTS.forEach((d, i) => {
+          const best = DETENTS[nearest]
+          if (best && Math.abs(d.px() - height) < Math.abs(best.px() - height)) nearest = i
+        })
+        setDetent(nearest)
+      },
+    )
   }
 
   const onClick = () => {
@@ -83,8 +131,14 @@ function MobileSheet({ title, children }: { title: string; children: ReactNode }
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'ArrowUp') setDetent((d) => Math.min(DETENTS.length - 1, d + 1))
-    if (event.key === 'ArrowDown') setDetent((d) => Math.max(0, d - 1))
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setDetent((d) => Math.min(DETENTS.length - 1, d + 1))
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setDetent((d) => Math.max(0, d - 1))
+    }
   }
 
   return (
@@ -106,39 +160,48 @@ function MobileSheet({ title, children }: { title: string; children: ReactNode }
       >
         <span aria-hidden className="mx-auto block h-1.5 w-12 rounded-full bg-border-secondary" />
       </button>
-      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+        {children}
+      </div>
     </section>
   )
 }
 
 function DesktopPanel({ title, children }: { title: string; children: ReactNode }) {
   const [width, setWidth] = useState(readStoredWidth)
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, String(width))
-    } catch {
-      // Storage can be unavailable (private mode); the width just isn't remembered.
-    }
-  }, [width])
+  const startDrag = useDrag()
 
   // The panel sits on the right, so dragging the handle left widens it.
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     const startX = event.clientX
     const startWidth = width
-    const onMove = (move: globalThis.PointerEvent) =>
-      setWidth(clampWidth(startWidth + (startX - move.clientX)))
-    const onUp = () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
+    const widthAt = (clientX: number) => clampWidth(startWidth + (startX - clientX))
+    startDrag(
+      event,
+      (move) => setWidth(widthAt(move.clientX)),
+      (end) => {
+        const next = widthAt(end.clientX)
+        setWidth(next)
+        storeWidth(next)
+      },
+    )
+  }
+
+  const resizeBy = (delta: number) => {
+    const next = clampWidth(width + delta)
+    setWidth(next)
+    storeWidth(next)
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'ArrowLeft') setWidth((w) => clampWidth(w + KEY_STEP))
-    if (event.key === 'ArrowRight') setWidth((w) => clampWidth(w - KEY_STEP))
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      resizeBy(KEY_STEP)
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault()
+      resizeBy(-KEY_STEP)
+    }
   }
 
   return (

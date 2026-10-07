@@ -1,5 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { ApiError } from '../api/api'
 import { createFakeApi, fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
 import { renderApp } from '../test/render-app'
@@ -126,5 +126,77 @@ describe('WorldScreen', () => {
     api.world = working
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByTestId('island-cards')).toBeInTheDocument()
+  })
+
+  describe('sheet dragging', () => {
+    const originalHeight = window.innerHeight
+    const setHeight = (value: number) =>
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value })
+    afterEach(() => setHeight(originalHeight))
+
+    test('dragging up and releasing snaps to the nearest detent', async () => {
+      setHeight(800)
+      const { api } = seeded()
+      renderApp({ api, path: '/' })
+      const sheet = await screen.findByTestId('task-sheet')
+      const handle = screen.getByRole('button', { name: 'Resize task sheet' })
+      fireEvent.pointerDown(handle, { clientY: 600, pointerId: 1 })
+      fireEvent.pointerMove(window, { clientY: 100, pointerId: 1 })
+      fireEvent.pointerUp(window, { clientY: 100, pointerId: 1 })
+      expect(sheet).toHaveAttribute('data-detent', '2')
+      expect(sheet.style.height).toBe('92dvh')
+    })
+
+    test('a cancelled drag cleans up and keyboard resizing still works', async () => {
+      setHeight(800)
+      const { api } = seeded()
+      renderApp({ api, path: '/' })
+      const sheet = await screen.findByTestId('task-sheet')
+      const handle = screen.getByRole('button', { name: 'Resize task sheet' })
+      fireEvent.pointerDown(handle, { clientY: 600, pointerId: 1 })
+      fireEvent.pointerMove(window, { clientY: 300, pointerId: 1 })
+      expect(sheet.style.height).not.toMatch(/dvh|^120px$/)
+      fireEvent.pointerCancel(window, { clientY: 300, pointerId: 1 })
+      await waitFor(() => expect(sheet.style.height).toMatch(/dvh|px/))
+      expect(['120px', '50dvh', '92dvh']).toContain(sheet.style.height)
+      // Later moves must not resize: listeners are gone.
+      fireEvent.pointerMove(window, { clientY: 0, pointerId: 1 })
+      expect(['120px', '50dvh', '92dvh']).toContain(sheet.style.height)
+      const before = Number(sheet.getAttribute('data-detent'))
+      fireEvent.keyDown(handle, { key: 'ArrowDown' })
+      expect(sheet).toHaveAttribute('data-detent', String(Math.max(0, before - 1)))
+    })
+
+    test('a drag that ends without a click does not swallow the next keyboard activation', async () => {
+      setHeight(800)
+      const { api } = seeded()
+      const { user } = renderApp({ api, path: '/' })
+      const sheet = await screen.findByTestId('task-sheet')
+      const handle = screen.getByRole('button', { name: 'Resize task sheet' })
+      fireEvent.pointerDown(handle, { clientY: 600, pointerId: 1 })
+      fireEvent.pointerMove(window, { clientY: 100, pointerId: 1 })
+      fireEvent.pointerUp(window, { clientY: 100, pointerId: 1 })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      handle.focus()
+      await user.keyboard('{Enter}')
+      expect(sheet).toHaveAttribute('data-detent', '0')
+    })
+
+    test('desktop: width persists on release, not on every move', async () => {
+      const { api } = seeded()
+      renderApp({ api, path: '/', desktop: true })
+      const panel = await screen.findByTestId('task-side-panel')
+      const handle = screen.getByRole('button', { name: 'Resize task panel' })
+      const spy = vi.spyOn(Storage.prototype, 'setItem')
+      fireEvent.pointerDown(handle, { clientX: 800, pointerId: 1 })
+      fireEvent.pointerMove(window, { clientX: 700, pointerId: 1 })
+      expect(panel).toHaveStyle({ width: '500px' })
+      expect(spy).not.toHaveBeenCalled()
+      fireEvent.pointerUp(window, { clientX: 700, pointerId: 1 })
+      expect(spy).toHaveBeenCalledWith('archipelago.panelWidth', '500')
+      spy.mockRestore()
+    })
   })
 })
