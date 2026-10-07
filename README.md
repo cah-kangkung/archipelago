@@ -15,8 +15,11 @@ bun install
 cp apps/api/.env.example apps/api/.env
 docker compose up -d postgres        # Postgres 16 on 127.0.0.1:5433 (+ archipelago_test DB)
 bun run seed:user --email you@example.com   # prompts for a password (min 12 chars)
-bun run dev                          # API on http://localhost:3000/api/v1
+bun run dev                          # API on :3000, web app on http://localhost:5173
 ```
+
+The web dev server proxies `/api` to the API, so the session cookie is same-origin.
+Open http://localhost:5173 on your phone (same network) with `bun run dev -- --host` in `apps/web` to try the mobile layout.
 
 Or run the whole stack in containers: `docker compose up -d --build`.
 
@@ -24,6 +27,7 @@ Or run the whole stack in containers: `docker compose up -d --build`.
 
 | Command | What it does |
 |---|---|
+| `bun run build` | Production build of the web app (`apps/web/dist`) |
 | `bun run test` | All tests via Turborepo (API tests need Postgres running) |
 | `bun run typecheck` | TypeScript across all packages |
 | `bun run lint` / `bun run format` | Biome check / fix |
