@@ -123,4 +123,25 @@ describe('schema', () => {
       expect(remaining).toHaveLength(0)
     })
   })
+
+  test('streak fields are required on streak bonuses and forbidden elsewhere', async () => {
+    const attempt = async (entry: Partial<typeof ledger.$inferInsert>) => {
+      let caught: unknown = null
+      await withRollback(async (tx) => {
+        const user = await insertUser(tx)
+        await tx
+          .insert(ledger)
+          .values({ userId: user.id, kind: 'task_reward', amount: 10, ...entry })
+      }).catch((err) => {
+        caught = err
+      })
+      return caught
+    }
+    expect(await attempt({})).toBeNull()
+    expect(await attempt({ kind: 'streak_bonus', amount: 20 })).not.toBeNull()
+    expect(await attempt({ streakStart: '2026-10-01', streakDays: 3 })).not.toBeNull()
+    expect(
+      await attempt({ kind: 'streak_bonus', amount: 20, streakStart: '2026-10-01', streakDays: 3 }),
+    ).toBeNull()
+  })
 })

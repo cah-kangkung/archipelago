@@ -15,6 +15,13 @@
       "when": 1791373309657,
       "tag": "0001_silent_mystique",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791383128844,
+      "tag": "0002_aspiring_adam_warlock",
+      "breakpoints": true
     }
   ]
 }

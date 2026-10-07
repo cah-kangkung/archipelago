@@ -2,6 +2,7 @@ import { LEDGER_KINDS, TASK_PRIORITIES, TASK_SIZES, TASK_STATUSES } from '@archi
 import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
+  check,
   date,
   index,
   integer,
@@ -147,11 +148,21 @@ export const ledger = pgTable(
     refType: text(),
     refId: uuid(),
     reversesId: uuid().references((): AnyPgColumn => ledger.id),
+    // The task whose completion produced this entry. No FK: entries outlive deleted tasks.
+    sourceTaskId: uuid(),
+    // Streak bonuses only: the run's first local day and the threshold paid.
+    streakStart: date({ mode: 'string' }),
+    streakDays: smallint(),
     createdAt: createdAt(),
   },
   (t) => [
     index('ledger_user_id_idx').on(t.userId),
+    index('ledger_source_task_id_idx').on(t.sourceTaskId),
     uniqueIndex('ledger_reverses_id_unique').on(t.reversesId),
+    check(
+      'ledger_streak_fields',
+      sql`(${t.kind} = 'streak_bonus') = (${t.streakStart} is not null and ${t.streakDays} is not null)`,
+    ),
   ],
 )
 
