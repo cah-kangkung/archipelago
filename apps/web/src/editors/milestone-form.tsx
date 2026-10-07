@@ -15,7 +15,7 @@ export function MilestoneForm({
 }: {
   projectId: string
   milestone?: MilestoneDto
-  onDone: (result: { removed: boolean }) => void
+  onDone: (result: { removed: boolean }) => void | Promise<void>
 }) {
   const api = useApi()
   const [name, setName] = useState(milestone?.name ?? '')
@@ -27,10 +27,12 @@ export function MilestoneForm({
         ? api.updateMilestone(milestone.id, { name: name.trim() })
         : api.createMilestone(projectId, { name: name.trim() }),
     () => onDone({ removed: false }),
+    { fields: ['name'] },
   )
   const remove = useEditorMutation(
     () => api.deleteMilestone(milestone?.id ?? ''),
     () => onDone({ removed: true }),
+    { invalidateAfter: true },
   )
 
   const onSubmit = (event: FormEvent) => {
@@ -41,12 +43,24 @@ export function MilestoneForm({
   }
 
   const errors = { ...save.fieldErrors, ...localErrors }
+  const formError = save.formError ?? remove.formError
   const busy = save.mutation.isPending || remove.mutation.isPending
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      {formError && (
+        <p role="alert" className="text-sm text-error">
+          {formError}
+        </p>
+      )}
       <Field label="Name" errors={errors.name}>
-        <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+        <input
+          // biome-ignore lint/a11y/noAutofocus: the editor is a modal that should start on its first field
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className={inputClass}
+        />
       </Field>
       <div className="flex flex-wrap gap-2">
         <button type="submit" disabled={busy} className={primary}>

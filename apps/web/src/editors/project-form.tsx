@@ -14,7 +14,7 @@ export function ProjectForm({
   onDone,
 }: {
   project?: ProjectDto
-  onDone: (result: { removed: boolean }) => void
+  onDone: (result: { removed: boolean }) => void | Promise<void>
 }) {
   const api = useApi()
   const [name, setName] = useState(project?.name ?? '')
@@ -26,14 +26,17 @@ export function ProjectForm({
         ? api.updateProject(project.id, { name: name.trim() })
         : api.createProject({ name: name.trim() }),
     () => onDone({ removed: false }),
+    { fields: ['name'] },
   )
   const archive = useEditorMutation(
     () => api.updateProject(project?.id ?? '', { archived: true }),
     () => onDone({ removed: true }),
+    { invalidateAfter: true },
   )
   const remove = useEditorMutation(
     () => api.deleteProject(project?.id ?? ''),
     () => onDone({ removed: true }),
+    { invalidateAfter: true },
   )
 
   const onSubmit = (event: FormEvent) => {
@@ -44,12 +47,24 @@ export function ProjectForm({
   }
 
   const errors = { ...save.fieldErrors, ...localErrors }
+  const formError = save.formError ?? archive.formError ?? remove.formError
   const busy = save.mutation.isPending || archive.mutation.isPending || remove.mutation.isPending
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      {formError && (
+        <p role="alert" className="text-sm text-error">
+          {formError}
+        </p>
+      )}
       <Field label="Name" errors={errors.name}>
-        <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+        <input
+          // biome-ignore lint/a11y/noAutofocus: the editor is a modal that should start on its first field
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className={inputClass}
+        />
       </Field>
       <div className="flex flex-wrap gap-2">
         <button type="submit" disabled={busy} className={primary}>

@@ -47,6 +47,7 @@ export function TaskForm({
   const save = useEditorMutation(
     () => (task ? api.updateTask(task.id, fields()) : api.createTask({ projectId, ...fields() })),
     () => onDone(),
+    { fields: ['title', 'notes', 'dueDate', 'priority', 'size', 'milestoneId'] },
   )
 
   const onSubmit = (event: FormEvent) => {
@@ -56,12 +57,24 @@ export function TaskForm({
     save.mutation.mutate()
   }
 
+  const { formError } = save
   const errors = { ...save.fieldErrors, ...localErrors }
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      {formError && (
+        <p role="alert" className="text-sm text-error">
+          {formError}
+        </p>
+      )}
       <Field label="Title" errors={errors.title}>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
+        <input
+          // biome-ignore lint/a11y/noAutofocus: the editor is a modal that should start on its first field
+          autoFocus
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className={inputClass}
+        />
       </Field>
       <Field label="Notes" errors={errors.notes}>
         <textarea

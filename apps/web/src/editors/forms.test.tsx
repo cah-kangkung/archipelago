@@ -95,7 +95,9 @@ describe('editors', () => {
     await user.type(within(dialog()).getByLabelText('Title'), 'Ship v2')
     await user.click(within(dialog()).getByRole('button', { name: 'Save' }))
     expect(
-      await screen.findByText('Task is done; reopen it before changing its status'),
+      await within(screen.getByRole('status')).findByText(
+        'Task is done; reopen it before changing its status',
+      ),
     ).toBeInTheDocument()
     expect(within(dialog()).getByLabelText('Title')).toHaveValue('Ship v2')
   })
@@ -155,6 +157,103 @@ describe('editors', () => {
     expect(dialog()).toBeInTheDocument()
     state.world.tasks = state.world.tasks.filter((t) => t.title !== 'Ship')
     await act(() => queryClient.invalidateQueries({ queryKey: ['world'] }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  test('desktop editor is a modal dialog and focuses the first field', async () => {
+    const { api, beta, mvp } = seeded()
+    const { user } = renderApp({ api, path: `/p/${beta.id}/m/${mvp.id}`, desktop: true })
+    await screen.findByRole('heading', { level: 2, name: 'MVP' })
+    await user.keyboard('n')
+    expect(within(dialog()).getByLabelText('Title')).toHaveFocus()
+    expect((dialog() as HTMLDialogElement).open).toBe(true)
+    expect(dialog()).not.toHaveAttribute('open', 'false')
+  })
+
+  test('N and / are ignored while an editor is open', async () => {
+    const { api, beta, mvp } = seeded()
+    const { user } = renderApp({ api, path: `/p/${beta.id}/m/${mvp.id}`, desktop: true })
+    await screen.findByRole('heading', { level: 2, name: 'MVP' })
+    await user.keyboard('n')
+    await user.type(within(dialog()).getByLabelText('Title'), 'nnn')
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(within(dialog()).getByLabelText('Title')).toHaveValue('nnn')
+    // Focus on a non-typing control inside the dialog: shortcuts still must not fire.
+    within(dialog()).getByRole('button', { name: 'Close' }).focus()
+    await user.keyboard('n')
+    await user.keyboard('/')
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByLabelText('Search tasks')).not.toHaveFocus()
+  })
+
+  test('Ctrl+N does not open an editor', async () => {
+    const { api, beta, mvp } = seeded()
+    const { user } = renderApp({ api, path: `/p/${beta.id}/m/${mvp.id}`, desktop: true })
+    await screen.findByRole('heading', { level: 2, name: 'MVP' })
+    await user.keyboard('{Control>}n{/Control}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  test('N on the archipelago does nothing', async () => {
+    const { api } = seeded()
+    const { user } = renderApp({ api, path: '/', desktop: true })
+    await screen.findByTestId('island-cards')
+    await user.keyboard('n')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  test('a conflict is also shown inside the editor as an alert', async () => {
+    const { api, beta } = seeded()
+    api.updateTask = async () => {
+      throw new ApiError(409, 'conflict', 'Task is done; reopen it before changing its status')
+    }
+    const { user } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    await user.click(await screen.findByRole('button', { name: 'Edit "Ship"' }))
+    await user.click(within(dialog()).getByRole('button', { name: 'Save' }))
+    expect(await within(dialog()).findByRole('alert')).toHaveTextContent(
+      'Task is done; reopen it before changing its status',
+    )
+  })
+
+  test('a 422 on a field the form does not render becomes a form-level alert', async () => {
+    const { api, beta } = seeded()
+    api.createTask = async () => {
+      throw new ApiError(422, 'validation_failed', 'Request body is invalid', {
+        projectId: ['Project not found'],
+      })
+    }
+    const { user } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    await user.click(await screen.findByRole('button', { name: 'New task' }))
+    await user.type(within(dialog()).getByLabelText('Title'), 'Anything')
+    await user.click(within(dialog()).getByRole('button', { name: 'Create task' }))
+    expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Request body is invalid')
+  })
+
+  test('deleting an island never flashes the not-found screen', async () => {
+    const { api, beta } = seeded()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { user, router } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    await user.click(await screen.findByRole('button', { name: 'Edit island' }))
+    let flashed = false
+    const observer = new MutationObserver(() => {
+      if (screen.queryByText("That island or district doesn't exist.")) flashed = true
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+    await user.click(within(dialog()).getByRole('button', { name: 'Delete island' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+    await screen.findByTestId('island-cards')
+    observer.disconnect()
+    expect(flashed).toBe(false)
+    expect(screen.queryByText("That island or district doesn't exist.")).toBeNull()
+    confirm.mockRestore()
+  })
+
+  test('an open editor closes when the route changes', async () => {
+    const { api, beta } = seeded()
+    const { user, router } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    await user.click(await screen.findByRole('button', { name: 'New task' }))
+    expect(dialog()).toBeInTheDocument()
+    await act(() => router.navigate({ to: '/' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 })
