@@ -1,3 +1,4 @@
+import { validator } from 'hono/validator'
 import { z } from 'zod'
 import { AppError } from '../errors'
 
@@ -10,3 +11,10 @@ export function idParam(value: string | undefined, what: string): string {
   }
   return value
 }
+
+/** Validates the `:id` path param first, so a malformed id is a 404 even when the body is bad too. */
+export const validId = (what: string) =>
+  validator('param', (value) => {
+    idParam(value.id, what)
+    return value
+  })

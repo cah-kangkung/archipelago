@@ -105,6 +105,15 @@ describe('DELETE /milestones/:id', () => {
     })
   })
 
+  test('deleting the same milestone twice → the second call is 404', async () => {
+    await withRollback(async (tx) => {
+      const { me, addMilestone } = await setup(tx)
+      const m = await addMilestone('MVP')
+      expect((await me.del(`/api/v1/milestones/${m.id}`)).status).toBe(204)
+      expect((await me.del(`/api/v1/milestones/${m.id}`)).status).toBe(404)
+    })
+  })
+
   test("another user's milestone → 404 and nothing changes", async () => {
     await withRollback(async (tx) => {
       const { addMilestone } = await setup(tx)

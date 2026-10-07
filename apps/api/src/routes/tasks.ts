@@ -5,7 +5,7 @@ import {
 } from '@archipelago/shared'
 import { Hono } from 'hono'
 import { requireAuth } from '../auth/middleware'
-import { idParam } from '../http/params'
+import { idParam, validId } from '../http/params'
 import {
   completeTask,
   createTask,
@@ -30,20 +30,20 @@ export function taskRoutes(deps: Deps) {
       const task = await createTask(db, c.get('user').id, c.req.valid('json'), now())
       return c.json({ task }, 201)
     })
-    .patch('/:id', jsonBody(updateTaskInputSchema), async (c) => {
+    .patch('/:id', validId('Task'), jsonBody(updateTaskInputSchema), async (c) => {
       const id = idParam(c.req.param('id'), 'Task')
       const task = await updateTask(db, c.get('user').id, id, c.req.valid('json'), now())
       return c.json({ task })
     })
-    .delete('/:id', async (c) => {
+    .delete('/:id', validId('Task'), async (c) => {
       await deleteTask(db, c.get('user').id, idParam(c.req.param('id'), 'Task'), now())
       return c.body(null, 204)
     })
-    .post('/:id/complete', async (c) => {
+    .post('/:id/complete', validId('Task'), async (c) => {
       const id = idParam(c.req.param('id'), 'Task')
       return c.json(await completeTask(db, c.get('user').id, id, now()))
     })
-    .post('/:id/reopen', async (c) => {
+    .post('/:id/reopen', validId('Task'), async (c) => {
       const id = idParam(c.req.param('id'), 'Task')
       return c.json(await reopenTask(db, c.get('user').id, id, now()))
     })

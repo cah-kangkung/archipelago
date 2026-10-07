@@ -143,6 +143,23 @@ describe('GET /tasks', () => {
 })
 
 describe('PATCH /tasks/:id', () => {
+  test('an oversized sortOrder → 422, not 500', async () => {
+    await withRollback(async (tx) => {
+      const { me, addTask } = await setup(tx)
+      const task = await addTask({ title: 'Draft' })
+      expect((await me.patch(`${TASKS}/${task.id}`, { sortOrder: 3_000_000_000 })).status).toBe(422)
+    })
+  })
+
+  test('a malformed path id → 404 even when the body is invalid', async () => {
+    await withRollback(async (tx) => {
+      const { me } = await setup(tx)
+      const res = await me.patch(`${TASKS}/abc`, {})
+      expect(res.status).toBe(404)
+      expect((await readJson<ErrorBody>(res)).error.code).toBe('not_found')
+    })
+  })
+
   test('updates fields, including clearing the due date', async () => {
     await withRollback(async (tx) => {
       const { me, addTask } = await setup(tx)

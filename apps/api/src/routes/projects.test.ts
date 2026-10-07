@@ -75,6 +75,15 @@ describe('/projects', () => {
     })
   })
 
+  test('a malformed path id → 404 even when the body is invalid', async () => {
+    await withRollback(async (tx) => {
+      const me = await authedApp(tx)
+      const res = await me.patch('/api/v1/projects/abc', {})
+      expect(res.status).toBe(404)
+      expect((await readJson<ErrorBody>(res)).error.code).toBe('not_found')
+    })
+  })
+
   test("another user's project and malformed ids → 404", async () => {
     await withRollback(async (tx) => {
       const me = await authedApp(tx)

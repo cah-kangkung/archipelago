@@ -5,7 +5,7 @@ import {
 } from '@archipelago/shared'
 import { Hono } from 'hono'
 import { requireAuth } from '../auth/middleware'
-import { idParam } from '../http/params'
+import { idParam, validId } from '../http/params'
 import { createMilestone } from '../milestones/service'
 import { createProject, deleteProject, listProjects, updateProject } from '../projects/service'
 import type { AppEnv, Deps } from '../types'
@@ -22,16 +22,16 @@ export function projectRoutes(deps: Deps) {
       const project = await createProject(db, c.get('user').id, c.req.valid('json'))
       return c.json({ project }, 201)
     })
-    .patch('/:id', jsonBody(updateProjectInputSchema), async (c) => {
+    .patch('/:id', validId('Project'), jsonBody(updateProjectInputSchema), async (c) => {
       const id = idParam(c.req.param('id'), 'Project')
       const project = await updateProject(db, c.get('user').id, id, c.req.valid('json'), now())
       return c.json({ project })
     })
-    .delete('/:id', async (c) => {
+    .delete('/:id', validId('Project'), async (c) => {
       await deleteProject(db, c.get('user').id, idParam(c.req.param('id'), 'Project'))
       return c.body(null, 204)
     })
-    .post('/:id/milestones', jsonBody(createMilestoneInputSchema), async (c) => {
+    .post('/:id/milestones', validId('Project'), jsonBody(createMilestoneInputSchema), async (c) => {
       const projectId = idParam(c.req.param('id'), 'Project')
       const milestone = await createMilestone(db, c.get('user').id, projectId, c.req.valid('json'))
       return c.json({ milestone }, 201)
