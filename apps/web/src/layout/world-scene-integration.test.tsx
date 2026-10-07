@@ -15,8 +15,14 @@ vi.mock('../scene/world-scene', () => ({
     onSelect,
     onOpenIsland,
     onOpenDistrict,
+    coveredBottom,
   }: WorldSceneProps) => (
-    <div data-testid="scene" data-focus={focus.kind} data-selected={selectedTaskId ?? ''}>
+    <div
+      data-testid="scene"
+      data-focus={focus.kind}
+      data-selected={selectedTaskId ?? ''}
+      data-covered={coveredBottom}
+    >
       {model.islands.map((island) => (
         <div key={island.projectId}>
           <button type="button" onClick={() => onOpenIsland(island.projectId)}>
@@ -136,5 +142,28 @@ describe('World screen with the 3D scene', () => {
     await waitFor(() => expect(screen.queryByText('Loose task')).toBeNull())
     expect(screen.getByTestId('scene')).toHaveAttribute('data-selected', '')
     confirm.mockRestore()
+  })
+
+  test('the scene learns how much of it the phone sheet covers; none on desktop', async () => {
+    const { api, beta } = seeded()
+    renderApp({ api, path: `/p/${beta.id}` })
+    const scene = await screen.findByTestId('scene')
+    // jsdom: window.innerHeight is 768 and the switcher strip has no layout height.
+    await waitFor(() => expect(scene).toHaveAttribute('data-covered', '384'))
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Resize task sheet' }), {
+      key: 'ArrowDown',
+    })
+    await waitFor(() => expect(scene).toHaveAttribute('data-covered', '120'))
+  })
+
+  test('desktop: nothing covers the scene, and the switcher sits in the side panel', async () => {
+    const { api, beta } = seeded()
+    renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    expect(await screen.findByTestId('scene')).toHaveAttribute('data-covered', '0')
+    const panel = screen.getByTestId('task-side-panel')
+    expect(within(panel).getByRole('link', { name: 'Beta' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
   })
 })

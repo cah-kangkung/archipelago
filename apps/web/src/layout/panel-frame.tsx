@@ -1,10 +1,12 @@
 import {
   type Dispatch,
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
   type ReactNode,
   type SetStateAction,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react'
@@ -77,27 +79,41 @@ export function PanelFrame({
   title,
   detent,
   onDetentChange,
+  accessory,
+  onCoverChange,
   children,
 }: {
   title: string
   /** The phone sheet's detent index; ignored by the desktop side panel. */
   detent: number
   onDetentChange: Dispatch<SetStateAction<number>>
+  /** Rides above the phone sheet; heads the desktop panel. */
+  accessory?: ReactNode
+  /** Phone only: canvas px the settled sheet and its accessory cover. */
+  onCoverChange?: (px: number) => void
   children: ReactNode
 }) {
   return useIsDesktop() ? (
-    <DesktopPanel title={title}>{children}</DesktopPanel>
+    <DesktopPanel title={title} accessory={accessory}>
+      {children}
+    </DesktopPanel>
   ) : (
-    <MobileSheet title={title} detent={detent} setDetent={onDetentChange}>
+    <MobileSheet
+      title={title}
+      detent={detent}
+      setDetent={onDetentChange}
+      accessory={accessory}
+      onCoverChange={onCoverChange}
+    >
       {children}
     </MobileSheet>
   )
 }
 
 const DETENTS = [
-  { label: '120px', px: () => 120 },
-  { label: '50dvh', px: () => window.innerHeight * 0.5 },
-  { label: '92dvh', px: () => window.innerHeight * 0.92 },
+  { label: '120px', px: (_vh: number) => 120 },
+  { label: '50dvh', px: (vh: number) => vh * 0.5 },
+  { label: '92dvh', px: (vh: number) => vh * 0.92 },
 ]
 const TAP_SLOP = 4
 
@@ -105,22 +121,50 @@ function MobileSheet({
   title,
   detent,
   setDetent,
+  accessory,
+  onCoverChange,
   children,
 }: {
   title: string
   detent: number
   setDetent: Dispatch<SetStateAction<number>>
+  accessory?: ReactNode
+  onCoverChange?: (px: number) => void
   children: ReactNode
 }) {
   const [dragHeight, setDragHeight] = useState<number | null>(null)
   const sectionRef = useRef<HTMLElement>(null)
   const dragged = useRef(false)
   const startDrag = useDrag()
+  const stripRef = useRef<HTMLDivElement>(null)
+  const [stripHeight, setStripHeight] = useState(0)
+  const [windowHeight, setWindowHeight] = useState(() => window.innerHeight)
+
+  useEffect(() => {
+    const onResize = () => setWindowHeight(window.innerHeight)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useLayoutEffect(() => {
+    const strip = stripRef.current
+    if (!strip) return
+    setStripHeight(strip.offsetHeight)
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => setStripHeight(strip.offsetHeight))
+    observer.observe(strip)
+    return () => observer.disconnect()
+  }, [])
+
+  // The world frames around the settled sheet (spec §14.3); a drag in progress does not count.
+  useEffect(() => {
+    onCoverChange?.(Math.round((DETENTS[detent]?.px(windowHeight) ?? 0) + stripHeight))
+  }, [detent, stripHeight, windowHeight, onCoverChange])
 
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     const startY = event.clientY
     const measured = sectionRef.current?.getBoundingClientRect().height ?? 0
-    const startHeight = measured > 0 ? measured : (DETENTS[detent]?.px() ?? 0)
+    const startHeight = measured > 0 ? measured : (DETENTS[detent]?.px(window.innerHeight) ?? 0)
     dragged.current = false
     const maxHeight = () => window.innerHeight * 0.92
     const heightAt = (clientY: number) =>
@@ -132,32 +176,30 @@ function MobileSheet({
         if (dragged.current) setDragHeight(heightAt(move.clientY))
       },
       (end) => {
-        // A real drag is followed by a click on the handle; a missed one must not eat the next activation.
-        queueMicrotask(() => {
-          dragged.current = false
-        })
         setDragHeight(null)
-        if (!dragged.current) return
+        // A cancelled gesture leaves the sheet where it was. `dragged` stays set until the next
+        // pointer-down, so the click that ends a mouse drag does not also step the detent.
+        if (end.type === 'pointercancel' || !dragged.current) return
         const height = heightAt(end.clientY)
         let nearest = 0
         DETENTS.forEach((d, i) => {
           const best = DETENTS[nearest]
-          if (best && Math.abs(d.px() - height) < Math.abs(best.px() - height)) nearest = i
+          const vh = window.innerHeight
+          if (best && Math.abs(d.px(vh) - height) < Math.abs(best.px(vh) - height)) nearest = i
         })
         setDetent(nearest)
       },
     )
   }
 
-  const onClick = () => {
-    if (dragged.current) {
-      dragged.current = false
-      return
-    }
+  const onClick = (_event: MouseEvent<HTMLButtonElement>) => {
+    if (dragged.current) return
     setDetent((d) => (d + 1) % DETENTS.length)
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    // Keyboard activation is never the tail of a drag.
+    if (event.key === 'Enter' || event.key === ' ') dragged.current = false
     if (event.key === 'ArrowUp') {
       event.preventDefault()
       setDetent((d) => Math.min(DETENTS.length - 1, d + 1))
@@ -177,6 +219,11 @@ function MobileSheet({
       style={{ height: dragHeight ?? DETENTS[detent]?.label }}
       className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[640px] flex-col rounded-t-lg border-t border-border-primary bg-surface-primary shadow-2xl"
     >
+      {accessory && (
+        <div ref={stripRef} className="absolute inset-x-0 bottom-full">
+          {accessory}
+        </div>
+      )}
       <button
         type="button"
         aria-label="Resize task sheet"
@@ -194,7 +241,15 @@ function MobileSheet({
   )
 }
 
-function DesktopPanel({ title, children }: { title: string; children: ReactNode }) {
+function DesktopPanel({
+  title,
+  accessory,
+  children,
+}: {
+  title: string
+  accessory?: ReactNode
+  children: ReactNode
+}) {
   const [width, setWidth] = useState(readStoredWidth)
   const startDrag = useDrag()
 
@@ -245,6 +300,7 @@ function DesktopPanel({ title, children }: { title: string; children: ReactNode 
         onKeyDown={onKeyDown}
         className="absolute inset-y-0 -left-1 w-2 cursor-col-resize focus:bg-brand-secondary focus:outline-none"
       />
+      {accessory}
       <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
     </aside>
   )

@@ -14,6 +14,7 @@ export type WorldSceneProps = SceneHandlers & {
   model: SceneModel
   focus: Focus
   selectedTaskId: string | null
+  coveredBottom: number
 }
 
 function AnimationTicker({ enabled }: { enabled: boolean }) {
@@ -42,7 +43,12 @@ export function WorldScene(props: WorldSceneProps) {
       <color attach="background" args={[scenePalette.sea]} />
       <WorldContents {...props} animate={animate} />
       <Labels model={props.model} focus={props.focus} />
-      <CameraRig model={props.model} focus={props.focus} animate={animate} />
+      <CameraRig
+        model={props.model}
+        focus={props.focus}
+        covered={props.coveredBottom}
+        animate={animate}
+      />
       <AnimationTicker enabled={animate} />
     </Canvas>
   )

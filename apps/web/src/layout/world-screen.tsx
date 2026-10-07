@@ -42,6 +42,7 @@ export function WorldScreen() {
   const [editor, setEditor] = useState<Editor | null>(null)
   const [sheetDetent, setSheetDetent] = useState(SHEET_MIDDLE)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [cover, setCover] = useState(0)
 
   const resolved = world.data
     ? resolveFocus(world.data, { projectId: params.projectId, milestoneId: params.milestoneId })
@@ -146,13 +147,13 @@ export function WorldScreen() {
             </button>
           </div>
         )}
-        <IslandSwitcher summaries={summaries} currentProjectId={project?.id ?? null} />
         <WorldView
           world={world.data}
           resolved={resolved}
           summaries={summaries}
           today={today}
           selectedTaskId={selectedTask ? selectedTaskId : null}
+          coveredBottom={isDesktop ? 0 : cover}
           onSelect={(taskId) => {
             setSelectedTaskId(taskId)
             // Show the selected row: a collapsed sheet rises; a taller one stays where it is.
@@ -172,7 +173,19 @@ export function WorldScreen() {
           }
         />
       </div>
-      <PanelFrame title={panelTitle} detent={sheetDetent} onDetentChange={setSheetDetent}>
+      <PanelFrame
+        title={panelTitle}
+        detent={sheetDetent}
+        onDetentChange={setSheetDetent}
+        accessory={
+          <IslandSwitcher
+            summaries={summaries}
+            currentProjectId={project?.id ?? null}
+            variant={isDesktop ? 'panel' : 'floating'}
+          />
+        }
+        onCoverChange={setCover}
+      >
         <TaskPanel
           world={world.data}
           focus={resolved.focus}

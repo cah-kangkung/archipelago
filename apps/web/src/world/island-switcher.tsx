@@ -4,18 +4,27 @@ import { type IslandSummary, urgencyOf } from './selectors'
 const dot = { overdue: 'bg-error', 'due-soon': 'bg-warning', none: '' } as const
 const label = { overdue: 'overdue', 'due-soon': 'due soon', none: '' } as const
 
+/**
+ * Island chips. `floating` rides on top of the phone sheet over the world (transparent strip,
+ * chips with their own surface); `panel` heads the desktop side panel (spec §14.5).
+ */
 export function IslandSwitcher({
   summaries,
   currentProjectId,
+  variant,
 }: {
   summaries: IslandSummary[]
   currentProjectId: string | null
+  variant: 'floating' | 'panel'
 }) {
   if (summaries.length === 0) return null
+  const floating = variant === 'floating'
   return (
     <nav
       aria-label="Islands"
-      className="shrink-0 border-b border-border-primary bg-surface-primary"
+      className={
+        floating ? 'shrink-0' : 'shrink-0 border-b border-border-primary bg-surface-primary'
+      }
     >
       <ul className="flex gap-2 overflow-x-auto px-4 py-2">
         {summaries.map((s) => {
@@ -28,6 +37,8 @@ export function IslandSwitcher({
                 params={{ projectId: s.project.id }}
                 aria-current={current ? 'page' : undefined}
                 className={`flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm ${
+                  floating ? 'shadow' : ''
+                } ${
                   current
                     ? 'border-brand bg-brand text-text-on-brand'
                     : 'border-border-secondary bg-surface-primary text-text-primary'

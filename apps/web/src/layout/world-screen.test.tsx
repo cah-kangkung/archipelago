@@ -31,7 +31,10 @@ describe('WorldScreen', () => {
     expect(cards).toHaveClass('overflow-x-auto')
     expect(within(cards).getByRole('link', { name: /Beta/ })).toHaveTextContent('2 open')
 
-    const switcher = screen.getByRole('navigation', { name: 'Islands' })
+    const switcher = within(screen.getByTestId('task-sheet')).getByRole('navigation', {
+      name: 'Islands',
+    })
+    expect(screen.getAllByRole('navigation', { name: 'Islands' })).toHaveLength(1)
     expect(within(switcher).getByRole('link', { name: /Beta/ })).toHaveTextContent('overdue')
     expect(within(switcher).getByRole('link', { name: /Gamma/ })).toHaveTextContent('due soon')
 
@@ -43,6 +46,8 @@ describe('WorldScreen', () => {
     const { api } = seeded()
     renderApp({ api, path: '/', desktop: true })
     const panel = await screen.findByTestId('task-side-panel')
+    expect(within(panel).getByRole('navigation', { name: 'Islands' })).toBeInTheDocument()
+    expect(screen.getAllByRole('navigation', { name: 'Islands' })).toHaveLength(1)
     expect(panel).toHaveStyle({ width: '400px' })
     const handle = screen.getByRole('button', { name: 'Resize task panel' })
     fireEvent.keyDown(handle, { key: 'ArrowLeft' })
@@ -147,24 +152,45 @@ describe('WorldScreen', () => {
       expect(sheet.style.height).toBe('92dvh')
     })
 
-    test('a cancelled drag cleans up and keyboard resizing still works', async () => {
+    test('a cancelled drag restores the previous detent and keyboard resizing still works', async () => {
+      setHeight(800)
+      const { api } = seeded()
+      renderApp({ api, path: '/' })
+      const sheet = await screen.findByTestId('task-sheet')
+      const handle = screen.getByRole('button', { name: 'Resize task sheet' })
+      expect(sheet).toHaveAttribute('data-detent', '1')
+      fireEvent.pointerDown(handle, { clientY: 600, pointerId: 1 })
+      fireEvent.pointerMove(window, { clientY: 300, pointerId: 1 })
+      expect(sheet.style.height).not.toMatch(/dvh|^120px$/)
+      fireEvent.pointerCancel(window, { clientY: 0, pointerId: 1 })
+      expect(sheet).toHaveAttribute('data-detent', '1')
+      expect(sheet.style.height).toBe('50dvh')
+      // Later moves must not resize: listeners are gone.
+      fireEvent.pointerMove(window, { clientY: 0, pointerId: 1 })
+      expect(sheet.style.height).toBe('50dvh')
+      fireEvent.keyDown(handle, { key: 'ArrowDown' })
+      expect(sheet).toHaveAttribute('data-detent', '0')
+    })
+
+    test('the click that ends a mouse drag does not also step the detent', async () => {
       setHeight(800)
       const { api } = seeded()
       renderApp({ api, path: '/' })
       const sheet = await screen.findByTestId('task-sheet')
       const handle = screen.getByRole('button', { name: 'Resize task sheet' })
       fireEvent.pointerDown(handle, { clientY: 600, pointerId: 1 })
-      fireEvent.pointerMove(window, { clientY: 300, pointerId: 1 })
-      expect(sheet.style.height).not.toMatch(/dvh|^120px$/)
-      fireEvent.pointerCancel(window, { clientY: 300, pointerId: 1 })
-      await waitFor(() => expect(sheet.style.height).toMatch(/dvh|px/))
-      expect(['120px', '50dvh', '92dvh']).toContain(sheet.style.height)
-      // Later moves must not resize: listeners are gone.
-      fireEvent.pointerMove(window, { clientY: 0, pointerId: 1 })
-      expect(['120px', '50dvh', '92dvh']).toContain(sheet.style.height)
-      const before = Number(sheet.getAttribute('data-detent'))
-      fireEvent.keyDown(handle, { key: 'ArrowDown' })
-      expect(sheet).toHaveAttribute('data-detent', String(Math.max(0, before - 1)))
+      fireEvent.pointerMove(window, { clientY: 100, pointerId: 1 })
+      fireEvent.pointerUp(window, { clientY: 100, pointerId: 1 })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      fireEvent.click(handle, { detail: 1 })
+      expect(sheet).toHaveAttribute('data-detent', '2')
+      // A fresh tap (pointer-down, then click) steps again.
+      fireEvent.pointerDown(handle, { clientY: 100, pointerId: 1 })
+      fireEvent.pointerUp(window, { clientY: 100, pointerId: 1 })
+      fireEvent.click(handle, { detail: 1 })
+      expect(sheet).toHaveAttribute('data-detent', '0')
     })
 
     test('a drag that ends without a click does not swallow the next keyboard activation', async () => {

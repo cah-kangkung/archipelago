@@ -21,6 +21,7 @@ export function WorldView({
   summaries,
   today,
   selectedTaskId,
+  coveredBottom,
   onSelect,
   onNewProject,
   onNewMilestone,
@@ -32,6 +33,7 @@ export function WorldView({
   summaries: IslandSummary[]
   today: string
   selectedTaskId: string | null
+  coveredBottom: number
   onSelect: (taskId: string | null) => void
   onNewProject?: () => void
   onNewMilestone?: () => void
@@ -62,6 +64,7 @@ export function WorldView({
               model={model}
               focus={resolved.focus}
               selectedTaskId={selectedTaskId}
+              coveredBottom={coveredBottom}
               onSelect={onSelect}
               onOpenIsland={(projectId) =>
                 void navigate({ to: '/p/$projectId', params: { projectId } })
