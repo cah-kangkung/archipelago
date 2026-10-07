@@ -11,13 +11,22 @@ describe('hasWebGL', () => {
     expect(hasWebGL()).toBe(false)
   })
 
-  test('is true when a webgl2 context exists, and probes only once', () => {
-    const getContext = vi
-      .spyOn(HTMLCanvasElement.prototype, 'getContext')
-      .mockReturnValue({} as RenderingContext)
+  test('is true when a webgl2 context exists, probes only once and releases the context', () => {
+    const loseContext = vi.fn()
+    const context = { getExtension: () => ({ loseContext }) } as unknown as RenderingContext
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
     expect(hasWebGL()).toBe(true)
     expect(hasWebGL()).toBe(true)
     expect(getContext).toHaveBeenCalledTimes(1)
+    expect(getContext).toHaveBeenCalledWith('webgl2')
+    expect(loseContext).toHaveBeenCalledTimes(1)
+  })
+
+  test('is false on a WebGL1-only device: three r186 needs WebGL2', () => {
+    const context = { getExtension: () => null } as unknown as RenderingContext
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(((id: string) =>
+      id === 'webgl' ? context : null) as typeof HTMLCanvasElement.prototype.getContext)
+    expect(hasWebGL()).toBe(false)
   })
 
   test('is false when probing throws', () => {

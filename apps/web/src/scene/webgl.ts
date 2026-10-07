@@ -1,11 +1,16 @@
 let probed: boolean | undefined
 
-/** Whether this browser can create a WebGL context. Probed once; the answer does not change. */
+/**
+ * Whether this browser can create a WebGL2 context; three r186's renderer needs WebGL2, so a
+ * WebGL1-only device gets the card view. Probed once; the answer does not change.
+ */
 export function hasWebGL(): boolean {
   if (probed === undefined) {
     try {
-      const canvas = document.createElement('canvas')
-      probed = Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'))
+      const ctx = document.createElement('canvas').getContext('webgl2')
+      probed = ctx !== null
+      // Browsers cap live contexts; hand the probe's back straight away.
+      ctx?.getExtension('WEBGL_lose_context')?.loseContext()
     } catch {
       probed = false
     }

@@ -4,6 +4,7 @@ import { lazy, Suspense, useMemo } from 'react'
 import { buildSceneModel } from '../scene/model/scene-model'
 import { hasWebGL } from '../scene/webgl'
 import { CardWorld } from './card-world'
+import { SceneBoundary } from './scene-boundary'
 import type { IslandSummary, resolveFocus } from './selectors'
 import { WorldHud } from './world-hud'
 
@@ -41,35 +42,38 @@ export function WorldView({
   const model = useMemo(() => buildSceneModel(world, today), [world, today])
   const actions = { onNewProject, onNewMilestone, onEditProject, onEditMilestone }
 
-  if (!hasWebGL()) {
-    return <CardWorld world={world} resolved={resolved} summaries={summaries} {...actions} />
-  }
+  const cards = <CardWorld world={world} resolved={resolved} summaries={summaries} {...actions} />
+  if (!hasWebGL()) return cards
 
   const label =
     resolved.milestone?.name ??
     (resolved.project ? `${resolved.project.name} island` : 'Archipelago')
+  // If the scene fails, the cards replace the whole section, HUD included: they carry their own
+  // controls.
   return (
-    <section aria-label={label} className="relative min-h-0 flex-1 overflow-hidden bg-brand">
-      <div className="absolute inset-0">
-        <Suspense fallback={<p className="p-4 text-text-on-brand">Loading the world…</p>}>
-          <WorldScene
-            model={model}
-            focus={resolved.focus}
-            selectedTaskId={selectedTaskId}
-            onSelect={onSelect}
-            onOpenIsland={(projectId) =>
-              void navigate({ to: '/p/$projectId', params: { projectId } })
-            }
-            onOpenDistrict={(projectId, milestoneId) =>
-              void navigate({
-                to: '/p/$projectId/m/$milestoneId',
-                params: { projectId, milestoneId },
-              })
-            }
-          />
-        </Suspense>
-      </div>
-      <WorldHud resolved={resolved} empty={world.projects.length === 0} {...actions} />
-    </section>
+    <SceneBoundary fallback={cards}>
+      <section aria-label={label} className="relative min-h-0 flex-1 overflow-hidden bg-brand">
+        <div className="absolute inset-0">
+          <Suspense fallback={<p className="p-4 text-text-on-brand">Loading the world…</p>}>
+            <WorldScene
+              model={model}
+              focus={resolved.focus}
+              selectedTaskId={selectedTaskId}
+              onSelect={onSelect}
+              onOpenIsland={(projectId) =>
+                void navigate({ to: '/p/$projectId', params: { projectId } })
+              }
+              onOpenDistrict={(projectId, milestoneId) =>
+                void navigate({
+                  to: '/p/$projectId/m/$milestoneId',
+                  params: { projectId, milestoneId },
+                })
+              }
+            />
+          </Suspense>
+        </div>
+        <WorldHud resolved={resolved} empty={world.projects.length === 0} {...actions} />
+      </section>
+    </SceneBoundary>
   )
 }
