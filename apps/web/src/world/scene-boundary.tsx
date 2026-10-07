@@ -16,7 +16,7 @@ export function resetSceneRetries(): void {
  * transient failure recovers but a device that always fails settles on the cards.
  */
 export class SceneBoundary extends Component<
-  { fallback: ReactNode; resetKey: string; children: ReactNode },
+  { fallback: ReactNode; resetKey: string; onRetry?: () => void; children: ReactNode },
   { failed: boolean }
 > {
   state = { failed: false }
@@ -28,6 +28,7 @@ export class SceneBoundary extends Component<
   componentDidUpdate(prev: { resetKey: string }) {
     if (!this.state.failed || prev.resetKey === this.props.resetKey || retriesLeft <= 0) return
     retriesLeft -= 1
+    this.props.onRetry?.()
     this.setState({ failed: false })
   }
 

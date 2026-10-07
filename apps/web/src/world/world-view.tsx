@@ -1,6 +1,6 @@
 import type { WorldDto } from '@archipelago/shared'
 import { useNavigate } from '@tanstack/react-router'
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { createIndicatorStore } from '../scene/indicator-store'
 import { focusKey } from '../scene/model/camera'
 import type { IslandUrgency } from '../scene/model/indicators'
@@ -8,14 +8,10 @@ import { buildSceneModel } from '../scene/model/scene-model'
 import { hasWebGL } from '../scene/webgl'
 import { CardWorld } from './card-world'
 import { EdgeIndicatorLayer } from './edge-indicators'
+import { createLazyWorldScene } from './load-world-scene'
 import { SceneBoundary } from './scene-boundary'
 import { type IslandSummary, type resolveFocus, urgencyOf } from './selectors'
 import { WorldHud } from './world-hud'
-
-// Three.js lives in its own chunk, so it never weighs on the login screen.
-const WorldScene = lazy(() =>
-  import('../scene/world-scene').then((m) => ({ default: m.WorldScene })),
-)
 
 type Resolved = ReturnType<typeof resolveFocus>
 
@@ -49,6 +45,8 @@ export function WorldView({
   const navigate = useNavigate()
   const model = useMemo(() => buildSceneModel(world, today), [world, today])
   const [indicators] = useState(createIndicatorStore)
+  // Three.js lives in its own chunk. A failed load is cached by `lazy`, so a retry builds a new one.
+  const [WorldScene, setWorldScene] = useState(createLazyWorldScene)
   const urgent = useMemo(
     () =>
       summaries.flatMap((s): IslandUrgency[] => {
@@ -72,7 +70,11 @@ export function WorldView({
   // If the scene fails, the cards replace the whole section, HUD included: they carry their own
   // controls.
   return (
-    <SceneBoundary fallback={cards} resetKey={focusKey(resolved.focus)}>
+    <SceneBoundary
+      fallback={cards}
+      resetKey={focusKey(resolved.focus)}
+      onRetry={() => setWorldScene(createLazyWorldScene)}
+    >
       <section
         aria-label={label}
         className="relative isolate min-h-0 flex-1 overflow-hidden bg-brand"
