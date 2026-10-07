@@ -1,4 +1,4 @@
-import { and, eq, gt } from 'drizzle-orm'
+import { and, eq, gt, lte } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { sessions, users } from '../db/schema'
 import type { AuthUser } from '../types'
@@ -14,6 +14,7 @@ export async function createSession(
 ): Promise<{ token: string; expiresAt: Date }> {
   const token = generateToken()
   const expiresAt = new Date(now.getTime() + ttlDays * DAY_MS)
+  await db.delete(sessions).where(and(eq(sessions.userId, userId), lte(sessions.expiresAt, now)))
   await db.insert(sessions).values({ id: sha256Hex(token), userId, expiresAt })
   return { token, expiresAt }
 }

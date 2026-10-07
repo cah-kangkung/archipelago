@@ -34,6 +34,15 @@ describe('seedUserInputSchema', () => {
     expect(seedUserInputSchema.safeParse({ ...valid, password: 'short' }).success).toBe(false)
   })
 
+  test('canonicalises the timezone name', () => {
+    const parsed = seedUserInputSchema.parse({ ...valid, timezone: 'asia/jakarta' })
+    expect(parsed.timezone).toBe('Asia/Jakarta')
+  })
+
+  test('rejects UTC offsets as timezones', () => {
+    expect(seedUserInputSchema.safeParse({ ...valid, timezone: '+01:00' }).success).toBe(false)
+  })
+
   test('rejects unknown timezones', () => {
     expect(seedUserInputSchema.safeParse({ ...valid, timezone: 'Nowhere/Land' }).success).toBe(
       false,

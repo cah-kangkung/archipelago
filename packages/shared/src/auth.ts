@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isValidTimezone } from './timezone'
+import { canonicalTimezone } from './timezone'
 
 export const PASSWORD_MIN_LENGTH = 12
 
@@ -14,7 +14,10 @@ export type LoginInput = z.infer<typeof loginInputSchema>
 export const seedUserInputSchema = z.object({
   email: emailSchema,
   password: z.string().min(PASSWORD_MIN_LENGTH).max(1024),
-  timezone: z.string().refine(isValidTimezone, 'Unknown IANA timezone'),
+  timezone: z
+    .string()
+    .refine((tz) => canonicalTimezone(tz) !== null, 'Unknown IANA timezone')
+    .transform((tz) => canonicalTimezone(tz) ?? tz),
 })
 export type SeedUserInput = z.infer<typeof seedUserInputSchema>
 

@@ -22,3 +22,10 @@ test('fails loudly when DATABASE_URL is missing or not postgres', () => {
   expect(() => loadConfig({})).toThrow(/DATABASE_URL/)
   expect(() => loadConfig({ DATABASE_URL: 'mysql://x' })).toThrow(/DATABASE_URL/)
 })
+
+test('rejects out-of-range or malformed values', () => {
+  expect(() => loadConfig({ ...base, PORT: '70000' })).toThrow(/PORT/)
+  expect(() => loadConfig({ ...base, PORT: 'abc' })).toThrow(/PORT/)
+  expect(() => loadConfig({ ...base, SESSION_TTL_DAYS: '100000' })).toThrow(/SESSION_TTL_DAYS/)
+  expect(() => loadConfig({ ...base, COOKIE_SECURE: 'garbage' })).toThrow(/COOKIE_SECURE/)
+})

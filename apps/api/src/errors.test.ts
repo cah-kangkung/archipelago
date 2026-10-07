@@ -46,6 +46,24 @@ test('empty JSON body → 400 bad_request', async () => {
   expect(((await res.json()) as ErrorBody).error.code).toBe('bad_request')
 })
 
+test('non-JSON content types → 400 bad_request', async () => {
+  const body = JSON.stringify({ name: 'Ada' })
+  for (const headers of [{ 'content-type': 'text/plain' }, {}] as Record<string, string>[]) {
+    const res = await app.request('/echo', { method: 'POST', headers, body })
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as ErrorBody).error.code).toBe('bad_request')
+  }
+})
+
+test('content type parameters and casing are accepted', async () => {
+  const res = await app.request('/echo', {
+    method: 'POST',
+    headers: { 'content-type': 'Application/JSON; charset=utf-8' },
+    body: JSON.stringify({ name: 'Ada' }),
+  })
+  expect(res.status).toBe(200)
+})
+
 test('AppError maps to its status', async () => {
   const res = await app.request('/conflict')
   expect(res.status).toBe(409)

@@ -2,10 +2,10 @@ import { z } from 'zod'
 
 const envSchema = z.object({
   DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'must be a postgres:// URL'),
-  PORT: z.coerce.number().int().positive().default(3000),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   COOKIE_SECURE: z.stringbool().default(true),
   TRUST_PROXY: z.stringbool().default(false),
-  SESSION_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
 })
 
 export type Config = {
