@@ -1,9 +1,19 @@
-import type { CreateTaskInput, TaskDto, TaskListQuery, UpdateTaskInput } from '@archipelago/shared'
+import type {
+  CompleteTaskResultDto,
+  CreateTaskInput,
+  ReopenTaskResultDto,
+  TaskDto,
+  TaskListQuery,
+  UpdateTaskInput,
+} from '@archipelago/shared'
 import { and, asc, eq, getTableColumns, type SQL } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { projects, tasks } from '../db/schema'
+import { getBalance } from '../economy/ledger'
+import { awardCompletion, reverseCompletion } from '../economy/rewards'
 import { AppError } from '../errors'
 import { toTaskDto } from '../http/serialize'
+import type { AuthUser } from '../types'
 import {
   assignTaskPlot,
   findMilestoneInProject,
@@ -142,27 +152,28 @@ export async function updateTask(
   })
 }
 
-export async function deleteTask(db: Db, userId: string, taskId: string, now: Date): Promise<void> {
+export async function deleteTask(db: Db, user: AuthUser, taskId: string, now: Date): Promise<void> {
   await db.transaction(async (tx) => {
-    await lockOwnedTaskProject(tx, userId, taskId)
+    await lockOwnedTaskProject(tx, user.id, taskId)
     // Re-read under the project lock so the milestone sync sees current state.
-    const task = await findOwnedTask(tx, userId, taskId)
+    const task = await findOwnedTask(tx, user.id, taskId)
     if (!task) throw notFound()
     await tx.delete(tasks).where(eq(tasks.id, taskId))
     await syncMilestoneCompletion(tx, task.milestoneId, now)
+    if (task.status === 'done') await reverseCompletion(tx, user, task, now)
   })
 }
 
 export async function completeTask(
   db: Db,
-  userId: string,
+  user: AuthUser,
   taskId: string,
   now: Date,
-): Promise<{ task: TaskDto; milestoneCompleted: boolean }> {
+): Promise<CompleteTaskResultDto> {
   return db.transaction(async (tx) => {
-    await lockOwnedTaskProject(tx, userId, taskId)
+    await lockOwnedTaskProject(tx, user.id, taskId)
     // Re-read under the project lock so the checks below cannot be stale.
-    const task = await findOwnedTask(tx, userId, taskId)
+    const task = await findOwnedTask(tx, user.id, taskId)
     if (!task) throw notFound()
     if (task.status === 'done') throw new AppError('conflict', 'Task is already done')
     const [row] = await tx
@@ -171,21 +182,28 @@ export async function completeTask(
       .where(eq(tasks.id, taskId))
       .returning()
     if (!row) throw notFound()
-    const milestone = await syncMilestoneCompletion(tx, row.milestoneId, now)
-    return { task: toTaskDto(row), milestoneCompleted: milestone === 'completed' }
+    const milestoneCompleted =
+      (await syncMilestoneCompletion(tx, row.milestoneId, now)) === 'completed'
+    const rewards = await awardCompletion(tx, user, row, milestoneCompleted, now)
+    return {
+      task: toTaskDto(row),
+      milestoneCompleted,
+      rewards,
+      balance: await getBalance(tx, user.id),
+    }
   })
 }
 
 export async function reopenTask(
   db: Db,
-  userId: string,
+  user: AuthUser,
   taskId: string,
   now: Date,
-): Promise<{ task: TaskDto; milestoneReopened: boolean }> {
+): Promise<ReopenTaskResultDto> {
   return db.transaction(async (tx) => {
-    await lockOwnedTaskProject(tx, userId, taskId)
+    await lockOwnedTaskProject(tx, user.id, taskId)
     // Re-read under the project lock so the checks below cannot be stale.
-    const task = await findOwnedTask(tx, userId, taskId)
+    const task = await findOwnedTask(tx, user.id, taskId)
     if (!task) throw notFound()
     if (task.status !== 'done') throw new AppError('conflict', 'Task is not done')
     const [row] = await tx
@@ -194,7 +212,14 @@ export async function reopenTask(
       .where(eq(tasks.id, taskId))
       .returning()
     if (!row) throw notFound()
-    const milestone = await syncMilestoneCompletion(tx, row.milestoneId, now)
-    return { task: toTaskDto(row), milestoneReopened: milestone === 'reopened' }
+    const milestoneReopened =
+      (await syncMilestoneCompletion(tx, row.milestoneId, now)) === 'reopened'
+    const reversals = await reverseCompletion(tx, user, task, now)
+    return {
+      task: toTaskDto(row),
+      milestoneReopened,
+      reversals,
+      balance: await getBalance(tx, user.id),
+    }
   })
 }

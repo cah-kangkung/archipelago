@@ -6,10 +6,10 @@ import { insertUser, testConfig } from './fixtures'
 export const readJson = async <T>(res: Response): Promise<T> => (await res.json()) as T
 
 /** A real app plus request helpers authenticated as a fresh user via a session cookie. */
-export async function authedApp(db: Db) {
-  const user = await insertUser(db)
+export async function authedApp(db: Db, options: { now?: () => Date; timezone?: string } = {}) {
+  const user = await insertUser(db, { timezone: options.timezone })
   const { token } = await createSession(db, user.id, 30)
-  const app = createApp({ db, config: testConfig })
+  const app = createApp({ db, config: testConfig, now: options.now })
   const cookie = `session=${token}`
 
   const send = (method: string, path: string, body?: unknown) =>

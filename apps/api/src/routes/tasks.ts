@@ -36,15 +36,15 @@ export function taskRoutes(deps: Deps) {
       return c.json({ task })
     })
     .delete('/:id', validId('Task'), async (c) => {
-      await deleteTask(db, c.get('user').id, idParam(c.req.param('id'), 'Task'), now())
+      await deleteTask(db, c.get('user'), idParam(c.req.param('id'), 'Task'), now())
       return c.body(null, 204)
     })
     .post('/:id/complete', validId('Task'), async (c) => {
       const id = idParam(c.req.param('id'), 'Task')
-      return c.json(await completeTask(db, c.get('user').id, id, now()))
+      return c.json(await completeTask(db, c.get('user'), id, now()))
     })
     .post('/:id/reopen', validId('Task'), async (c) => {
       const id = idParam(c.req.param('id'), 'Task')
-      return c.json(await reopenTask(db, c.get('user').id, id, now()))
+      return c.json(await reopenTask(db, c.get('user'), id, now()))
     })
 }
