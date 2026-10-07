@@ -56,6 +56,7 @@ export type WorldDto = {
   milestones: MilestoneDto[]
   tasks: TaskDto[]
   buildings: BuildingDto[]
+  economy: EconomyDto
 }
 
 export type AuthUserDto = {

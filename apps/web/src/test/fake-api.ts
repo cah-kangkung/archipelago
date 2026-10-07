@@ -1,7 +1,15 @@
-import type { AuthUserDto, MilestoneDto, ProjectDto, TaskDto, WorldDto } from '@archipelago/shared'
+import {
+  type AuthUserDto,
+  emptyEconomy,
+  type MilestoneDto,
+  type ProjectDto,
+  type TaskDto,
+  type WorldDto,
+} from '@archipelago/shared'
 import { type Api, ApiError } from '../api/api'
 
-export type FakeState = { user: AuthUserDto | null; password: string; world: WorldDto }
+export type WorldSeed = Omit<WorldDto, 'economy'>
+export type FakeState = { user: AuthUserDto | null; password: string; world: WorldSeed }
 
 let counter = 0
 const nextId = () => `00000000-0000-4000-8000-${String(++counter).padStart(12, '0')}`
@@ -115,6 +123,7 @@ export function createFakeApi(seed: Partial<FakeState> = {}) {
         milestones: state.world.milestones.filter((m) => ids.has(m.projectId)),
         tasks: state.world.tasks.filter((t) => ids.has(t.projectId)),
         buildings: state.world.buildings.filter((b) => ids.has(b.projectId)),
+        economy: emptyEconomy(),
       })
     },
     createProject: async (input) => {

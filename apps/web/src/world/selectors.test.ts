@@ -1,4 +1,4 @@
-import type { WorldDto } from '@archipelago/shared'
+import { emptyEconomy, type WorldDto } from '@archipelago/shared'
 import { describe, expect, test } from 'vitest'
 import { fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
 import {
@@ -51,6 +51,7 @@ function sampleWorld(): WorldDto {
   const gamma = fakeProject({ name: 'Gamma' })
   const mvp = fakeMilestone({ projectId: beta.id, name: 'MVP' })
   return {
+    economy: emptyEconomy(),
     projects: [beta, gamma],
     milestones: [mvp],
     tasks: [

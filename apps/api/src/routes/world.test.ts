@@ -23,6 +23,11 @@ describe('GET /world', () => {
         milestones: [],
         tasks: [],
         buildings: [],
+        economy: {
+          balance: 0,
+          streak: { days: 0, activeToday: false, next: { days: 3, amount: 20 } },
+          daily: { amount: 15, claimedToday: false },
+        },
       })
     })
   })
@@ -63,6 +68,19 @@ describe('GET /world', () => {
       const res = await app.request(WORLD, { headers: { authorization: `Bearer ${token}` } })
       expect(res.status).toBe(200)
       expect((await readJson<WorldDto>(res)).projects).toHaveLength(1)
+    })
+  })
+
+  test('includes the economy, even for a user with no islands', async () => {
+    await withRollback(async (tx) => {
+      const me = await authedApp(tx)
+      const empty = await readJson<WorldDto>(await me.get(WORLD))
+      expect(empty.economy.balance).toBe(0)
+      expect(empty.economy.daily.claimedToday).toBe(false)
+      await me.post('/api/v1/economy/daily-claim')
+      const after = await readJson<WorldDto>(await me.get(WORLD))
+      expect(after.economy.balance).toBe(15)
+      expect(after.economy.daily.claimedToday).toBe(true)
     })
   })
 })
