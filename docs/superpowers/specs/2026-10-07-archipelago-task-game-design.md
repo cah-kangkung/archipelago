@@ -90,7 +90,7 @@ tasks        id, project_id, milestone_id (nullable),
              plot_x, plot_y, sort_order,
              external_source, external_id, external_url
 
-ledger       id, user_id, kind, amount, ref_type, ref_id, created_at
+ledger       id, user_id, kind, amount, ref_type, ref_id, reverses_id, created_at
 buildings    id, project_id, type, plot_x, plot_y, rotation, placed_at
 ```
 
@@ -104,7 +104,7 @@ buildings    id, project_id, type, plot_x, plot_y, rotation, placed_at
   - `purchase`
   - `reversal`
 
-  A reversal references the entry it reverses.
+  A reversal references the entry it reverses via `reverses_id`, which is unique, so an entry can be reversed at most once.
 - **Streaks:** derived from `tasks.completed_at` in `users.timezone`. No stored counter.
 - **Task plots:** assigned once, at task creation, from `island_seed` and the milestone's district. They never reshuffle. If a task moves to another milestone, it gets a new plot in that district.
 - **Landmarks:** a milestone landmark occupies its district's centre plot.
@@ -148,9 +148,10 @@ Setting `status=done` through `PATCH /tasks/:id` is rejected. Completion must go
 ### 6.2 Errors
 
 - **Shape:** every error uses `{ error: { code, message, fields? } }`.
-- **Validation failures:** `422` with field errors.
+- **Validation failures:** `422` with field errors. A malformed JSON body returns `400 bad_request`.
 - **Auth:** `401` when unauthenticated, `404` for resources the user doesn't own (no existence leak).
 - **Business rules:** `409` for conflicts, such as an occupied plot or insufficient Supplies.
+- **Rate limit exceeded:** `429 rate_limited`.
 - **Rate limit:** `POST /auth/login` is rate-limited per IP.
 
 ### 6.3 Auth
@@ -290,7 +291,7 @@ A Playwright smoke test that logs in, creates a project and a task, completes it
   - `caddy`, which serves `apps/web/dist`, reverse-proxies `/api` and provides automatic HTTPS.
 - **Backups:** a nightly `pg_dump` cron to a backup directory on the VPS, with 7-day retention.
 - **Bootstrap:** a `bun run seed:user` CLI creates the single user account. There's no sign-up route.
-- **Configuration:** env vars (`DATABASE_URL`, `SESSION_SECRET`, `APP_ORIGIN`) via a `.env` file that is not committed.
+- **Configuration:** env vars `DATABASE_URL`, `COOKIE_SECURE`, `TRUST_PROXY`, `SESSION_TTL_DAYS` and `PORT`, set via a `.env` file that is not committed. `APP_ORIGIN` is added in Phase 6. Session tokens are random and stored hashed, so no signing secret is needed.
 
 ## 10. Scope
 
@@ -309,7 +310,7 @@ v1 is built in phases. Each phase is a vertical slice that gets its own implemen
 
 | # | Phase | Contents | Done when |
 |---|---|---|---|
-| 1 | Foundation | Turborepo + Bun scaffold, `packages/shared`, `ui-tokens`, `tsconfig`; Drizzle schema + migrations; auth (sessions, login rate limit, `seed:user`); error shape; Docker Compose (Postgres + API) for local dev | Can log in against a real DB; `turbo test` green |
+| 1 | Foundation | Turborepo + Bun scaffold, `packages/shared`, `ui-tokens`, `tsconfig`; Drizzle schema + migrations; auth (sessions, login rate limit, `seed:user`, personal API tokens + bearer auth); error shape; Docker Compose (Postgres + API) for local dev | Can log in against a real DB; `turbo test` green |
 | — | 3D spike (optional, throwaway) | Minimal R3F scene: one seeded, palette-recoloured island, isometric ortho camera, pan/zoom; tested on a real phone | Performance and feel validated, or risks recorded |
 | 2 | Task core | Projects/milestones/tasks CRUD, `GET /world`, plot assignment, plain responsive list UI (bottom sheet on mobile / side panel on desktop), routing for the three states | Usable task manager on phone and desktop |
 | 3 | Economy | Ledger, complete/reopen with rewards, milestone bonus, streaks, daily bonus, `GET /economy`, reward events in the UI | Completing tasks earns Supplies, reversals are correct |
