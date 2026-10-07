@@ -475,9 +475,9 @@ No Three.js imports; all of it is unit-tested.
 
 ### 13.3 Rendering (`apps/web/src/scene/`)
 
-- **Canvas:** `<Canvas frameloop="demand" dpr={[1, 2]} orthographic>`, true isometric camera (45° around y, 35.264° elevation), one directional light plus hemisphere light, no shadow maps; each structure gets a blob shadow decal.
+- **Canvas:** `<Canvas frameloop="demand" dpr={[1, 2]} orthographic flat>` (no tone mapping, so palette colours render true), true isometric camera (45° around y, 35.264° elevation), one directional light plus hemisphere light, no shadow maps; each structure gets a blob shadow decal.
 - **Terrain:** one merged hex-prism `BufferGeometry` per island with vertex colours and flat shading, rebuilt only when that island's tiles change.
-- **Sea:** a large `brand` plane with a small vertex-wave shader, and a `brand-secondary` shallows ring around each island.
+- **Sea:** a large `brand` plane whose vertices bob in a gentle wave (updated on the CPU at the ticker rate), and a `brand-secondary` shallows hexagon under each island.
 - **Models:** procedural, no glTF. Each kind (scaffold, crane, hut, house, workshop, storm, lantern, plaza, five landmarks) is built once in `scene/models/*.ts` as a merged low-poly geometry with palette vertex colours, and rendered as one `InstancedMesh` per kind. The crane jib is its own instanced mesh so it can turn.
 - **Landmark progress:** each landmark is a stack of `n` segments; the first `ceil(progress × n)` are solid, the rest a translucent ghost at 35% opacity.
 - **Animation:** the sea wave and crane jibs need frames, so a ticker calls `invalidate()` at about 30fps while the document is visible. With `prefers-reduced-motion: reduce` there is no ticker and the scene redraws only on change.
@@ -487,9 +487,10 @@ No Three.js imports; all of it is unit-tested.
 ### 13.4 Camera (4a)
 
 - `cameraTarget(model, focus)` is pure and returns a look-at point and a zoom:
-  - **Archipelago:** the centre of `model.bounds`, at a zoom where an island of radius 4 is at least 120px across.
-  - **Island:** the island origin, at a zoom where one hex is at least 56px across (structures clear the 44px tap target).
+  - **Archipelago:** the centre of `model.bounds`, at zoom 10, where an island of radius 4 is about 158px across.
+  - **Island:** the island origin, at zoom 48 (pixels per world unit): a hex is about 83px wide and its footprint about 48px tall on screen, so structures clear the 44px tap target.
   - **District:** the district centre, at 1.5× the island zoom.
+  - The camera sits on the `(1, 1, 1)` diagonal from its look-at point, which is the true isometric angle.
 - The camera snaps to the target on route change (the fly animation is 4b).
 - **Pan and zoom:** drei `MapControls` with rotation disabled and damping on. Zoom is clamped between the state's zoom and 3× it. The pan target is clamped to `model.bounds` (soft bounds are 4b).
 
@@ -510,7 +511,7 @@ No Three.js imports; all of it is unit-tested.
 ### 13.6 Testing
 
 - **Model:** hex maths, island radius growth, no-overlap spacing over random worlds, terrain determinism with a flat interior under every plot, the full structure-state table (including the 48h boundary and a non-UTC `today`), landmark progress (0 tasks, partial, `completedAt`), camera targets per focus.
-- **Model geometry:** each builder returns a non-empty indexed geometry inside its hex footprint, coloured only from the palette.
+- **Model geometry:** each builder returns a non-empty geometry with a colour per vertex, inside its hex footprint, coloured only from the scene palette.
 - **Scene graph** (`@react-three/test-renderer`): instance counts and colours per kind match the model; an island click navigates; a structure click selects; a click with delta > 6px does nothing; reduced motion runs no ticker.
 - **App** (RTL): existing world-screen tests still pass on the WebGL fallback. Selection and HUD tests replace the lazy scene module with a stub that calls `onSelect` / renders the HUD: selecting highlights and scrolls the row and raises the sheet; HUD buttons open the right editors.
 - **Manual:** `bun dev` on desktop and on a phone over the LAN; real-device fps tuning is Phase 5.
