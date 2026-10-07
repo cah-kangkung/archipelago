@@ -30,6 +30,8 @@ const editorTitle: Record<Editor['kind'], string> = {
   'edit-task': 'Edit task',
 }
 
+const retryButton = 'inline-flex min-h-11 items-center rounded-md px-3 text-brand'
+
 export function WorldScreen() {
   const params = useParams({ strict: false })
   const navigate = useNavigate()
@@ -84,11 +86,16 @@ export function WorldScreen() {
   })
 
   if (world.isPending) return <p className="p-4 text-text-secondary">Loading your islands…</p>
-  if (world.isError || !resolved) {
+  if ((world.isError && !world.data) || !resolved) {
     return (
-      <p role="alert" className="p-4 text-error">
-        Could not load your islands.
-      </p>
+      <div className="space-y-3 p-4">
+        <p role="alert" className="text-error">
+          Could not load your islands.
+        </p>
+        <button type="button" onClick={() => void world.refetch()} className={retryButton}>
+          Try again
+        </button>
+      </div>
     )
   }
   if (resolved.missing) {
@@ -118,6 +125,14 @@ export function WorldScreen() {
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
       <div className="flex min-h-0 flex-1 flex-col">
+        {world.isError && (
+          <div className="flex items-center justify-between gap-2 bg-surface-primary px-4 text-sm text-text-secondary">
+            <p role="status">Couldn't refresh. Showing your last update.</p>
+            <button type="button" onClick={() => void world.refetch()} className={retryButton}>
+              Try again
+            </button>
+          </div>
+        )}
         <IslandSwitcher summaries={summaries} currentProjectId={project?.id ?? null} />
         <WorldArea
           world={world.data}

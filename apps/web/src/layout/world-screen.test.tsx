@@ -1,5 +1,6 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
+import { ApiError } from '../api/api'
 import { createFakeApi, fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
 import { renderApp } from '../test/render-app'
 import { addDays, todayIn } from '../world/selectors'
@@ -88,5 +89,42 @@ describe('WorldScreen', () => {
     const cards = screen.getByTestId('island-cards')
     await user.click(within(cards).getByRole('link', { name: /Beta/ }))
     expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
+  })
+
+  test('a failed background refresh keeps the world on screen with a retry banner', async () => {
+    const { api, beta } = seeded()
+    const { user, queryClient } = renderApp({ api, path: '/' })
+    const cards = await screen.findByTestId('island-cards')
+    expect(within(cards).getByRole('link', { name: /Beta/ })).toBeInTheDocument()
+
+    const working = api.world
+    api.world = async () => {
+      throw new ApiError(500, 'internal', 'down')
+    }
+    await act(() => queryClient.invalidateQueries({ queryKey: ['world'] }))
+    expect(await screen.findByText("Couldn't refresh. Showing your last update.")).toBeVisible()
+    expect(
+      within(screen.getByTestId('island-cards')).getByRole('link', { name: /Beta/ }),
+    ).toBeInTheDocument()
+    expect(beta.name).toBe('Beta')
+
+    api.world = working
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() =>
+      expect(screen.queryByText("Couldn't refresh. Showing your last update.")).toBeNull(),
+    )
+  })
+
+  test('an initial load failure shows an error with a working retry', async () => {
+    const { api } = seeded()
+    const working = api.world
+    api.world = async () => {
+      throw new ApiError(500, 'internal', 'down')
+    }
+    const { user } = renderApp({ api, path: '/' })
+    expect(await screen.findByText('Could not load your islands.')).toBeInTheDocument()
+    api.world = working
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByTestId('island-cards')).toBeInTheDocument()
   })
 })
