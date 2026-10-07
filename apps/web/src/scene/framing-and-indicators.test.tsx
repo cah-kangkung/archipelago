@@ -12,10 +12,15 @@ import { createIndicatorStore } from './indicator-store'
 import type { IslandUrgency } from './model/indicators'
 import { buildSceneModel } from './model/scene-model'
 
-const grab: { camera?: THREE.OrthographicCamera; setSize?: (w: number, h: number) => void } = {}
+const grab: {
+  camera?: THREE.OrthographicCamera
+  setSize?: (w: number, h: number) => void
+  set?: (patch: { invalidate: () => void }) => void
+} = {}
 function Grab() {
   grab.camera = useThree((s) => s.camera) as THREE.OrthographicCamera
   grab.setSize = useThree((s) => s.setSize)
+  grab.set = useThree((s) => s.set) as typeof grab.set
   return null
 }
 function view() {
@@ -110,12 +115,13 @@ describe('indicators', () => {
     store: ReturnType<typeof createIndicatorStore>,
     urgent: IslandUrgency[],
     current: string | null,
+    covered = 0,
   ) => (
     <IndicatorProbe
       model={model}
       urgent={urgent}
       currentProjectId={current}
-      covered={0}
+      covered={covered}
       store={store}
     />
   )
@@ -164,5 +170,30 @@ describe('indicators', () => {
     )
     await r.advanceFrames(1, 0.016)
     expect(store.get()).toEqual([])
+  })
+
+  test('re-checks the markers when only the sheet cover changes', async () => {
+    const store = createIndicatorStore()
+    const urgent = [urgentGamma] // stable identity: only `covered` may re-run the effect
+    const r = await create(probe(store, urgent, beta.id, 450), 48)
+    await r.advanceFrames(1, 0.016)
+    const spy = vi.fn()
+    await ReactThreeTestRenderer.act(async () => grab.set?.({ invalidate: spy }))
+    // Re-rendering with nothing changed must not request a frame.
+    spy.mockClear()
+    await r.update(
+      <>
+        {probe(store, urgent, beta.id, 450)}
+        <Grab />
+      </>,
+    )
+    expect(spy).not.toHaveBeenCalled()
+    await r.update(
+      <>
+        {probe(store, urgent, beta.id, 700)}
+        <Grab />
+      </>,
+    )
+    expect(spy).toHaveBeenCalled()
   })
 })

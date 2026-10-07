@@ -25,11 +25,12 @@ export function IndicatorProbe({
   const invalidate = useThree((s) => s.invalidate)
   const frame = useFrameSize(covered)
 
-  // Urgency can change without the camera moving (a task completed): draw a frame to re-check.
+  // Urgency or the sheet cover can change without the camera moving (a task completed, the sheet
+  // resized): draw a frame to re-check.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the inputs are deliberate triggers
   useEffect(() => {
     invalidate()
-  }, [urgent, currentProjectId, invalidate])
+  }, [urgent, currentProjectId, covered, invalidate])
 
   useFrame(() => {
     const islands: UrgentIsland[] = []
