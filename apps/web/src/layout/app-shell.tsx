@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { useApi } from '../api/context'
 import { useToast } from '../app/toast'
+import { EconomyBar } from '../economy/economy-bar'
 
 export function AppShell() {
   const api = useApi()
@@ -20,14 +21,20 @@ export function AppShell() {
 
   return (
     <div className="flex h-dvh flex-col bg-surface-secondary">
-      <header className="flex h-14 shrink-0 items-center justify-between bg-brand pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] text-text-on-brand">
-        <Link to="/" className="flex min-h-11 items-center font-semibold">
-          Archipelago
+      <header className="flex h-14 shrink-0 items-center justify-between gap-2 bg-brand pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] text-text-on-brand">
+        <Link to="/" aria-label="Archipelago" className="flex min-h-11 items-center font-semibold">
+          <span aria-hidden className="sm:hidden">
+            ⛵
+          </span>
+          <span aria-hidden className="hidden sm:inline">
+            Archipelago
+          </span>
         </Link>
+        <EconomyBar />
         <button
           type="button"
           onClick={() => logout.mutate()}
-          className="min-h-11 rounded-md px-3 text-sm hover:bg-brand-secondary"
+          className="min-h-11 shrink-0 rounded-md px-3 text-sm hover:bg-brand-secondary"
         >
           Log out
         </button>

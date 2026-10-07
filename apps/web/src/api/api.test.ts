@@ -96,4 +96,15 @@ describe('createApi', () => {
     expect(err).toBeInstanceOf(ApiError)
     expect(err).toMatchObject({ status: 500, code: 'internal', message: 'Request failed (500)' })
   })
+
+  test('claimDaily() POSTs /api/v1/economy/daily-claim', async () => {
+    const body = {
+      reward: { kind: 'daily_bonus', amount: 15, streakDays: null },
+      economy: { balance: 15 },
+    }
+    const { api, requests } = harness(() => json(body))
+    expect(await api.claimDaily()).toEqual(body)
+    expect(requests[0]?.method).toBe('POST')
+    expect(requests[0]?.url).toBe('http://test/api/v1/economy/daily-claim')
+  })
 })

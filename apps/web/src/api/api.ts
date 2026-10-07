@@ -1,13 +1,17 @@
 import type {
   AuthUserDto,
+  CompleteTaskResultDto,
   CreateMilestoneInput,
   CreateProjectInput,
   CreateTaskInput,
+  EconomyDto,
   ErrorBody,
   ErrorCode,
   LoginInput,
   MilestoneDto,
   ProjectDto,
+  ReopenTaskResultDto,
+  RewardDto,
   TaskDto,
   UpdateMilestoneInput,
   UpdateProjectInput,
@@ -53,6 +57,9 @@ export function createApi(client: Client) {
       unwrap<{ user: AuthUserDto }>(await v1.auth.login.$post({ json: input })),
     logout: async () => unwrap<void>(await v1.auth.logout.$post()),
     world: async () => unwrap<WorldDto>(await v1.world.$get()),
+    economy: async () => unwrap<{ economy: EconomyDto }>(await v1.economy.$get()),
+    claimDaily: async () =>
+      unwrap<{ reward: RewardDto; economy: EconomyDto }>(await v1.economy['daily-claim'].$post()),
 
     createProject: async (input: CreateProjectInput) =>
       unwrap<{ project: ProjectDto }>(await v1.projects.$post({ json: input })),
@@ -81,13 +88,9 @@ export function createApi(client: Client) {
     deleteTask: async (id: string) =>
       unwrap<void>(await v1.tasks[':id'].$delete({ param: { id } })),
     completeTask: async (id: string) =>
-      unwrap<{ task: TaskDto; milestoneCompleted: boolean }>(
-        await v1.tasks[':id'].complete.$post({ param: { id } }),
-      ),
+      unwrap<CompleteTaskResultDto>(await v1.tasks[':id'].complete.$post({ param: { id } })),
     reopenTask: async (id: string) =>
-      unwrap<{ task: TaskDto; milestoneReopened: boolean }>(
-        await v1.tasks[':id'].reopen.$post({ param: { id } }),
-      ),
+      unwrap<ReopenTaskResultDto>(await v1.tasks[':id'].reopen.$post({ param: { id } })),
   }
 }
 

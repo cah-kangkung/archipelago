@@ -1,15 +1,38 @@
 import {
   type AuthUserDto,
-  emptyEconomy,
+  type CompleteTaskResultDto,
+  economySnapshot,
+  type LedgerKind,
+  localDate,
   type MilestoneDto,
+  milestoneBonus,
   type ProjectDto,
+  type ReopenTaskResultDto,
+  type RewardDto,
   type TaskDto,
+  taskReward,
   type WorldDto,
 } from '@archipelago/shared'
 import { type Api, ApiError } from '../api/api'
 
 export type WorldSeed = Omit<WorldDto, 'economy'>
-export type FakeState = { user: AuthUserDto | null; password: string; world: WorldSeed }
+export type FakeEntry = {
+  kind: Exclude<LedgerKind, 'reversal'>
+  amount: number
+  /** Local date (YYYY-MM-DD) the entry was written. */
+  day: string
+  taskId: string | null
+  milestoneId: string | null
+  live: boolean
+}
+
+export type FakeState = {
+  user: AuthUserDto | null
+  password: string
+  world: WorldSeed
+  ledger: FakeEntry[]
+  today: string
+}
 
 let counter = 0
 const nextId = () => `00000000-0000-4000-8000-${String(++counter).padStart(12, '0')}`
@@ -64,12 +87,24 @@ export const fakeTask = (overrides: Partial<TaskDto> = {}): TaskDto => ({
   ...overrides,
 })
 
+export const fakeEntry = (overrides: Partial<FakeEntry> = {}): FakeEntry => ({
+  kind: 'task_reward',
+  amount: 25,
+  day: '2026-10-07',
+  taskId: null,
+  milestoneId: null,
+  live: true,
+  ...overrides,
+})
+
 /** In-memory Api with the server's rules, for component tests. */
 export function createFakeApi(seed: Partial<FakeState> = {}) {
   const state: FakeState = {
     user: seed.user === undefined ? fakeUser() : seed.user,
     password: seed.password ?? 'correct horse battery staple',
     world: seed.world ?? { projects: [], milestones: [], tasks: [], buildings: [] },
+    ledger: seed.ledger ?? [],
+    today: seed.today ?? localDate(new Date(), 'Asia/Jakarta'),
   }
   const calls: string[] = []
 
@@ -81,6 +116,46 @@ export function createFakeApi(seed: Partial<FakeState> = {}) {
     const task = state.world.tasks.find((t) => t.id === id)
     if (!task) throw new ApiError(404, 'not_found', 'Task not found')
     return task
+  }
+  const toReward = (e: FakeEntry): RewardDto => ({
+    kind: e.kind as RewardDto['kind'],
+    amount: e.amount,
+    streakDays: null,
+  })
+  const pay = (entry: Omit<FakeEntry, 'day' | 'live'>): RewardDto => {
+    state.ledger.push({ ...entry, day: state.today, live: true })
+    return toReward(entry as FakeEntry)
+  }
+  const balance = () => state.ledger.reduce((sum, e) => sum + (e.live ? e.amount : 0), 0)
+  const economy = () =>
+    economySnapshot({
+      balance: balance(),
+      days: new Set(
+        state.ledger.filter((e) => e.live && e.kind === 'task_reward').map((e) => e.day),
+      ),
+      today: state.today,
+      claimedToday: state.ledger.some((e) => e.kind === 'daily_bonus' && e.day === state.today),
+    })
+  /** Mirrors the server's milestone sync: complete iff it has tasks and all are done. */
+  const syncMilestone = (milestoneId: string | null): 'completed' | 'reopened' | 'unchanged' => {
+    const milestone = state.world.milestones.find((m) => m.id === milestoneId)
+    if (!milestone) return 'unchanged'
+    const its = state.world.tasks.filter((t) => t.milestoneId === milestone.id)
+    const complete = its.length > 0 && its.every((t) => t.status === 'done')
+    if (complete && milestone.completedAt === null) {
+      milestone.completedAt = stamp
+      return 'completed'
+    }
+    if (!complete && milestone.completedAt !== null) {
+      milestone.completedAt = null
+      return 'reopened'
+    }
+    return 'unchanged'
+  }
+  const reverseTask = (taskId: string): RewardDto[] => {
+    const own = state.ledger.filter((e) => e.live && e.taskId === taskId)
+    for (const e of own) e.live = false
+    return own.map(toReward)
   }
   const replaceTask = (task: TaskDto) => {
     state.world.tasks = state.world.tasks.map((t) => (t.id === task.id ? task : t))
@@ -123,7 +198,7 @@ export function createFakeApi(seed: Partial<FakeState> = {}) {
         milestones: state.world.milestones.filter((m) => ids.has(m.projectId)),
         tasks: state.world.tasks.filter((t) => ids.has(t.projectId)),
         buildings: state.world.buildings.filter((b) => ids.has(b.projectId)),
-        economy: emptyEconomy(),
+        economy: economy(),
       })
     },
     createProject: async (input) => {
@@ -182,6 +257,7 @@ export function createFakeApi(seed: Partial<FakeState> = {}) {
         sortOrder: state.world.tasks.length,
       })
       state.world.tasks.push(task)
+      syncMilestone(task.milestoneId)
       return { task }
     },
     updateTask: async (id, input) => {
@@ -199,30 +275,65 @@ export function createFakeApi(seed: Partial<FakeState> = {}) {
       if (input.size !== undefined) next.size = input.size
       if (input.status !== undefined) next.status = input.status
       if (input.milestoneId !== undefined) next.milestoneId = input.milestoneId
-      return { task: replaceTask(next) }
+      const saved = replaceTask(next)
+      if (task.milestoneId !== saved.milestoneId) syncMilestone(task.milestoneId)
+      syncMilestone(saved.milestoneId)
+      return { task: saved }
     },
     deleteTask: async (id) => {
       authed('deleteTask')
-      findTask(id)
+      const task = findTask(id)
       state.world.tasks = state.world.tasks.filter((t) => t.id !== id)
+      syncMilestone(task.milestoneId)
+      if (task.status === 'done') reverseTask(id)
     },
-    completeTask: async (id) => {
+    completeTask: async (id): Promise<CompleteTaskResultDto> => {
       authed('completeTask')
       const task = findTask(id)
       if (task.status === 'done') throw new ApiError(409, 'conflict', 'Task is already done')
-      return {
-        task: replaceTask({ ...task, status: 'done', completedAt: stamp }),
-        milestoneCompleted: false,
+      const done = replaceTask({ ...task, status: 'done', completedAt: stamp })
+      const milestoneCompleted = syncMilestone(done.milestoneId) === 'completed'
+      const rewards = [
+        pay({
+          kind: 'task_reward',
+          amount: taskReward(done.size, done.dueDate, state.today),
+          taskId: id,
+          milestoneId: null,
+        }),
+      ]
+      const milestoneId = done.milestoneId
+      const liveBonus = state.ledger.some(
+        (e) => e.live && e.kind === 'milestone_bonus' && e.milestoneId === milestoneId,
+      )
+      if (milestoneCompleted && milestoneId && !liveBonus) {
+        const sizes = state.world.tasks
+          .filter((t) => t.milestoneId === milestoneId)
+          .map((t) => t.size)
+        rewards.push(
+          pay({ kind: 'milestone_bonus', amount: milestoneBonus(sizes), taskId: id, milestoneId }),
+        )
       }
+      return { task: done, milestoneCompleted, rewards, balance: balance() }
     },
-    reopenTask: async (id) => {
+    reopenTask: async (id): Promise<ReopenTaskResultDto> => {
       authed('reopenTask')
       const task = findTask(id)
       if (task.status !== 'done') throw new ApiError(409, 'conflict', 'Task is not done')
-      return {
-        task: replaceTask({ ...task, status: 'todo', completedAt: null }),
-        milestoneReopened: false,
+      const open = replaceTask({ ...task, status: 'todo', completedAt: null })
+      const milestoneReopened = syncMilestone(open.milestoneId) === 'reopened'
+      return { task: open, milestoneReopened, reversals: reverseTask(id), balance: balance() }
+    },
+    economy: async () => {
+      authed('economy')
+      return { economy: economy() }
+    },
+    claimDaily: async () => {
+      authed('claimDaily')
+      if (economy().daily.claimedToday) {
+        throw new ApiError(409, 'conflict', 'Daily bonus already claimed today')
       }
+      const reward = pay({ kind: 'daily_bonus', amount: 15, taskId: null, milestoneId: null })
+      return { reward, economy: economy() }
     },
   }
 
