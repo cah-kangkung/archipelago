@@ -36,17 +36,21 @@ describe('GET /world', () => {
       await insertBuilding(tx, active.id)
 
       const archived = await insertProject(tx, me.user.id, { name: 'Old', archivedAt: new Date() })
+      await insertMilestone(tx, archived.id)
+      await insertBuilding(tx, archived.id)
       await insertTask(tx, archived.id, { title: 'Archived task' })
 
       const other = await authedApp(tx)
       const theirs = await insertProject(tx, other.user.id, { name: 'Theirs' })
+      await insertMilestone(tx, theirs.id)
+      await insertBuilding(tx, theirs.id)
       await insertTask(tx, theirs.id, { title: 'Their task' })
 
       const world = await readJson<WorldDto>(await me.get(WORLD))
       expect(world.projects.map((p) => p.name)).toEqual(['Active'])
       expect(world.milestones.map((m) => m.id)).toEqual([milestone.id])
       expect(world.tasks.map((t) => t.title)).toEqual(['On island'])
-      expect(world.buildings).toHaveLength(1)
+      expect(world.buildings.map((b) => b.projectId)).toEqual([active.id])
     })
   })
 

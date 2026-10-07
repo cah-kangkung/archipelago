@@ -32,7 +32,7 @@ export async function createProject(
 ): Promise<ProjectDto> {
   return db.transaction(async (tx) => {
     // Lock the owner so two concurrent creates cannot pick the same archipelago slot.
-    await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update')
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('no key update')
     const existing = await tx
       .select({ q: projects.archipelagoX, r: projects.archipelagoY })
       .from(projects)
