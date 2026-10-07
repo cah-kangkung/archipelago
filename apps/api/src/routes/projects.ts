@@ -31,9 +31,19 @@ export function projectRoutes(deps: Deps) {
       await deleteProject(db, c.get('user').id, idParam(c.req.param('id'), 'Project'))
       return c.body(null, 204)
     })
-    .post('/:id/milestones', validId('Project'), jsonBody(createMilestoneInputSchema), async (c) => {
-      const projectId = idParam(c.req.param('id'), 'Project')
-      const milestone = await createMilestone(db, c.get('user').id, projectId, c.req.valid('json'))
-      return c.json({ milestone }, 201)
-    })
+    .post(
+      '/:id/milestones',
+      validId('Project'),
+      jsonBody(createMilestoneInputSchema),
+      async (c) => {
+        const projectId = idParam(c.req.param('id'), 'Project')
+        const milestone = await createMilestone(
+          db,
+          c.get('user').id,
+          projectId,
+          c.req.valid('json'),
+        )
+        return c.json({ milestone }, 201)
+      },
+    )
 }
