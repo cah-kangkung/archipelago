@@ -20,7 +20,7 @@ export const createMilestoneInputSchema = z.object({ name })
 export type CreateMilestoneInput = z.infer<typeof createMilestoneInputSchema>
 
 export const updateMilestoneInputSchema = z
-  .object({ name: name.optional(), sortOrder: z.int().min(0).optional() })
+  .object({ name: name.optional(), sortOrder: z.int32().min(0).optional() })
   .refine(atLeastOneField, NEEDS_A_FIELD)
 export type UpdateMilestoneInput = z.infer<typeof updateMilestoneInputSchema>
 
@@ -45,7 +45,7 @@ export const updateTaskInputSchema = z
     // `done` is deliberately absent: completion goes through POST /tasks/:id/complete.
     status: z.enum(['todo', 'doing']).optional(),
     milestoneId: z.uuid().nullable().optional(),
-    sortOrder: z.int().min(0).optional(),
+    sortOrder: z.int32().min(0).optional(),
   })
   .refine(atLeastOneField, NEEDS_A_FIELD)
 export type UpdateTaskInput = z.infer<typeof updateTaskInputSchema>

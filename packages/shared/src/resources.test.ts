@@ -94,3 +94,26 @@ describe('taskListQuerySchema', () => {
     expect(paths(taskListQuerySchema.safeParse({ project: 'abc' }))).toContain('project')
   })
 })
+
+describe('update schema bounds', () => {
+  const INT32_MAX = 2_147_483_647
+  test.each([
+    ['updateMilestoneInputSchema', updateMilestoneInputSchema],
+    ['updateTaskInputSchema', updateTaskInputSchema],
+  ])('%s bounds sortOrder to 0..int32', (_name, schema) => {
+    expect(schema.safeParse({ sortOrder: 2 ** 31 }).success).toBe(false)
+    expect(schema.safeParse({ sortOrder: -1 }).success).toBe(false)
+    expect(schema.safeParse({ sortOrder: INT32_MAX }).success).toBe(true)
+  })
+
+  test('updateTaskInputSchema rejects bad title, notes and milestoneId', () => {
+    expect(updateTaskInputSchema.safeParse({ title: '' }).success).toBe(false)
+    expect(updateTaskInputSchema.safeParse({ title: 'x'.repeat(201) }).success).toBe(false)
+    expect(updateTaskInputSchema.safeParse({ notes: 'x'.repeat(5001) }).success).toBe(false)
+    expect(updateTaskInputSchema.safeParse({ milestoneId: 'nope' }).success).toBe(false)
+  })
+
+  test('taskListQuerySchema rejects an unknown status', () => {
+    expect(taskListQuerySchema.safeParse({ status: 'bogus' }).success).toBe(false)
+  })
+})
