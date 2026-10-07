@@ -5,7 +5,9 @@ import { useApi } from '../api/context'
 import { useToast } from '../app/toast'
 import { worldQuery } from '../world/use-world'
 
-type Snapshot = { previous: WorldDto | undefined }
+type Snapshot = { previousTask: TaskDto | undefined; index: number }
+
+const MUTATION_KEY = ['task-action']
 
 function useWorldCache() {
   const api = useApi()
@@ -13,18 +15,41 @@ function useWorldCache() {
   const toast = useToast()
   const key = worldQuery(api).queryKey
 
+  const edit = (update: (world: WorldDto) => WorldDto) => {
+    const world = queryClient.getQueryData(key)
+    if (world) queryClient.setQueryData(key, update(world))
+  }
+
   return {
-    async apply(update: (world: WorldDto) => WorldDto): Promise<Snapshot> {
+    async apply(task: TaskDto, update: (world: WorldDto) => WorldDto): Promise<Snapshot> {
       await queryClient.cancelQueries({ queryKey: key })
-      const previous = queryClient.getQueryData(key)
-      if (previous) queryClient.setQueryData(key, update(previous))
-      return { previous }
+      const tasks = queryClient.getQueryData(key)?.tasks ?? []
+      const index = tasks.findIndex((t) => t.id === task.id)
+      const previousTask = tasks[index]
+      edit(update)
+      return { previousTask, index }
     },
-    rollback(error: unknown, snapshot: Snapshot | undefined) {
-      if (snapshot?.previous) queryClient.setQueryData(key, snapshot.previous)
+    rollback(error: unknown, taskId: string, snapshot: Snapshot | undefined, removed: boolean) {
+      const previousTask = snapshot?.previousTask
+      if (previousTask && snapshot) {
+        edit((w) => {
+          if (!removed) {
+            return { ...w, tasks: w.tasks.map((t) => (t.id === taskId ? previousTask : t)) }
+          }
+          if (w.tasks.some((t) => t.id === taskId)) return w
+          const tasks = [...w.tasks]
+          tasks.splice(Math.min(snapshot.index, tasks.length), 0, previousTask)
+          return { ...w, tasks }
+        })
+      }
       toast.show(error instanceof ApiError ? error.message : 'Something went wrong. Try again.')
     },
-    settle: () => queryClient.invalidateQueries({ queryKey: key }),
+    settle() {
+      // The settling mutation still counts itself; only refetch when it is the last one running.
+      if (queryClient.isMutating({ mutationKey: MUTATION_KEY }) === 1) {
+        return queryClient.invalidateQueries({ queryKey: key })
+      }
+    },
   }
 }
 
@@ -49,9 +74,11 @@ export function useAdvanceTask() {
   const api = useApi()
   const cache = useWorldCache()
   return useMutation({
+    mutationKey: MUTATION_KEY,
     mutationFn: (task: TaskDto) => advanceRequest(api, task),
-    onMutate: (task) => cache.apply((w) => patchTask(w, task.id, nextState(task, new Date()))),
-    onError: (error, _task, snapshot) => cache.rollback(error, snapshot),
+    onMutate: (task) =>
+      cache.apply(task, (w) => patchTask(w, task.id, nextState(task, new Date()))),
+    onError: (error, task, snapshot) => cache.rollback(error, task.id, snapshot, false),
     onSettled: () => cache.settle(),
   })
 }
@@ -60,10 +87,11 @@ export function useDeleteTask() {
   const api = useApi()
   const cache = useWorldCache()
   return useMutation({
+    mutationKey: MUTATION_KEY,
     mutationFn: (task: TaskDto) => api.deleteTask(task.id),
     onMutate: (task) =>
-      cache.apply((w) => ({ ...w, tasks: w.tasks.filter((t) => t.id !== task.id) })),
-    onError: (error, _task, snapshot) => cache.rollback(error, snapshot),
+      cache.apply(task, (w) => ({ ...w, tasks: w.tasks.filter((t) => t.id !== task.id) })),
+    onError: (error, task, snapshot) => cache.rollback(error, task.id, snapshot, true),
     onSettled: () => cache.settle(),
   })
 }

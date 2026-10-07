@@ -95,6 +95,38 @@ describe('TaskPanel', () => {
     expect(await screen.findByRole('button', { name: 'Mark "Ship" as doing' })).toBeInTheDocument()
   })
 
+  test('a failed update on one row does not clobber a concurrent change on another', async () => {
+    const { api, path } = islandWith([{ title: 'A' }, { title: 'B' }])
+    let releaseA: () => void = () => {}
+    let releaseB: () => void = () => {}
+    const gateA = new Promise<void>((resolve) => {
+      releaseA = resolve
+    })
+    const gateB = new Promise<void>((resolve) => {
+      releaseB = resolve
+    })
+    const realUpdate = api.updateTask
+    api.updateTask = async (id, patch) => {
+      if (id === (await api.world()).tasks.find((t) => t.title === 'A')?.id) {
+        await gateA
+        throw new ApiError(500, 'internal', 'A failed')
+      }
+      await gateB
+      return realUpdate(id, patch)
+    }
+    const { user } = renderApp({ api, path, desktop: true })
+    await user.click(await screen.findByRole('button', { name: 'Mark "A" as doing' }))
+    await user.click(await screen.findByRole('button', { name: 'Mark "B" as doing' }))
+    expect(await screen.findByRole('button', { name: 'Mark "B" as done' })).toBeDisabled()
+    releaseA()
+    expect(await screen.findByText('A failed')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Mark "A" as doing' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark "B" as done' })).toBeInTheDocument()
+    releaseB()
+    const b = await screen.findByRole('button', { name: 'Mark "B" as done' })
+    await waitFor(() => expect(b).toBeEnabled())
+  })
+
   test('delete asks first; cancelling keeps the task', async () => {
     const { api, path } = islandWith([{ title: 'Keep me' }, { title: 'Bin me' }])
     const confirm = vi.spyOn(window, 'confirm')
