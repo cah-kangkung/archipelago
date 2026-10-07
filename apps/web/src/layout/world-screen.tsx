@@ -1,7 +1,7 @@
 import { Link, useParams } from '@tanstack/react-router'
 import { TaskPanel } from '../tasks/task-panel'
 import { IslandSwitcher } from '../world/island-switcher'
-import { islandSummaries, panelTasks, resolveFocus, todayIn } from '../world/selectors'
+import { islandSummaries, resolveFocus, todayIn } from '../world/selectors'
 import { useMe, useWorld } from '../world/use-world'
 import { WorldArea } from '../world/world-area'
 import { PanelFrame } from './panel-frame'
@@ -46,7 +46,7 @@ export function WorldScreen() {
         <WorldArea world={world.data} resolved={resolved} summaries={summaries} />
       </div>
       <PanelFrame title={panelTitle}>
-        <TaskPanel title={panelTitle} tasks={panelTasks(world.data, resolved.focus, today)} />
+        <TaskPanel world={world.data} focus={resolved.focus} title={panelTitle} today={today} />
       </PanelFrame>
     </div>
   )

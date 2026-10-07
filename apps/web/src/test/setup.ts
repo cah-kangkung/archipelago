@@ -8,4 +8,5 @@ window.scrollTo = () => {}
 
 afterEach(() => {
   cleanup()
+  localStorage.clear()
 })
