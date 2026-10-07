@@ -1,4 +1,5 @@
 import type { TaskDto } from '@archipelago/shared'
+import { useEffect, useRef } from 'react'
 import { dueStatus } from '../world/selectors'
 import { useAdvanceTask, useDeleteTask } from './use-task-actions'
 
@@ -15,16 +16,22 @@ export function TaskRow({
   today,
   projectName,
   onEdit,
+  selected = false,
 }: {
   task: TaskDto
   today: string
   projectName?: string
   onEdit?: (task: TaskDto) => void
+  selected?: boolean
 }) {
   const advance = useAdvanceTask()
   const remove = useDeleteTask()
   const busy = advance.isPending || remove.isPending
   const due = dueStatus(task, today)
+  const rowRef = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    if (selected) rowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [selected])
 
   const onDelete = () => {
     const prompt =
@@ -35,7 +42,13 @@ export function TaskRow({
   }
 
   return (
-    <li className="flex items-start gap-3 border-b border-border-primary px-4 py-3">
+    <li
+      ref={rowRef}
+      aria-current={selected ? 'true' : undefined}
+      className={`flex items-start gap-3 border-b border-border-primary px-4 py-3 ${
+        selected ? 'bg-brand-secondary/10' : ''
+      }`}
+    >
       <button
         type="button"
         aria-label={`Mark "${task.title}" as ${nextLabel[task.status]}`}

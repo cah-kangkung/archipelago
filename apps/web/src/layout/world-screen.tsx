@@ -9,7 +9,7 @@ import { IslandSwitcher } from '../world/island-switcher'
 import { islandSummaries, parentPath, resolveFocus, todayIn } from '../world/selectors'
 import { useMe, useWorld } from '../world/use-world'
 import { WorldArea } from '../world/world-area'
-import { PanelFrame } from './panel-frame'
+import { PanelFrame, SHEET_MIDDLE } from './panel-frame'
 import { useIsDesktop } from './use-is-desktop'
 import { useShortcuts } from './use-shortcuts'
 
@@ -40,6 +40,8 @@ export function WorldScreen() {
   const isDesktop = useIsDesktop()
   const searchRef = useRef<HTMLInputElement>(null)
   const [editor, setEditor] = useState<Editor | null>(null)
+  const [sheetDetent, setSheetDetent] = useState(SHEET_MIDDLE)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 
   const resolved = world.data
     ? resolveFocus(world.data, { projectId: params.projectId, milestoneId: params.milestoneId })
@@ -75,10 +77,11 @@ export function WorldScreen() {
     if (editedMissing) setEditor(null)
   }, [editedMissing])
 
-  // An editor belongs to the route it was opened on.
+  // Editors and selections belong to the route they were made on.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the route params are the trigger
   useEffect(() => {
     setEditor(null)
+    setSelectedTaskId(null)
   }, [params.projectId, params.milestoneId])
 
   useShortcuts({
@@ -161,13 +164,14 @@ export function WorldScreen() {
           }
         />
       </div>
-      <PanelFrame title={panelTitle}>
+      <PanelFrame title={panelTitle} detent={sheetDetent} onDetentChange={setSheetDetent}>
         <TaskPanel
           world={world.data}
           focus={resolved.focus}
           title={panelTitle}
           today={today}
           searchRef={searchRef}
+          selectedTaskId={selectedTaskId}
           onNewTask={openNewTask}
           onEditTask={(task) => setEditor({ kind: 'edit-task', taskId: task.id })}
         />

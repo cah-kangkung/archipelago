@@ -1,5 +1,5 @@
 import type { TaskDto, WorldDto } from '@archipelago/shared'
-import { type RefObject, useState } from 'react'
+import { type RefObject, useEffect, useState } from 'react'
 import { type Focus, panelTasks } from '../world/selectors'
 import { TaskRow } from './task-row'
 
@@ -11,6 +11,7 @@ export function TaskPanel({
   searchRef,
   onNewTask,
   onEditTask,
+  selectedTaskId = null,
 }: {
   world: WorldDto
   focus: Focus
@@ -19,12 +20,18 @@ export function TaskPanel({
   searchRef?: RefObject<HTMLInputElement | null>
   onNewTask?: () => void
   onEditTask?: (task: TaskDto) => void
+  selectedTaskId?: string | null
 }) {
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
   const tasks = panelTasks(world, focus, today).filter(
     (t) => needle === '' || t.title.toLowerCase().includes(needle),
   )
+  // A new selection must be visible: clear a search that hides it. Typing afterwards is respected.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the selection is the trigger
+  useEffect(() => {
+    if (selectedTaskId && !tasks.some((t) => t.id === selectedTaskId)) setQuery('')
+  }, [selectedTaskId])
   const projectNames = new Map(world.projects.map((p) => [p.id, p.name]))
 
   return (
@@ -67,6 +74,7 @@ export function TaskPanel({
                 focus.kind === 'archipelago' ? projectNames.get(task.projectId) : undefined
               }
               onEdit={onEditTask}
+              selected={task.id === selectedTaskId}
             />
           ))}
         </ul>

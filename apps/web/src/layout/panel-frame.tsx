@@ -1,7 +1,9 @@
 import {
+  type Dispatch,
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
+  type SetStateAction,
   useEffect,
   useRef,
   useState,
@@ -68,11 +70,27 @@ function readStoredWidth(): number {
   }
 }
 
-export function PanelFrame({ title, children }: { title: string; children: ReactNode }) {
+/** Index of the 50dvh detent in `DETENTS`. */
+export const SHEET_MIDDLE = 1
+
+export function PanelFrame({
+  title,
+  detent,
+  onDetentChange,
+  children,
+}: {
+  title: string
+  /** The phone sheet's detent index; ignored by the desktop side panel. */
+  detent: number
+  onDetentChange: Dispatch<SetStateAction<number>>
+  children: ReactNode
+}) {
   return useIsDesktop() ? (
     <DesktopPanel title={title}>{children}</DesktopPanel>
   ) : (
-    <MobileSheet title={title}>{children}</MobileSheet>
+    <MobileSheet title={title} detent={detent} setDetent={onDetentChange}>
+      {children}
+    </MobileSheet>
   )
 }
 
@@ -83,8 +101,17 @@ const DETENTS = [
 ]
 const TAP_SLOP = 4
 
-function MobileSheet({ title, children }: { title: string; children: ReactNode }) {
-  const [detent, setDetent] = useState(1)
+function MobileSheet({
+  title,
+  detent,
+  setDetent,
+  children,
+}: {
+  title: string
+  detent: number
+  setDetent: Dispatch<SetStateAction<number>>
+  children: ReactNode
+}) {
   const [dragHeight, setDragHeight] = useState<number | null>(null)
   const sectionRef = useRef<HTMLElement>(null)
   const dragged = useRef(false)
