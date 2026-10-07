@@ -1,7 +1,7 @@
 # Archipelago — Gamified Task Manager: Design Spec
 
 - **Date:** 2026-10-07
-- **Status:** Draft, awaiting review
+- **Status:** Approved
 - **Owner:** hafizhun.alim
 
 ## 1. Purpose
@@ -302,6 +302,20 @@ A Playwright smoke test that logs in, creates a project and a task, completes it
 - Supplies economy: task rewards, milestone bonus, streaks, daily bonus, decoration shop and placement.
 - Installable PWA with offline viewing.
 - Docker Compose deployment with backups.
+
+### v1 delivery slices
+
+v1 is built in vertical slices. Each slice gets its own implementation plan, has passing tests, and leaves the app in a working state.
+
+| # | Slice | Contents | Done when |
+|---|---|---|---|
+| 1 | Foundation | Turborepo + Bun scaffold, `packages/shared`, `ui-tokens`, `tsconfig`; Drizzle schema + migrations; auth (sessions, login rate limit, `seed:user`); error shape; Docker Compose (Postgres + API) for local dev | Can log in against a real DB; `turbo test` green |
+| — | 3D spike (optional, throwaway) | Minimal R3F scene: one seeded, palette-recoloured island, isometric ortho camera, pan/zoom; tested on a real phone | Performance and feel validated, or risks recorded |
+| 2 | Task core | Projects/milestones/tasks CRUD, `GET /world`, plot assignment, plain responsive list UI (bottom sheet on mobile / side panel on desktop), routing for the three states | Usable task manager on phone and desktop |
+| 3 | Economy | Ledger, complete/reopen with rewards, milestone bonus, streaks, daily bonus, `GET /economy`, reward events in the UI | Completing tasks earns Supplies, reversals are correct |
+| 4 | World | R3F scene: archipelago, islands, districts, task structures + states, landmarks, camera states, overflow panning, island switcher, edge indicators | The game renders the real data |
+| 5 | Shop & polish | Shop catalogue, decoration placement, reward animations, performance pass on a real device | Decorations purchasable and placeable; 60fps target met |
+| 6 | Ship | PWA + offline viewing, web build served by Caddy with HTTPS on the VPS, backups, Playwright smoke tests on both viewports | Live on the VPS and installable |
 
 ### Later phases (not in v1)
 
