@@ -3,7 +3,7 @@ WORKDIR /app
 
 # Install with only the manifests first so the dependency layer caches.
 # Every workspace package.json must be listed here or --frozen-lockfile fails
-# (Phase 2 adds apps/web).
+# (apps/web is listed below).
 COPY package.json bun.lock ./
 COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/

@@ -19,7 +19,7 @@ bun run dev                          # API on :3000, web app on http://localhost
 ```
 
 The web dev server proxies `/api` to the API, so the session cookie is same-origin.
-Open http://localhost:5173 on your phone (same network) with `bun run dev -- --host` in `apps/web` to try the mobile layout.
+To try the mobile layout on your phone, keep the API running and start the web dev server with `bun run dev -- --host` from `apps/web` (same network).
 
 Or run the whole stack in containers: `docker compose up -d --build`.
 
