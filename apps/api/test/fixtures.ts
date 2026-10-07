@@ -1,3 +1,4 @@
+import { hashPassword } from '../src/auth/passwords'
 import type { Config } from '../src/config'
 import type { Db } from '../src/db/client'
 import { users } from '../src/db/schema'
@@ -24,4 +25,13 @@ export const testConfig: Config = {
   cookieSecure: true,
   trustProxy: true,
   sessionTtlDays: 30,
+}
+
+export async function insertUserWithPassword(
+  db: Db,
+  overrides: { email?: string; timezone?: string } = {},
+) {
+  const password = 'correct horse battery staple'
+  const user = await insertUser(db, { ...overrides, passwordHash: await hashPassword(password) })
+  return { user, password }
 }
