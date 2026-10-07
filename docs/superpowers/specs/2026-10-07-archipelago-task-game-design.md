@@ -221,7 +221,7 @@ UI spacing follows the A'raf scale: 4, 8, 12, 16, 20, 24, 32, 40, 48, 64. Radii 
   - Terrain is merged into one mesh per island.
   - Island size grows with the project's task count, so there are always enough plots.
 - **Sea:** a navy plane with a subtle animated vertex wave, and a shallows ring in `#0069d2`.
-- **Assets:** CC0 low-poly glTF kits (Kenney, Quaternius) committed to the repo. Materials are remapped to the palette at load time.
+- **Assets:** procedural low-poly models built in code from palette colours (decided in section 13.3). Custom Blender models stay on the post-v1 roadmap.
 - **Performance:**
   - Instanced meshes for repeated models.
   - Device pixel ratio capped at 2.
@@ -315,7 +315,7 @@ v1 is built in phases. Each phase is a vertical slice that gets its own implemen
 | — | 3D spike (optional, throwaway) | Minimal R3F scene: one seeded, palette-recoloured island, isometric ortho camera, pan/zoom; tested on a real phone | Performance and feel validated, or risks recorded |
 | 2 | Task core | Projects/milestones/tasks CRUD, complete/reopen (no rewards), `GET /world`, plot assignment (section 11.1), plain responsive list UI (bottom sheet on mobile / side panel on desktop), routing for the three states | Usable task manager on phone and desktop |
 | 3 | Economy | Ledger, complete/reopen with rewards, milestone bonus, streaks, daily bonus, `GET /economy`, reward events in the UI | Completing tasks earns Supplies, reversals are correct |
-| 4 | World | R3F scene: archipelago, islands, districts, task structures + states, landmarks, camera states, overflow panning, island switcher, edge indicators | The game renders the real data |
+| 4 | World (4a scene, 4b camera; section 13) | R3F scene: archipelago, islands, districts, task structures + states, landmarks, camera states, overflow panning, island switcher, edge indicators | The game renders the real data |
 | 5 | Shop & polish | Shop catalogue, decoration placement, reward animations, performance pass on a real device | Decorations purchasable and placeable; 60fps target met |
 | 6 | Ship | PWA + offline viewing, web build served by Caddy with HTTPS on the VPS, backups, Playwright smoke tests on both viewports | Live on the VPS and installable |
 
@@ -447,3 +447,70 @@ This replaces `newBalance` in section 6.1 with `balance`. Create and update resp
 - **Reward feedback:** after completing, one toast lists the rewards ("+37 Supplies · Milestone bonus +40 · 3-day streak +20"). After a reopen that took Supplies back, a toast says how many. The cached balance is patched from the response before the world refetch.
 - **Delete:** confirming the delete of a done task warns that its Supplies will be reversed.
 - Full reward animations stay in Phase 5.
+
+## 13. Phase 4a Design Addendum (approved 2026-10-07)
+
+Phase 4 ships in two halves. **4a (this section)** replaces the placeholder cards with the 3D scene: terrain, sea, districts, landmarks and task structures with every state, a camera framed per route, and taps that navigate or select. **4b** (a later addendum) adds fly-in transitions, soft pan bounds, opening focus, edge indicators, island-switcher placement and sheet-aware framing. This section refines sections 7.3, 7.4 and 7.6; where they disagree, this section wins.
+
+### 13.1 Stack
+
+- `three` 0.186, `@react-three/fiber` 9.8 (peer React < 19.4), `@react-three/drei` 10.7; `@react-three/test-renderer` 9.1 for scene tests.
+- The scene is a lazily loaded chunk (`React.lazy`), so Three.js stays out of the login bundle.
+
+### 13.2 Scene model (pure, `apps/web/src/scene/model/`)
+
+No Three.js imports; all of it is unit-tested.
+
+- **Hex to world:** pointy-top hexes of size 1 world unit, y up. `hexToWorld({q, r})` → `{x, z}`.
+- **Island radius:** the largest hex distance from the island origin to any of its task plots or district centres, plus 2, with a minimum of 4. Islands grow as tasks and milestones are added.
+- **Archipelago layout:** an island's origin is `hexToWorld(hexScale(slot, spacing))`, where `slot` is the stored `(archipelagoX, archipelagoY)` and `spacing = 2 × (largest island radius in the world) + 3`. Islands never overlap and the layout is deterministic.
+- **Terrain:** `islandTerrain(seed, radius)` returns hex tiles `{q, r, height, tone}`. Every hex within `radius − 2` is flat land at height 1, so all plots are level. The two outer rings are shore: heights and tones come from a mulberry32 PRNG seeded with `island_seed`, and some outer-ring hexes are dropped for a ragged coast. Same seed and radius, same island.
+- **Structure state:** `structureFor(task, today)` → `{kind, marker}`.
+  - kind: `scaffold` (todo), `crane` (doing), `hut` / `house` / `workshop` (done, size S / M / L).
+  - marker: `storm` (overdue), `lantern` (due within 48h), else `null`, using `dueStatus` from `world/selectors.ts`.
+- **Landmark progress:** `landmarkFor(milestone, tasks)` → `{type, progress}`; progress = done ÷ total, 0 with no tasks, and 1 whenever `completedAt` is set.
+- **Commons:** the commons centre `(0, 0)` is a stone plaza tile, with no landmark.
+- **Output:** `buildSceneModel(world, today)` → `{islands: [{projectId, origin, radius, tiles, districts, structures}], bounds}`, memoised on the `world` object.
+- **Colours** come only from `@archipelago/ui-tokens`. Darker and lighter tones are derived with a fixed mix toward `brand` or white.
+
+### 13.3 Rendering (`apps/web/src/scene/`)
+
+- **Canvas:** `<Canvas frameloop="demand" dpr={[1, 2]} orthographic>`, true isometric camera (45° around y, 35.264° elevation), one directional light plus hemisphere light, no shadow maps; each structure gets a blob shadow decal.
+- **Terrain:** one merged hex-prism `BufferGeometry` per island with vertex colours and flat shading, rebuilt only when that island's tiles change.
+- **Sea:** a large `brand` plane with a small vertex-wave shader, and a `brand-secondary` shallows ring around each island.
+- **Models:** procedural, no glTF. Each kind (scaffold, crane, hut, house, workshop, storm, lantern, plaza, five landmarks) is built once in `scene/models/*.ts` as a merged low-poly geometry with palette vertex colours, and rendered as one `InstancedMesh` per kind. The crane jib is its own instanced mesh so it can turn.
+- **Landmark progress:** each landmark is a stack of `n` segments; the first `ceil(progress × n)` are solid, the rest a translucent ghost at 35% opacity.
+- **Animation:** the sea wave and crane jibs need frames, so a ticker calls `invalidate()` at about 30fps while the document is visible. With `prefers-reduced-motion: reduce` there is no ticker and the scene redraws only on change.
+- **Labels:** drei `<Html>` name tags: island names in archipelago view, milestone names in island view.
+- **WebGL fallback:** if a WebGL context cannot be created, the Phase 2 card view (renamed `CardWorld`) renders instead. jsdom takes this path, so app-level tests run without WebGL.
+
+### 13.4 Camera (4a)
+
+- `cameraTarget(model, focus)` is pure and returns a look-at point and a zoom:
+  - **Archipelago:** the centre of `model.bounds`, at a zoom where an island of radius 4 is at least 120px across.
+  - **Island:** the island origin, at a zoom where one hex is at least 56px across (structures clear the 44px tap target).
+  - **District:** the district centre, at 1.5× the island zoom.
+- The camera snaps to the target on route change (the fly animation is 4b).
+- **Pan and zoom:** drei `MapControls` with rotation disabled and damping on. Zoom is clamped between the state's zoom and 3× it. The pan target is clamped to `model.bounds` (soft bounds are 4b).
+
+### 13.5 Interaction
+
+- **Tap vs drag:** a pointer press is a tap only if it moved 6px or less (R3F `event.delta`), so panning never navigates or selects.
+- **Archipelago view:** tapping any part of an island navigates to `/p/:projectId`.
+- **Island and district views:** tapping a landmark navigates to `/p/:projectId/m/:milestoneId`. Tapping a structure selects its task. Tapping sea or terrain clears the selection.
+- **Selection:**
+  - `selectedTaskId` lives in `WorldScreen` and clears on route change.
+  - The selected structure gets a `brand` ring beneath it.
+  - The task panel scrolls the row into view and marks it `aria-current="true"` with a highlight.
+  - If the panel's search filter hides the row, the filter is cleared.
+  - On phone and tablet, a collapsed sheet rises to its middle detent. The detent state is lifted out of the sheet component for this.
+- **HUD:** the card view's controls move to a floating bar over the canvas: back (`← Archipelago` / `← <project>`), `Edit island` / `Edit milestone`, `New island` / `New milestone`. With no projects, "No islands yet" and `New island` sit over the empty sea.
+- The island switcher stays where it is in 4a.
+
+### 13.6 Testing
+
+- **Model:** hex maths, island radius growth, no-overlap spacing over random worlds, terrain determinism with a flat interior under every plot, the full structure-state table (including the 48h boundary and a non-UTC `today`), landmark progress (0 tasks, partial, `completedAt`), camera targets per focus.
+- **Model geometry:** each builder returns a non-empty indexed geometry inside its hex footprint, coloured only from the palette.
+- **Scene graph** (`@react-three/test-renderer`): instance counts and colours per kind match the model; an island click navigates; a structure click selects; a click with delta > 6px does nothing; reduced motion runs no ticker.
+- **App** (RTL on the WebGL fallback): existing world-screen tests still pass; selecting highlights and scrolls the row and raises the sheet; HUD buttons open the right editors.
+- **Manual:** `bun dev` on desktop and on a phone over the LAN; real-device fps tuning is Phase 5.
