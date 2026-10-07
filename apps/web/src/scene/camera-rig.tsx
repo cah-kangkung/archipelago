@@ -21,11 +21,18 @@ export function CameraRig({ model, focus }: { model: SceneModel; focus: Focus })
   // biome-ignore lint/correctness/useExhaustiveDependencies: the route key is the trigger
   useLayoutEffect(() => {
     const t = latest.current.target
+    const c = controls.current
+    if (c) {
+      // Spend any momentum left from a fling now, before placing the camera: otherwise it carries
+      // the camera past the snap, and spending it later would shift the camera off the diagonal.
+      c.enableDamping = false
+      c.update()
+      c.enableDamping = true
+    }
     camera.position.set(t.x + ISO_DISTANCE, ISO_DISTANCE, t.z + ISO_DISTANCE)
     camera.zoom = t.zoom
     camera.lookAt(t.x, 0, t.z)
     camera.updateProjectionMatrix()
-    const c = controls.current
     if (c) {
       c.target.set(t.x, 0, t.z)
       c.update()
