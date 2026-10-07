@@ -47,6 +47,7 @@ export function WorldScreen() {
   const focus = resolved?.focus ?? { kind: 'archipelago' as const }
 
   const openNewTask = () => {
+    if (editor !== null) return
     if (focus.kind === 'island')
       setEditor({ kind: 'new-task', projectId: focus.projectId, milestoneId: null })
     if (focus.kind === 'district') {
@@ -74,10 +75,18 @@ export function WorldScreen() {
     if (editedMissing) setEditor(null)
   }, [editedMissing])
 
+  // An editor belongs to the route it was opened on.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the route params are the trigger
+  useEffect(() => {
+    setEditor(null)
+  }, [params.projectId, params.milestoneId])
+
   useShortcuts({
     enabled: isDesktop,
     onNew: openNewTask,
-    onSearch: () => searchRef.current?.focus(),
+    onSearch: () => {
+      if (editor === null) searchRef.current?.focus()
+    },
     onEscape: () => {
       if (editor) return setEditor(null)
       const up = parentPath(focus)
@@ -117,9 +126,9 @@ export function WorldScreen() {
   const closeEditor = () => setEditor(null)
   const afterRemoval =
     (to: string) =>
-    ({ removed }: { removed: boolean }) => {
+    async ({ removed }: { removed: boolean }) => {
       setEditor(null)
-      if (removed) void navigate({ to })
+      if (removed) await navigate({ to })
     }
 
   return (

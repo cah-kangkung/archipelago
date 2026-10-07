@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from 'react'
+import { type ReactNode, useEffect, useId, useRef } from 'react'
 import { Drawer } from 'vaul'
 import { useIsDesktop } from '../layout/use-is-desktop'
 
@@ -15,27 +15,40 @@ export function EditorFrame({
 }) {
   const isDesktop = useIsDesktop()
   const titleId = useId()
+  const dialogRef = useRef<HTMLDialogElement>(null)
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    if (!dialog.open) dialog.showModal()
+    // Browsers focus the first focusable element (Close); the first field is the better start.
+    dialog.querySelector<HTMLElement>('input, textarea, select')?.focus()
+    return () => {
+      if (dialog.open) dialog.close()
+    }
+  }, [])
 
   if (isDesktop) {
     return (
-      <div className="fixed inset-0 z-40 flex items-center justify-center bg-text-primary/40 p-4">
-        <dialog
-          open
-          aria-modal="true"
-          aria-labelledby={titleId}
-          className="relative m-0 w-full max-w-lg rounded-lg bg-surface-primary p-6 shadow-xl"
-        >
-          <div className="mb-4 flex items-center justify-between">
-            <h2 id={titleId} className="text-lg font-semibold text-text-primary">
-              {title}
-            </h2>
-            <button type="button" onClick={onClose} className={closeButton}>
-              Close
-            </button>
-          </div>
-          {children}
-        </dialog>
-      </div>
+      <dialog
+        ref={dialogRef}
+        aria-labelledby={titleId}
+        onCancel={(event) => {
+          event.preventDefault()
+          onClose()
+        }}
+        className="relative m-auto w-full max-w-lg rounded-lg bg-surface-primary p-6 shadow-xl backdrop:bg-text-primary/40"
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 id={titleId} className="text-lg font-semibold text-text-primary">
+            {title}
+          </h2>
+          <button type="button" onClick={onClose} className={closeButton}>
+            Close
+          </button>
+        </div>
+        {children}
+      </dialog>
     )
   }
 
@@ -54,7 +67,9 @@ export function EditorFrame({
               Close
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            {children}
+          </div>
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>
