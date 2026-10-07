@@ -56,9 +56,9 @@ apps/api/
   src/http/params.ts  idParam(): validates uuid path params → 404
   src/http/serialize.ts  row → DTO mappers
   src/world/plots.ts  occupied-plot set, task plot assignment, milestone completion sync
-  src/projects/service.ts, src/projects/service.test.ts
-  src/milestones/service.ts, src/milestones/service.test.ts
-  src/tasks/service.ts, src/tasks/service.test.ts
+  src/projects/service.ts
+  src/milestones/service.ts
+  src/tasks/service.ts
   src/world/service.ts
   src/routes/projects.ts, projects.test.ts    /projects (+ nested POST /projects/:id/milestones)
   src/routes/milestones.ts, milestones.test.ts
