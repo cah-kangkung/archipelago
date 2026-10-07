@@ -524,7 +524,7 @@ No Three.js imports; all of it is unit-tested.
 
 No Three.js imports; unit-tested. `CameraRig` keeps drei `MapControls` and drives these functions from `useFrame`.
 
-- **Fly-in:** a change of `focusKey` starts a flight from the current view `{x, z, zoom}` to `cameraTarget(...)`. A refetch never moves the camera.
+- **Fly-in:** a change of `focusKey` starts a flight from the current view `{x, z, zoom}` to `cameraTarget(...)`. The first framing after the scene mounts snaps; only later route changes fly. A refetch never moves the camera.
   - `flyFrame(from, to, t)` → `{x, z, zoom}` for `t ∈ [0, 1]`. Position follows ease-in-out cubic. Zoom interpolates in log space.
   - **Hop:** when the two endpoints do not both fit on screen at the smaller of the two zooms, zoom dips mid-flight to the zoom at which both fit, then returns. A short flight does not dip.
   - `flyDuration(from, to, viewport)` → 450–900ms, growing with the on-screen distance travelled.
