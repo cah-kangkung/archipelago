@@ -84,10 +84,13 @@ export async function deleteMilestone(
   now: Date,
 ): Promise<void> {
   await db.transaction(async (tx) => {
+    const first = await findOwnedMilestone(tx, userId, milestoneId)
+    if (!first) throw notFound()
+    const project = await lockOwnedProject(tx, userId, first.projectId)
+    if (!project) throw notFound()
+    // Re-read under the lock: a concurrent delete may have removed it while we waited.
     const owned = await findOwnedMilestone(tx, userId, milestoneId)
     if (!owned) throw notFound()
-    const project = await lockOwnedProject(tx, userId, owned.projectId)
-    if (!project) throw notFound()
 
     const orphans = await tx
       .select({ id: tasks.id })
