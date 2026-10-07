@@ -9,7 +9,8 @@ const card =
 const actionButton =
   'min-h-11 rounded-md border border-border-secondary px-3 text-sm text-text-secondary hover:border-brand'
 
-export function WorldArea({
+/** The Phase 2 card view; the fallback when WebGL is unavailable (and the path jsdom takes). */
+export function CardWorld({
   world,
   resolved,
   summaries,

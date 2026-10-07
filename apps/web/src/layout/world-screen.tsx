@@ -8,7 +8,7 @@ import { TaskPanel } from '../tasks/task-panel'
 import { IslandSwitcher } from '../world/island-switcher'
 import { islandSummaries, parentPath, resolveFocus, todayIn } from '../world/selectors'
 import { useMe, useWorld } from '../world/use-world'
-import { WorldArea } from '../world/world-area'
+import { WorldView } from '../world/world-view'
 import { PanelFrame, SHEET_MIDDLE } from './panel-frame'
 import { useIsDesktop } from './use-is-desktop'
 import { useShortcuts } from './use-shortcuts'
@@ -123,6 +123,7 @@ export function WorldScreen() {
 
   const today = todayIn(me.data?.user.timezone ?? 'UTC')
   const summaries = islandSummaries(world.data, today)
+  const selectedTask = world.data.tasks.find((t) => t.id === selectedTaskId)
   const panelTitle = resolved.milestone?.name ?? resolved.project?.name ?? 'Due today & overdue'
   const { project, milestone } = resolved
 
@@ -146,10 +147,17 @@ export function WorldScreen() {
           </div>
         )}
         <IslandSwitcher summaries={summaries} currentProjectId={project?.id ?? null} />
-        <WorldArea
+        <WorldView
           world={world.data}
           resolved={resolved}
           summaries={summaries}
+          today={today}
+          selectedTaskId={selectedTask ? selectedTaskId : null}
+          onSelect={(taskId) => {
+            setSelectedTaskId(taskId)
+            // Show the selected row: a collapsed sheet rises; a taller one stays where it is.
+            if (taskId) setSheetDetent((d) => Math.max(d, SHEET_MIDDLE))
+          }}
           onNewProject={() => setEditor({ kind: 'new-project' })}
           onNewMilestone={
             project ? () => setEditor({ kind: 'new-milestone', projectId: project.id }) : undefined
@@ -171,7 +179,7 @@ export function WorldScreen() {
           title={panelTitle}
           today={today}
           searchRef={searchRef}
-          selectedTaskId={selectedTaskId}
+          selectedTaskId={selectedTask ? selectedTaskId : null}
           onNewTask={openNewTask}
           onEditTask={(task) => setEditor({ kind: 'edit-task', taskId: task.id })}
         />

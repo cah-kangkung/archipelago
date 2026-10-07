@@ -27,3 +27,7 @@ afterEach(() => {
   cleanup()
   localStorage.clear()
 })
+
+// jsdom has no canvas contexts. Answer null quietly so the WebGL probe falls back to the card view.
+HTMLCanvasElement.prototype.getContext = (() =>
+  null) as typeof HTMLCanvasElement.prototype.getContext
