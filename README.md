@@ -30,4 +30,4 @@ Or run the whole stack in containers: `docker compose up -d --build`.
 | `cd apps/api && bun run db:generate` | Generate a migration after editing `src/db/schema.ts` |
 | `bun run seed:user --email <e> [--timezone <IANA>]` | Create the single user account |
 
-Migrations run automatically when the API starts.
+Migrations run automatically when the API starts. `seed:user` applies pending migrations itself, so it works on a fresh database.

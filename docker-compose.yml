@@ -17,6 +17,7 @@ services:
       retries: 15
 
   api:
+    init: true
     build:
       context: .
       dockerfile: apps/api/Dockerfile

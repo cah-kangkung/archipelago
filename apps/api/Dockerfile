@@ -2,6 +2,8 @@ FROM oven/bun:1.4.2-alpine
 WORKDIR /app
 
 # Install with only the manifests first so the dependency layer caches.
+# Every workspace package.json must be listed here or --frozen-lockfile fails
+# (Phase 2 adds apps/web).
 COPY package.json bun.lock ./
 COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
