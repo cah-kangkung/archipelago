@@ -1,11 +1,14 @@
 import type { WorldDto } from '@archipelago/shared'
 import { useNavigate } from '@tanstack/react-router'
-import { lazy, Suspense, useMemo } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
+import { createIndicatorStore } from '../scene/indicator-store'
+import type { IslandUrgency } from '../scene/model/indicators'
 import { buildSceneModel } from '../scene/model/scene-model'
 import { hasWebGL } from '../scene/webgl'
 import { CardWorld } from './card-world'
+import { EdgeIndicatorLayer } from './edge-indicators'
 import { SceneBoundary } from './scene-boundary'
-import type { IslandSummary, resolveFocus } from './selectors'
+import { type IslandSummary, type resolveFocus, urgencyOf } from './selectors'
 import { WorldHud } from './world-hud'
 
 // Three.js lives in its own chunk, so it never weighs on the login screen.
@@ -42,6 +45,19 @@ export function WorldView({
 }) {
   const navigate = useNavigate()
   const model = useMemo(() => buildSceneModel(world, today), [world, today])
+  const [indicators] = useState(createIndicatorStore)
+  const urgent = useMemo(
+    () =>
+      summaries.flatMap((s): IslandUrgency[] => {
+        const urgency = urgencyOf(s)
+        if (urgency === 'none') return []
+        const count = urgency === 'overdue' ? s.overdue : s.dueSoon
+        return [{ projectId: s.project.id, name: s.project.name, urgency, count }]
+      }),
+    [summaries],
+  )
+  const openIsland = (projectId: string) =>
+    void navigate({ to: '/p/$projectId', params: { projectId } })
   const actions = { onNewProject, onNewMilestone, onEditProject, onEditMilestone }
 
   const cards = <CardWorld world={world} resolved={resolved} summaries={summaries} {...actions} />
@@ -66,9 +82,9 @@ export function WorldView({
               selectedTaskId={selectedTaskId}
               coveredBottom={coveredBottom}
               onSelect={onSelect}
-              onOpenIsland={(projectId) =>
-                void navigate({ to: '/p/$projectId', params: { projectId } })
-              }
+              urgent={urgent}
+              indicators={indicators}
+              onOpenIsland={openIsland}
               onOpenDistrict={(projectId, milestoneId) =>
                 void navigate({
                   to: '/p/$projectId/m/$milestoneId',
@@ -78,6 +94,7 @@ export function WorldView({
             />
           </Suspense>
         </div>
+        <EdgeIndicatorLayer store={indicators} onOpen={openIsland} />
         <WorldHud resolved={resolved} empty={world.projects.length === 0} {...actions} />
       </section>
     </SceneBoundary>

@@ -16,6 +16,7 @@ vi.mock('../scene/world-scene', () => ({
     onOpenIsland,
     onOpenDistrict,
     coveredBottom,
+    indicators,
   }: WorldSceneProps) => (
     <div
       data-testid="scene"
@@ -23,6 +24,24 @@ vi.mock('../scene/world-scene', () => ({
       data-selected={selectedTaskId ?? ''}
       data-covered={coveredBottom}
     >
+      <button
+        type="button"
+        onClick={() =>
+          indicators.set([
+            {
+              projectId: model.islands[0]?.projectId ?? '',
+              name: model.islands[0]?.name ?? '',
+              urgency: 'overdue',
+              count: 2,
+              left: 10,
+              top: 20,
+              angle: 0,
+            },
+          ])
+        }
+      >
+        report indicator
+      </button>
       {model.islands.map((island) => (
         <div key={island.projectId}>
           <button type="button" onClick={() => onOpenIsland(island.projectId)}>
@@ -165,5 +184,15 @@ describe('World screen with the 3D scene', () => {
       'aria-current',
       'page',
     )
+  })
+
+  test('an off-screen urgent island shows a labelled edge marker that opens it', async () => {
+    const { api, beta } = seeded()
+    const { user, router } = renderApp({ api, path: '/' })
+    await user.click(await screen.findByRole('button', { name: 'report indicator' }))
+    const marker = screen.getByRole('button', { name: 'Beta island, 2 overdue, off screen' })
+    expect(marker).toHaveStyle({ left: '10px', top: '20px' })
+    await user.click(marker)
+    expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
   })
 })
