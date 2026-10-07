@@ -126,3 +126,7 @@ describe('seedDirection and landmarks', () => {
     expect(landmarkForIndex(5)).toBe('lighthouse')
   })
 })
+
+test('COMMONS_CENTER is frozen', () => {
+  expect(Object.isFrozen(COMMONS_CENTER)).toBe(true)
+})

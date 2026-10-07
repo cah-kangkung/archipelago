@@ -10,7 +10,7 @@ export const HEX_DIRECTIONS: readonly Hex[] = [
 ]
 
 export const DISTRICT_SPACING = 5
-export const COMMONS_CENTER: Hex = { q: 0, r: 0 }
+export const COMMONS_CENTER: Readonly<Hex> = Object.freeze({ q: 0, r: 0 })
 // Far beyond any realistic island; prevents an endless search if a caller marks everything taken.
 const MAX_SPIRAL_RADIUS = 64
 
