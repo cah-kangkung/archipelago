@@ -374,3 +374,75 @@ Multi-user features, tags, subtasks, recurring tasks, attachments, task dependen
   - The task panel, filtered by route: due today and overdue across all projects, then one project, then one milestone.
 - **Editors:** project, milestone and task editors as sheets on mobile and dialogs on desktop.
 - **Task actions:** todo, doing and done toggles, and delete.
+
+## 12. Phase 3 Design Addendum (approved 2026-10-07)
+
+This section refines sections 3, 5 and 6 for the economy. Where they disagree, this section wins.
+
+### 12.1 Amounts
+
+- **Task reward:** base S=10, M=25, L=60. If the task has a due date and its completion day (in `users.timezone`) is on or before it, the reward is `floor(base × 1.5)` (S=15, M=37, L=90).
+- **Milestone bonus:** `floor(sum of base rewards of the milestone's tasks × 0.5)`, computed when it is awarded and never recomputed.
+- **Daily bonus:** 15. **Streak bonuses:** 20 at 3 days, 50 at 7, 200 at 30.
+- All amounts and rules are pure functions in `packages/shared/src/economy.ts`.
+
+### 12.2 Ledger linkage
+
+Migration adds three nullable columns to `ledger`:
+
+- `source_task_id uuid` — the task whose completion produced the entry (`task_reward`, `milestone_bonus`, `streak_bonus`). No foreign key: entries outlive deleted tasks.
+- `streak_start date`, `streak_days smallint` — on `streak_bonus` entries, the run's first day and the threshold paid.
+
+`ref_type`/`ref_id` are `task`/task id for `task_reward` and `milestone`/milestone id for `milestone_bonus`. A *live* entry is a non-reversal entry with no reversal pointing at it. Every ledger insert uses the request's `now` as `created_at`.
+
+### 12.3 Milestone bonus: one live bonus
+
+- Paid only by `POST /tasks/:id/complete`, when that completion completes the milestone **and** the milestone has no live `milestone_bonus`.
+- Tied to the completing task: reversed only when that task is reopened or deleted.
+- Other paths that reopen a milestone (adding or moving a task in) keep the bonus; finishing the milestone again pays nothing while it is live.
+- Completion through other paths (deleting or moving out the last open task) pays no bonus.
+
+### 12.4 Streaks
+
+- **Completion days:** the local dates (in `users.timezone`) of the user's *live* `task_reward` entries. This replaces "derived from `tasks.completed_at`": a reopen or task delete removes a day, a project delete does not.
+- **Current streak:** the length of the run of consecutive completion days ending today; if today has none, the run ending yesterday; else 0.
+- **Award (on complete):** for the run ending today (start `S`, length `L`), each threshold `T ≤ L` with no live `streak_bonus (S, T)` is paid.
+- **Reversal (on reopen/delete):** after the task's rewards are reversed, every live `streak_bonus (S, T)` whose window `S … S+T−1` contains the task's completion day is reversed if any day in that window no longer has a completion.
+
+### 12.5 Reopen, delete and overdraw
+
+- Reopen and task delete reverse every live entry with `source_task_id` = the task except `streak_bonus` (handled by 12.4), then apply 12.4.
+- Deleting a project or milestone reverses nothing.
+- The balance may go negative. Purchases (Phase 5) are blocked while it is negative.
+
+### 12.6 Daily bonus
+
+`POST /economy/daily-claim` inserts a `daily_bonus` entry unless one exists whose `created_at` falls on today in the user's timezone; then `409 conflict`.
+
+### 12.7 Locking
+
+Complete, reopen and task delete lock the project row, then the user row (`FOR NO KEY UPDATE`). The daily claim locks only the user row. Lock order is always project → user.
+
+### 12.8 API shapes
+
+```
+RewardDto   { kind: 'task_reward'|'milestone_bonus'|'streak_bonus'|'daily_bonus', amount, streakDays: number|null }
+EconomyDto  { balance, streak: { days, activeToday, next: { days, amount } | null },
+              daily: { amount, claimedToday } }
+
+POST /tasks/:id/complete  → { task, milestoneCompleted, rewards: RewardDto[], balance }
+POST /tasks/:id/reopen    → { task, milestoneReopened, reversals: RewardDto[], balance }   (amounts positive: what was taken back)
+DELETE /tasks/:id         → 204 (rewards reversed server-side)
+GET /economy              → { economy: EconomyDto }
+POST /economy/daily-claim → { reward: RewardDto, economy: EconomyDto }
+GET /world                → adds `economy: EconomyDto`, read in the same snapshot
+```
+
+This replaces `newBalance` in section 6.1 with `balance`. Create and update responses are unchanged: the milestone sync on those paths has no economic effect, and the client refetches `/world`.
+
+### 12.9 Phase 3 web
+
+- **Header:** Supplies balance (red when negative), streak days, and a "Claim +15" button while the daily bonus is unclaimed. Balance and streak come from `world.economy`. Below 640px the brand text collapses to keep everything on one row.
+- **Reward feedback:** after completing, one toast lists the rewards ("+37 Supplies · Milestone bonus +40 · 3-day streak +20"). After a reopen that took Supplies back, a toast says how many. The cached balance is patched from the response before the world refetch.
+- **Delete:** confirming the delete of a done task warns that its Supplies will be reversed.
+- Full reward animations stay in Phase 5.
