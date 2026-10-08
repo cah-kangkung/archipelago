@@ -15,6 +15,7 @@ export const scenePalette = {
   seaShallow: mix(colors.brandSecondary, colors.surfacePrimary, 0.45),
   seaDeep: mix(colors.brandSecondary, colors.surfacePrimary, 0.15),
   foam: colors.surfacePrimary,
+  cloud: mix(colors.surfacePrimary, colors.brandSecondary, 0.15),
   buoy: colors.error,
   whale: mix(colors.textPrimary, colors.brand, 0.4),
   grass: colors.success,
