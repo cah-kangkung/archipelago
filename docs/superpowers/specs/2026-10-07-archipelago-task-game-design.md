@@ -1029,7 +1029,7 @@ Phase 5g opens the light-and-mood phase with a cloud ring: soft low-poly clouds 
 ### 21.2 Look
 
 - Each puff is one shared low-poly geometry: 3–5 merged low-detail icosahedra, flat-shaded, built once in `scene/models/cloud.ts`.
-- Colour: a new palette key `cloud = mix(surfacePrimary, brandSecondary, 0.15)` (spec 15's rule: tokens or blends of tokens). Material: an opaque flat-shaded Lambert `cloudMaterial` that is **not** spotlight-patched (clouds are outside the layer by design and must not haze).
+- Colour: a new palette key `cloud = mix(surfacePrimary, brandSecondary, 0.15)` (every scene colour is a token or a blend of tokens). Material: an opaque flat-shaded Lambert `cloudMaterial` that is **not** spotlight-patched (clouds are outside the layer by design and must not haze).
 - Height `CLOUD_HEIGHT` 3, above the tallest landmark. The isometric camera looks down (1, 1, 1), so a point raised by h shows over the ground point shifted by −h in x and z; puffs are drawn at `(x + h, h, z + h)` so the ring wraps the layer on screen.
 - One `InstancedMesh` for every puff (old and new rings share it during a switch), `raycast` disabled: taps pass through to whatever is below.
 
