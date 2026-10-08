@@ -38,7 +38,9 @@ export function SpotlightRig({
   const target = useRef(spotlightFor(area))
   target.current = spotlightFor(area)
   const shown = useRef<Spotlight>(SPOTLIGHT_OFF)
-  const leg = useRef<{ from: Spotlight; to: Spotlight; elapsed: number } | null>(null)
+  const leg = useRef<{ from: Spotlight; to: Spotlight; elapsed: number; fresh: boolean } | null>(
+    null,
+  )
   const running = useRef(onRunning)
   running.current = onRunning
 
@@ -63,7 +65,7 @@ export function SpotlightRig({
       show(to)
       if (wasRunning) running.current?.(false)
     } else {
-      leg.current = { from, to, elapsed: 0 }
+      leg.current = { from, to, elapsed: 0, fresh: true }
       show(from)
       if (!wasRunning) running.current?.(true)
     }
@@ -73,7 +75,9 @@ export function SpotlightRig({
   useFrame((_, delta) => {
     const l = leg.current
     if (!l) return
-    l.elapsed += clampDelta(delta) * 1000
+    // The leg began between frames: its first frame's delta spans the idle gap, so it doesn't count.
+    if (!l.fresh) l.elapsed += clampDelta(delta) * 1000
+    l.fresh = false
     const t = Math.min(1, l.elapsed / SPOTLIGHT_MS)
     show(spotlightAt(l.from, l.to, t))
     if (t < 1) {

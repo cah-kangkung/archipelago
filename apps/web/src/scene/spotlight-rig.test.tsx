@@ -61,7 +61,10 @@ describe('SpotlightRig', () => {
     expect(onRunning).not.toHaveBeenCalledWith(true)
     await r.update(tree({ model, focus: onBeta, onRunning }))
     expect(onRunning).toHaveBeenLastCalledWith(true)
-    await r.advanceFrames(2, 0.1)
+    // The first frame after the route change doesn't advance the fade.
+    await r.advanceFrames(1, 0.1)
+    expect(strength()).toBe(0)
+    await r.advanceFrames(1, 0.1)
     expect(strength()).toBeGreaterThan(0)
     expect(strength()).toBeLessThan(1)
     await r.advanceFrames(frames, 0.1)
@@ -76,7 +79,10 @@ describe('SpotlightRig', () => {
     const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta, animate: false }))
     expect(strength()).toBe(1)
     await r.update(tree({ model, focus: onGamma }))
-    await r.advanceFrames(2, 0.1)
+    const start = layerArea(model, onBeta)?.minX ?? 0
+    await r.advanceFrames(1, 0.1)
+    expect(box()[0]).toBe(start)
+    await r.advanceFrames(1, 0.1)
     expect(strength()).toBe(1)
     const from = layerArea(model, onBeta)?.minX ?? 0
     const to = layerArea(model, onGamma)?.minX ?? 0
