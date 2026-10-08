@@ -70,8 +70,10 @@ export function CloudLayer({
     m.instanceMatrix.needsUpdate = true
   }, [])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `drifting` only sets the rest offset
   useLayoutEffect(() => {
     const running = leg.current !== null
+    const restTime = drifting ? time.current : 0
     time.current = 0
     if (shown.current === null || !animate) {
       // First mount, or reduced motion: show the ring as it is (empty on the archipelago).
@@ -84,7 +86,7 @@ export function CloudLayer({
     }
     // Reduced motion turned off with nothing to change, or a refetch with the same cloud area.
     if (!running && shown.current === ring) return
-    leg.current = { ...nextLeg(leg.current, shown.current, ring, CAPACITY), fresh: true }
+    leg.current = { ...nextLeg(leg.current, shown.current, ring, CAPACITY, restTime), fresh: true }
     shown.current = ring
     write(legFrames(leg.current))
     if (!running) report.current?.(true)

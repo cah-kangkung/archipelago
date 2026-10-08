@@ -1030,13 +1030,13 @@ Phase 5g opens the light-and-mood phase with a cloud ring: soft low-poly clouds 
 
 - Each puff is one shared low-poly geometry: 3–5 merged low-detail icosahedra, flat-shaded, built once in `scene/models/cloud.ts`.
 - Colour: a new palette key `cloud = mix(surfacePrimary, brandSecondary, 0.15)` (every scene colour is a token or a blend of tokens). Material: an opaque flat-shaded Lambert `cloudMaterial` that is **not** spotlight-patched (clouds are outside the layer by design and must not haze).
-- Height `CLOUD_HEIGHT` 3, above the tallest landmark. The isometric camera looks down (1, 1, 1), so a point raised by h shows over the ground point shifted by −h in x and z; puffs are drawn at `(x + h, h, z + h)` so the ring wraps the layer on screen.
+- Height `CLOUD_HEIGHT` 4, above the tallest landmark (a hilltop lighthouse, about 3.55). The isometric camera looks down (1, 1, 1), so a point raised by h shows over the ground point shifted by −h in x and z. A puff is drawn by its visual centre: `CLOUD_CENTRE` (0.45) is how far its body rises above its base per unit of scale, so with c = `CLOUD_CENTRE` · its full scale (not its gather share, so a growing puff does not slide) it is drawn at `(x + h + c, h, z + h + c)`, putting the body, not the base, over the ground point so the ring wraps the layer on screen without covering it.
 - One `InstancedMesh` for every puff (old and new rings share it during a switch), `raycast` disabled: taps pass through to whatever is below.
 
 ### 21.3 Motion
 
 - A layer change replaces the ring: the old ring's puffs shrink to 0 while drifting outward 1.5 hexes; the new ring's puffs grow from 0 while gliding in from 1.5 hexes further out. Each puff's start is staggered by up to 25% of `CLOUD_MS` (600) by its hash; ease-out. Archipelago → layer: gather only. Layer → archipelago: part only. A refetch whose `cloudArea` is unchanged (same area value and seed) does nothing.
-- On the `high` tier (the sea wave is on, so the 30fps ticker already runs), resting puffs sway along the ring by `CLOUD_SWAY` (0.3) over `CLOUD_SWAY_S` (20 s) and bob by `CLOUD_BOB` (0.08) over `CLOUD_BOB_S` (6 s), each offset by its phase and each zero when the drift begins, so a finished gather never jumps. On `low`, they gather and part but rest still.
+- On the `high` tier (the sea wave is on, so the 30fps ticker already runs), resting puffs sway along the ring by `CLOUD_SWAY` (0.3) over `CLOUD_SWAY_S` (20 s) and bob by `CLOUD_BOB` (0.08) over `CLOUD_BOB_S` (6 s), each offset by its phase and each zero when the drift begins, so a finished gather never jumps. When a ring starts parting from drift, each leaving puff freezes the sway and bob offset it had and holds it while parting, so it does not snap back. On `low`, they gather and part but rest still.
 - Changing layer mid-gather parts every visible puff from the size it had reached. The first mount shows its ring at once (like the camera's first framing); route changes after it gather.
 - Reduced motion: rings appear and vanish at once; no drift.
 - A `clouds` ticker demand is held only while a gather or part runs.
@@ -1047,7 +1047,7 @@ Phase 5g opens the light-and-mood phase with a cloud ring: soft low-poly clouds 
 
 ### 21.5 Testing
 
-- Pure: every puff of `cloudRing` lies outside the area, between its edge + `inset` and edge + `inset` + `CLOUD_BAND`; deterministic for the same area and seed; count scales with `CLOUD_DENSITY` and respects `CLOUD_MAX`; `cloudArea` is null on the archipelago, the island ring on an island, and follows `CLOUD_DISTRICT_RING` in a district; unknown ids fall back. The height offset: a puff drawn at `(x + h, h, z + h)` projects to the same screen point as ground `(x, 0, z)` (via `toScreen`).
+- Pure: every puff of `cloudRing` lies outside the area, between its edge + `inset` and edge + `inset` + `CLOUD_BAND`; deterministic for the same area and seed; count scales with `CLOUD_DENSITY` and respects `CLOUD_MAX`; `cloudArea` is null on the archipelago, the island ring on an island, and follows `CLOUD_DISTRICT_RING` in a district; unknown ids fall back. The height offset: a puff drawn at `(x + h + c, h, z + h + c)` (c = `CLOUD_CENTRE` · scale) projects to the same screen point as ground `(x, 0, z)` less its centre shift (via `toScreen`); a leg started from drift has a first frame equal to the rest frames.
 - Transition model: gather/part progress per puff with stagger; old and new rings during a switch; finished state has only the new ring; reduced motion is instant.
 - Scene: one instanced mesh with raycast disabled; its count follows the rings; the ticker demand is held only while transitioning; no drift on `low`; a refetch with the same cloud area does not restart the gather.
 - The headless WebGL compile check covers `cloudMaterial`.

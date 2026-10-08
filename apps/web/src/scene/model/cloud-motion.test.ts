@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'vitest'
-import { CLOUD_BOB, CLOUD_HEIGHT, CLOUD_MS, CLOUD_SWAY, CLOUD_TRAVEL } from '../tuning'
+import {
+  CLOUD_BOB,
+  CLOUD_CENTRE,
+  CLOUD_HEIGHT,
+  CLOUD_MS,
+  CLOUD_SWAY,
+  CLOUD_TRAVEL,
+} from '../tuning'
 import {
   type CloudLeg,
   legDone,
@@ -24,10 +31,13 @@ const puff = (over: Partial<CloudPuff> = {}): CloudPuff => ({
 const a = puff()
 const b = puff({ x: 0, z: 10, nx: 0, nz: 1, phase: 1 })
 
-/** The isometric camera looks down (1, 1, 1): a point at height y shows over ground (x − y, z − y). */
-const ground = (f: { x: number; y: number; z: number }, lift = 0) => ({
-  x: f.x - (f.y - lift),
-  z: f.z - (f.y - lift),
+/**
+ * The isometric camera looks down (1, 1, 1): a point at height y shows over ground (x − y, z − y).
+ * Puffs are drawn by their visual centre, CLOUD_CENTRE · scale further out on x and z.
+ */
+const ground = (f: { x: number; y: number; z: number }, scale: number, lift = 0) => ({
+  x: f.x - (f.y - lift) - CLOUD_CENTRE * scale,
+  z: f.z - (f.y - lift) - CLOUD_CENTRE * scale,
 })
 
 describe('cloud motion', () => {
@@ -42,16 +52,31 @@ describe('cloud motion', () => {
   test('a still puff floats CLOUD_HEIGHT up, drawn over its own ground point', () => {
     const [f] = stillFrames([a])
     expect(f?.y).toBe(CLOUD_HEIGHT)
-    expect(f && ground(f)).toEqual({ x: a.x, z: a.z })
+    expect(f && ground(f, a.scale)).toEqual({ x: a.x, z: a.z })
     expect(f?.scale).toBe(a.scale)
     expect(f?.turn).toBe(a.turn)
+  })
+
+  test('a puff is drawn by its visual centre, shifted CLOUD_CENTRE · scale on x and z', () => {
+    const [f] = stillFrames([a])
+    expect(f?.x).toBeCloseTo(a.x + CLOUD_HEIGHT + CLOUD_CENTRE * a.scale)
+    expect(f?.z).toBeCloseTo(a.z + CLOUD_HEIGHT + CLOUD_CENTRE * a.scale)
+    // The full scale, not the share: a growing puff does not slide.
+    const leg: CloudLeg = {
+      leaving: [],
+      arriving: [{ ...a, x: 0, z: 0, nx: 0, nz: 0 }],
+      elapsed: 0,
+    }
+    const [start] = legFrames(leg)
+    expect(start?.scale).toBe(0)
+    expect(start?.x).toBeCloseTo(CLOUD_HEIGHT + CLOUD_CENTRE * a.scale)
   })
 
   test('gathering grows from nothing while gliding in from CLOUD_TRAVEL out', () => {
     const leg: CloudLeg = { leaving: [], arriving: [a], elapsed: 0 }
     const [start] = legFrames(leg)
     expect(start?.scale).toBe(0)
-    expect(start && ground(start).x).toBeCloseTo(a.x + CLOUD_TRAVEL)
+    expect(start && ground(start, a.scale).x).toBeCloseTo(a.x + CLOUD_TRAVEL)
     const [end] = legFrames({ ...leg, elapsed: CLOUD_MS })
     expect(end).toEqual(stillFrames([a])[0])
     expect(legDone({ ...leg, elapsed: CLOUD_MS })).toBe(true)
@@ -63,20 +88,24 @@ describe('cloud motion', () => {
     expect(legFrames(leg)).toEqual(stillFrames([a]))
     const mid = legFrames({ ...leg, elapsed: CLOUD_MS * 0.3 })[0]
     expect(mid?.scale).toBeLessThan(a.scale)
-    expect(mid && ground(mid).x).toBeGreaterThan(a.x)
+    expect(mid && ground(mid, a.scale).x).toBeGreaterThan(a.x)
     expect(legFrames({ ...leg, elapsed: CLOUD_MS })).toEqual([])
   })
 
   test('from rest, the whole shown ring parts at full size while the next gathers', () => {
     const leg = nextLeg(null, [a], [b], 10)
-    expect(leg).toEqual({ leaving: [{ puff: a, from: 1 }], arriving: [b], elapsed: 0 })
+    expect(leg).toEqual({
+      leaving: [{ puff: a, from: 1, along: 0, bob: 0 }],
+      arriving: [b],
+      elapsed: 0,
+    })
   })
 
   test('interrupted mid-gather, half-grown puffs part from the size they reached', () => {
     const current: CloudLeg = { leaving: [], arriving: [a], elapsed: CLOUD_MS * 0.3 }
     const reached = puffProgress(a, current.elapsed)
     const leg = nextLeg(current, [a], [b], 10)
-    expect(leg.leaving).toEqual([{ puff: a, from: reached }])
+    expect(leg.leaving).toEqual([{ puff: a, from: reached, along: 0, bob: 0 }])
     // No pop: the first frame of the new leg draws `a` exactly as the old leg's last frame did.
     expect(legFrames(leg)[0]).toEqual(legFrames(current)[0])
   })
@@ -101,11 +130,22 @@ describe('cloud motion', () => {
       if (!f) throw new Error('no frame')
       const bob = f.y - CLOUD_HEIGHT
       expect(Math.abs(bob)).toBeLessThanOrEqual(2 * CLOUD_BOB + 1e-9)
-      const g = ground(f, bob)
+      const g = ground(f, a.scale, bob)
       // `a` faces +x, so its sway runs along z.
       expect(g.x).toBeCloseTo(a.x)
       expect(Math.abs(g.z - a.z)).toBeLessThanOrEqual(2 * CLOUD_SWAY + 1e-9)
     }
     expect(restFrames([a], 5)).not.toEqual(stillFrames([a]))
+  })
+
+  test('a leg started from drifting rest has no snap: its leaving puffs hold their offset', () => {
+    const t = 7.3
+    const leg = nextLeg(null, [a, b], [], 10, t)
+    expect(legFrames(leg)).toEqual(restFrames([a, b], t))
+    // Mid-leg, leaving puffs keep the offset they hold; arriving ones start at none.
+    const held = nextLeg(leg, [], [], 10)
+    expect(held.leaving.map((l) => [l.along, l.bob])).toEqual(
+      leg.leaving.map((l) => [l.along, l.bob]),
+    )
   })
 })

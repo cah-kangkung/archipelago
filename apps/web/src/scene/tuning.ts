@@ -155,7 +155,12 @@ export const CLOUD_MAX = 120
 /** In a district: ring the district itself, or keep the island's coastal ring. */
 export const CLOUD_DISTRICT_RING: 'district' | 'coast' = 'district'
 /** How high puffs float, above the tallest landmark. */
-export const CLOUD_HEIGHT = 3
+export const CLOUD_HEIGHT = 4
+/**
+ * How far a puff's body rises above its base, per unit of scale: the drawn position shifts by this
+ * on x and z so the body, not the base, sits over the ground point.
+ */
+export const CLOUD_CENTRE = 0.45
 /** A ring gathering or parting, in ms. */
 export const CLOUD_MS = 600
 /** How far puffs glide in when gathering, or out when parting: one and a half hexes. */

@@ -76,5 +76,7 @@ describe('spotlight material', () => {
 
   test('the cloud material is not hazed (spec 21.2)', () => {
     expect(cloudMaterial.onBeforeCompile).not.toBe(patchSpotlight)
+    expect(cloudMaterial.onBeforeCompile).toBe(THREE.Material.prototype.onBeforeCompile)
+    expect(cloudMaterial.customProgramCacheKey()).not.toBe('spotlight')
   })
 })
