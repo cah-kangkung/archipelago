@@ -880,3 +880,68 @@ Thresholds live in `scene/tuning.ts` (`GROWTH_THRESHOLDS = [3, 8, 15, 30]`). Gro
 - **App** (RTL): finishing the task that crosses a threshold reaches the scene as the island's new stage.
 - **Gate:** web and API tests, typecheck, lint and build; three.js only in the world-scene chunk; the three-free boundary (world/, layout/ and app/ import only `scene/model/*`, `scene/tuning.ts` and `scene/use-reduced-motion.ts`) holds.
 - **Manual (exit criterion):** the owner's `?perf` reading on their phone while panning, on both tiers: draw calls at most 8 above the 5c reading and no tier drop on `high` attributable to 5d; a visual pass on desktop and phone. Constants are tuned from those readings.
+
+## 19. Phase 5e Design Addendum: Layer Focus and Island Picker (approved 2026-10-08)
+
+Phase 5e makes each layer (archipelago, island, district) feel like its own room. The camera stays inside the current layer, island selection moves out of the drawer into a picker at the top of the scene, the island drawer gains a milestone filter that navigates, and the archipelago is spaced out on a lighter sea. It refines sections 13.4, 14, 16 and 17; where they disagree, this section wins. No API or DTO change.
+
+### 19.1 Camera bounds and zoom per layer (`scene/model/camera.ts`, pure)
+
+- `focusBounds(model, focus): Bounds`:
+  - **Archipelago:** `model.bounds` (unchanged).
+  - **Island:** the island's shallows square: origin ± `shallowsRadius(radius)` on x and z.
+  - **District:** the axis-aligned box around the district's landmark and every task plot of that milestone, grown by `DISTRICT_MARGIN` (2 hexes, `2 × SQRT3` world units) on each side, in world space.
+  - An unknown island or milestone falls back a level, as `cameraTarget` does.
+- `fitZoom(bounds, viewport): number`: the largest zoom at which all four corners of `bounds` (projected through the isometric camera's screen basis) fit inside `viewport` (canvas px minus the HUD inset at the top and the sheet cover at the bottom), times `FIT_MARGIN` (0.9).
+- `cameraTarget(model, focus, anchor, viewport)`:
+  - **Archipelago:** unchanged.
+  - **Island:** the island origin at `max(fitZoom(focusBounds), ISLAND_ZOOM)`.
+  - **District:** the centre of the district box at `max(fitZoom(focusBounds), DISTRICT_ZOOM)`.
+  - `ISLAND_ZOOM` (48) and `DISTRICT_ZOOM` (72) stay the readability floors of 13.4: a large island opens at the floor and is panned within its bounds rather than shrunk below the 44px tap target.
+- **Camera rig:** the pan target is clamped (and rubber-banded, 14.3) to `focusBounds` of the current focus instead of `model.bounds`. Zoom is clamped between the target's zoom and `MAX_ZOOM_FACTOR` × it, so zooming out never shows more than the current layer's area. Flights (14.1) keep their timing; only their end point and zoom change. The fit is recomputed when the viewport or the sheet cover changes, never on a data refetch alone (14.3's focus-key rule).
+
+### 19.2 Spacing and a lighter sea
+
+- `ISLAND_GAP` (`scene/model/scene-model.ts`) goes from 3 to 8 hex rings of open sea between neighbouring islands' land. Island origins stay `slot × (2 × largest radius + ISLAND_GAP)` (section 9); shallows of neighbouring islands now sit about 5.8 world units apart, so the sea-route rule of 17.5 finds lanes between neighbours.
+- **Palette** (`scene/model/palette.ts`), all blends of A'raf tokens, lightest at the coast:
+
+| Key | Was | Becomes | Hex |
+|---|---|---|---|
+| `shallows` (island plate) | `brandSecondary` | `mix(brandSecondary, surfacePrimary, 0.6)` | `#99c3ed` |
+| `seaShallow` (sea at the coast) | `mix(brand, brandSecondary, 0.3)` | `mix(brandSecondary, surfacePrimary, 0.45)` | `#73ade7` |
+| `sea` | `brand` | `mix(brandSecondary, surfacePrimary, 0.3)` | `#4d96e0` |
+| `seaDeep` (open sea, fog, background) | `mix(brand, textPrimary, 0.35)` | `mix(brandSecondary, surfacePrimary, 0.15)` | `#2680d9` |
+
+  The scene background, fog, vignette and the world view's section background follow `seaDeep` as before. Values are tuned on the owner's screen.
+
+### 19.3 Island picker
+
+- A native `<select>` styled as a pill, accessible name "Island", in the world HUD:
+  - **Desktop:** centred at the top of the scene, on the HUD's row (HUD chips stay left).
+  - **Phone:** centred on its own first row; the HUD chips wrap to the row below. The HUD inset measured for edge markers (14.4) covers both rows.
+- **Options:** "All islands" (the archipelago), then every active island in switcher order, labelled with its urgency: `Name · N overdue`, `Name · due soon`, or just `Name`.
+- **Value:** "All islands" on the archipelago; the current island on the island and district layers.
+- **Change:** routes to `/` or `/p/:projectId`; the camera flies as for any route change.
+- The `IslandSwitcher` is removed from the drawer (desktop panel and phone floating strip). The drawer's accessory slot keeps the placement bar and the building bar (15.5, 15.6). The archipelago drawer ("Due today & overdue", search, list) is unchanged.
+
+### 19.4 Milestone filter (island and district drawers)
+
+- A native `<select>` with accessible name "Milestone", under the drawer title beside "New task", on the island and district layers only.
+- **Options:** "All tasks", "No milestone", then the island's milestones in `sortOrder`.
+- **Behaviour:**
+
+| Pick | Effect |
+|---|---|
+| A milestone | Routes to `/p/:projectId/m/:milestoneId`; the camera flies into the district; the list shows that district's tasks. |
+| "All tasks" | From a district, routes to `/p/:projectId`; on the island, clears the filter. |
+| "No milestone" | Stays on the island route; the list shows only tasks with `milestoneId === null`. Local state, not a route. |
+
+- **Value:** the district's milestone on a district route; "All tasks" or "No milestone" on the island route. The "No milestone" filter resets when the route changes.
+- **New task** inherits it: on a district, or with "No milestone" picked, the task form's milestone defaults to that milestone (or none).
+
+### 19.5 Testing
+
+- **Pure:** `focusBounds` per layer and its fallbacks (the district box contains the landmark and every plot of the milestone, plus the margin); `fitZoom` fits all four projected corners inside the viewport and grows when the viewport grows; `cameraTarget` never goes below `ISLAND_ZOOM`/`DISTRICT_ZOOM`; islands keep at least `ISLAND_GAP` rings of sea between their land; every palette colour is still a token or a blend of tokens.
+- **Scene graph:** on an island route, a pan past the island is pulled back inside its shallows square and the zoom-out stops at the target zoom; the same for a district.
+- **App (RTL):** the picker renders on all three layers on desktop and phone with the right value and urgency labels, and changing it routes; no island chips remain in the drawer or above the sheet; the archipelago drawer still reads "Due today & overdue"; the milestone select routes into and out of districts, "No milestone" filters and resets on leaving the island, and New task defaults to the filter's milestone.
+- **Manual:** the owner's visual pass on desktop and phone (colours, spacing, how big islands open), and `?perf` with no regression from 5d.
