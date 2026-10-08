@@ -744,3 +744,66 @@ Phase 5b finishes Phase 5: reward animations (section 7.6 "Reward feedback", sec
 - **App** (RTL): `?perf` renders the overlay only with the flag; the shop chip waits for scene ready; the A→B→A settle leaves the new placement open; a double-tap remove sends one request; the streak popover opens on tap; the sheet drag/click, `pointercancel` and breakpoint dialog fixes; resize-handle ARIA values.
 - **API:** the "district centre" 409 test inserts a real milestone. **Fake API:** the shop branches the 5a test skipped. **Scene:** placed decorations' rotation matrices.
 - **Manual:** the `?perf` reading on the owner's phone (section 16.5), and a look at floats, pop and count-up on phone and desktop.
+
+## 17. Phase 5c Design Addendum: Sea Dressing (approved 2026-10-08)
+
+Phase 5c makes the open sea read as a place rather than an empty plane, before Phase 6 ships. It adds faceted gradient water, static open-water props, a soft horizon, an empty-state island and progress-driven ambient life. It refines sections 13.3, 16.3 and 16.4; where they disagree, this section wins. No API or DTO change: everything derives client-side from `GET /world`.
+
+### 17.1 Faceted water
+
+- The sea keeps its one plane and its wave (section 13.3). `seaMaterial` gains `vertexColors: true` (it is already flat-shaded), so the existing wave catches the light as low-poly facets on `high`.
+- **Depth gradient:** each sea vertex is coloured by its distance to the nearest island's shallows edge (`islandExtent(radius) + SHALLOWS_MARGIN`): `scenePalette.shallows`-tinted `sea` at the edge, blending to a new `seaDeep` token (`mix(colors.brand, colors.textPrimary, 0.35)`) at `SEA_DEEP_DISTANCE` world units and beyond. The colours are computed once per geometry (bounds and island layout), not per frame.
+- With no islands the whole plane is `seaDeep` blending to `sea` around the empty-state island (17.4).
+- `SEA_SEGMENTS` moves to `scene/tuning.ts`; facet size is tuned on device.
+
+### 17.2 Open-water scatter (`scene/model/sea-scatter.ts`, pure)
+
+- **Types:** `rock`, `islet` (a tiny grassy hex with one palm), `sandbar`, `buoy`. Low-poly models in `scene/models/`, coloured from `scenePalette` only.
+- **Placement is per sea-grid cell, never per island:** the world is cut into square cells of `SCATTER_CELL` world units. Each cell's integer hash of `(cx, cz)` (the same hash family as `decorationRotation`) decides whether the cell holds a prop, which type, its offset inside the cell and its rotation. Adding, growing or moving an island never reshuffles a prop in a cell it does not cover.
+- **Exclusions:** a cell's prop is dropped when it sits within `SCATTER_CLEARANCE` of any island's shallows edge, or within `LANE_HALF_WIDTH` of the straight lane between any two islands whose slots are at most 2 apart (boats sail those lanes, 17.5). Only cells within `SCATTER_EXTENT` of the islands' bounds are considered, which caps instance counts; each type is also capped at `SCATTER_MAX_PER_TYPE`.
+- **Rendering:** one instanced mesh per type, static, on both tiers. Props are not tappable; a tap on one counts as a tap on the sea.
+
+### 17.3 Soft horizon
+
+- **Fog:** a linear `THREE.Fog` in `seaDeep`, which also becomes the scene background, so the sea's far edge dissolves into the background instead of ending at a hard line.
+- The camera's distance changes by an order of magnitude between island and archipelago views, so fixed fog distances cannot work: a `FogRig` sets `near = d × FOG_NEAR` and `far = d × FOG_FAR` from the camera's distance to its target `d` whenever the camera moves (it rides the existing frame loop; it adds no ticker demand).
+- Island labels, floats and edge markers are DOM and are unaffected by fog.
+- **Vignette:** a `pointer-events-none` CSS radial gradient over the canvas (transparent centre, `seaDeep` at about 25% opacity at the corners), under the HUD and sheet. It is absent in the card fallback.
+
+### 17.4 Empty state: "Uncharted waters"
+
+- With zero projects, the scene shows a ghost island at the origin: radius-1 terrain from a fixed seed, drawn with `ghostMaterial`, no label, no structures.
+- A drei `<Html>` card anchored above it reads **"Uncharted waters"** with a **Create your first island** button that opens the existing new-island editor (`onNewProject`). It replaces the HUD's "No islands yet" text chip; the HUD's "New island" chip stays.
+- When the first project appears, the ghost and the card unmount and the opening focus (section 14.2) frames the new island.
+- **Card fallback (no WebGL):** "No islands yet" becomes the same heading plus a Create your first island button.
+- Under reduced motion nothing animates here; on `high` the ghost island bobs with the sea wave like the rest of the sea surface (it sits on it).
+
+### 17.5 Ambient life (`scene/model/ambient-life.ts`, pure)
+
+`buildAmbientLife(scene, world, now)` returns plain data (routes, centres, phases, spots); no three.js.
+
+| Life | Driven by | Rule |
+|---|---|---|
+| Boats | tasks with `completedAt` in the last 7 days | `min(4, ceil(done / 3))` boats; each sails a seeded lane between two islands whose slots are at most 2 apart (one island: a loop just outside its shallows); none at 0 |
+| Gulls | islands with a completion in the last 24h | 3 gulls circling each, at most 3 islands, most recent completion first |
+| Whale | `economy.streak.activeToday` | one breach every 25–40s (seeded) at an open-water spot at least `WHALE_CLEARANCE` from every island, with a splash ring; none when false |
+| Foam rings | every island | a hex ring at the shallows edge, static geometry, always present; opacity pulses slowly on `high` |
+
+- **Seeds** come from project ids and island seeds, not from list order. Boat `i` keeps its lane and phase when a later completion adds boat `i+1`; a later `now` within the same windows yields the same data.
+- **Rendering:** one instanced mesh for boats, one for gulls, one foam-ring instanced mesh, one whale and one splash mesh. Life is not tappable.
+- **Frames:** life adds no ticker. `TickerDemand` gains `life` (true when the tier is `high`, motion is allowed and any boat, gull or whale exists), so life keeps animating if the sea wave is ever idled; until then it rides the sea's ticker on `high` at no extra frame cost.
+- **`low` tier and reduced motion:** boats freeze at their seeded phase on their lane, gulls freeze mid-circle, the whale and the foam pulse are hidden. No frames are requested for life.
+
+### 17.6 Tuning
+
+`scene/tuning.ts` gains a "Sea dressing" block: `SEA_SEGMENTS`, `SEA_DEEP_DISTANCE`, `SCATTER_CELL`, `SCATTER_CLEARANCE`, `SCATTER_EXTENT`, `SCATTER_MAX_PER_TYPE`, scatter type weights and fill probability, `LANE_HALF_WIDTH`, `FOG_NEAR`, `FOG_FAR`, vignette opacity, boat speed, gull radius and speed, whale interval range and `WHALE_CLEARANCE`, foam pulse period.
+
+### 17.7 Testing
+
+- **Pure model (`*.test.ts`):**
+  - Sea dressing: scatter is deterministic for a world; adding an island never moves a prop in a cell it does not cover; no prop lies within the clearance of any shallows or in a lane; the depth gradient is darkest far from land and lightest at the shallows.
+  - Ambient life: boats at 0, 1–3, 4–6 and >12 completions in 7 days (cap 4); a completion older than 7 days does not count; a lone island gives a loop; gulls only on islands with a completion in 24h, at most 3, most recent first; the whale only when `activeToday` and clear of every island; the same world at a later `now` in the same windows gives identical data; one extra completion leaves existing boats unchanged.
+  - `tickerWanted`: cases for `life`.
+- **Scene graph** (test renderer, `advanceFrames`): the sea material is flat-shaded with vertex colours; fog is set and its distances follow the camera; one instanced mesh per scatter type with the expected count; on `high` boat and gull instance matrices change across frames; on `low` and under reduced motion they do not, and the whale and foam pulse are absent; sea and life on `high` start one ticker, not two.
+- **App** (RTL): zero projects renders the "Uncharted waters" card and its button opens the new-island editor; creating the first island removes the ghost and frames the island; the card fallback shows the same heading and button; the vignette renders over the canvas only.
+- **Manual (exit criterion):** the owner's `?perf` reading on their phone while panning, on both tiers: draw calls at most 12 above the 5b baseline and no tier drop on `high` attributable to 5c. Constants are tuned from those readings.
