@@ -252,7 +252,6 @@ describe('CameraRig', () => {
   test('a flight from rest ignores the idle gap in its first frame', async () => {
     const r = await mount({ model: both, focus: archipelago })
     const start = view()
-    const goal = cameraTarget(both, onGamma)
     await r.update(scene({ model: both, focus: onGamma }))
     // The ticker was idle, so the first delta is the whole gap since the last frame.
     await r.advanceFrames(1, 5)
