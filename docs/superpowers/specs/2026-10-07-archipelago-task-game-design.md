@@ -760,7 +760,7 @@ Phase 5c makes the open sea read as a place rather than an empty plane, before P
 
 - **Types:** `rock`, `islet` (a tiny grassy hex with one palm), `sandbar`, `buoy`. Low-poly models in `scene/models/`, coloured from `scenePalette` only.
 - **Placement is per sea-grid cell, never per island:** the world is cut into square cells of `SCATTER_CELL` world units. Each cell's integer hash of `(cx, cz)` (the same hash family as `decorationRotation`) decides whether the cell holds a prop, which type, its offset inside the cell and its rotation. Adding, growing or moving an island never reshuffles a prop in a cell it does not cover.
-- **Exclusions:** a cell's prop is dropped when it sits within `SCATTER_CLEARANCE` of any island's shallows edge, or within `LANE_HALF_WIDTH` of the straight lane between any two islands whose slots are at most 2 apart (boats sail those lanes, 17.5). Only cells within `SCATTER_EXTENT` of the islands' bounds are considered, which caps instance counts; each type is also capped at `SCATTER_MAX_PER_TYPE`.
+- **Exclusions:** a cell's prop is dropped when it sits within `SCATTER_CLEARANCE` of any island's shallows edge, or within `LANE_HALF_WIDTH` of a sea route (17.5). Only cells within `SCATTER_EXTENT` of the islands' bounds are considered, which caps instance counts; each type is also capped at `SCATTER_MAX_PER_TYPE`.
 - **Rendering:** one instanced mesh per type, static, on both tiers. Props are not tappable; a tap on one counts as a tap on the sea.
 
 ### 17.3 Soft horizon
@@ -782,9 +782,11 @@ Phase 5c makes the open sea read as a place rather than an empty plane, before P
 
 `buildAmbientLife(scene, world, now)` returns plain data (routes, centres, phases, spots); no three.js.
 
+- **Sea routes** (`seaRoutes(islands, bounds)`, shared with 17.2): the layout puts neighbouring islands' shallows only about 0.8 world units apart, so there is no lane between adjacent islands. A **lane** joins two islands whose slots are at most 2 apart when the straight line between their origins stays at least `shallows + LANE_HALF_WIDTH` from every other island and the water between their shallows (less `BOAT_OFFSHORE` at each end) is at least `MIN_LANE` long, which in practice means across an empty slot. A boat sails a lane out and back. With no qualifying lane there is one **loop**: a circle `BOAT_OFFSHORE` beyond the shallows of a lone island, or around the islands' bounds. Routes depend only on the layout, never on progress.
+
 | Life | Driven by | Rule |
 |---|---|---|
-| Boats | tasks with `completedAt` in the last 7 days | `min(4, ceil(done / 3))` boats; each sails a seeded lane between two islands whose slots are at most 2 apart (one island: a loop just outside its shallows); none at 0 |
+| Boats | tasks with `completedAt` in the last 7 days | `min(4, ceil(done / 3))` boats, spread over the sea routes from a seeded start, each at a seeded phase; none at 0 |
 | Gulls | islands with a completion in the last 24h | 3 gulls circling each, at most 3 islands, most recent completion first |
 | Whale | `economy.streak.activeToday` | one breach every 25–40s (seeded) at an open-water spot at least `WHALE_CLEARANCE` from every island, with a splash ring; none when false |
 | Foam rings | every island | a hex ring at the shallows edge, static geometry, always present; opacity pulses slowly on `high` |
@@ -796,12 +798,12 @@ Phase 5c makes the open sea read as a place rather than an empty plane, before P
 
 ### 17.6 Tuning
 
-`scene/tuning.ts` gains a "Sea dressing" block: `SEA_SEGMENTS`, `SEA_DEEP_DISTANCE`, `SCATTER_CELL`, `SCATTER_CLEARANCE`, `SCATTER_EXTENT`, `SCATTER_MAX_PER_TYPE`, scatter type weights and fill probability, `LANE_HALF_WIDTH`, `FOG_MARGIN`, `FOG_DEPTH`, vignette opacity, boat speed, gull radius and speed, whale interval range and `WHALE_CLEARANCE`, foam pulse period.
+`scene/tuning.ts` gains a "Sea dressing" block: `SEA_SEGMENTS`, `SEA_DEEP_DISTANCE`, `SCATTER_CELL`, `SCATTER_CLEARANCE`, `SCATTER_EXTENT`, `SCATTER_MAX_PER_TYPE`, scatter type weights and fill probability, `LANE_HALF_WIDTH`, `MIN_LANE`, `BOAT_OFFSHORE`, `FOG_MARGIN`, `FOG_DEPTH`, vignette opacity, boat speed, gull radius and speed, whale interval range and `WHALE_CLEARANCE`, foam pulse period.
 
 ### 17.7 Testing
 
 - **Pure model (`*.test.ts`):**
-  - Sea dressing: scatter is deterministic for a world; adding an island never moves a prop in a cell it does not cover; no prop lies within the clearance of any shallows or in a lane; the depth gradient is darkest far from land and lightest at the shallows.
+  - Sea dressing: scatter is deterministic for a world; adding an island never moves a prop in a cell it does not cover; no prop lies within the clearance of any shallows or on a sea route; adjacent islands get no lane, an empty slot between two islands gives one, and no lane falls back to the loop; the depth gradient is darkest far from land and lightest at the shallows.
   - Ambient life: boats at 0, 1–3, 4–6 and >12 completions in 7 days (cap 4); a completion older than 7 days does not count; a lone island gives a loop; gulls only on islands with a completion in 24h, at most 3, most recent first; the whale only when `activeToday` and clear of every island; the same world at a later `now` in the same windows gives identical data; one extra completion leaves existing boats unchanged.
   - `tickerWanted`: cases for `life`.
 - **Scene graph** (test renderer, `advanceFrames`): the sea material is flat-shaded with vertex colours; fog is set, and its near distance clears every island's far corner after a pan; one instanced mesh per scatter type with the expected count; on `high` boat and gull instance matrices change across frames; on `low` and under reduced motion they do not, and the whale and foam pulse are absent; sea and life on `high` start one ticker, not two.
