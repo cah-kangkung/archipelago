@@ -1,5 +1,6 @@
 import type { Focus } from '../../world/selectors'
-import { type Point, SQRT3, shallowsRadius } from './hex-space'
+import type { Area } from './area'
+import { islandExtent, type Point, SQRT3, shallowsRadius } from './hex-space'
 import type { Bounds, SceneIsland, SceneModel } from './scene-model'
 import { toScreen } from './screen'
 
@@ -12,16 +13,19 @@ export const MAX_ZOOM_FACTOR = 3
 export const FIT_MARGIN = 0.9
 /** Two hexes of room around a district's landmark and plots. */
 export const DISTRICT_MARGIN = 2 * SQRT3
+/** Half a hex of room round a district's landmark and plots: its lit and pannable area (spec 20.1). */
+export const AREA_MARGIN = SQRT3 / 2
 
 export type CameraTarget = { x: number; z: number; zoom: number }
 
 /** The CSS px the camera may fill: the canvas less the HUD on top and the sheet below. */
 export type Viewport = { width: number; height: number }
 
+/** The box through the landmark and the milestone's plots, before any margin. */
 type Level =
   | { kind: 'archipelago' }
   | { kind: 'island'; island: SceneIsland }
-  | { kind: 'district'; island: SceneIsland; box: Bounds }
+  | { kind: 'district'; island: SceneIsland; core: Bounds }
 
 /** The layer a focus resolves to; unknown ids fall back a level. */
 function levelOf(model: SceneModel, focus: Focus): Level {
@@ -40,11 +44,11 @@ function levelOf(model: SceneModel, focus: Focus): Level {
   return {
     kind: 'district',
     island,
-    box: {
-      minX: Math.min(...xs) - DISTRICT_MARGIN,
-      maxX: Math.max(...xs) + DISTRICT_MARGIN,
-      minZ: Math.min(...zs) - DISTRICT_MARGIN,
-      maxZ: Math.max(...zs) + DISTRICT_MARGIN,
+    core: {
+      minX: Math.min(...xs),
+      maxX: Math.max(...xs),
+      minZ: Math.min(...zs),
+      maxZ: Math.max(...zs),
     },
   }
 }
@@ -59,6 +63,13 @@ function islandSquare(island: SceneIsland): Bounds {
   }
 }
 
+const grow = (b: Bounds, by: number): Bounds => ({
+  minX: b.minX - by,
+  maxX: b.maxX + by,
+  minZ: b.minZ - by,
+  maxZ: b.maxZ + by,
+})
+
 const corners = (b: Bounds): Point[] => [
   { x: b.minX, z: b.minZ },
   { x: b.maxX, z: b.minZ },
@@ -71,7 +82,29 @@ export function focusBounds(model: SceneModel, focus: Focus): Bounds {
   const level = levelOf(model, focus)
   if (level.kind === 'archipelago') return model.bounds
   if (level.kind === 'island') return islandSquare(level.island)
-  return level.box
+  return grow(level.core, DISTRICT_MARGIN)
+}
+
+/** The current layer as a rounded rectangle: lit, live and pannable (spec 20.1); none on the archipelago. */
+export function layerArea(model: SceneModel, focus: Focus): Area | null {
+  const level = levelOf(model, focus)
+  if (level.kind === 'archipelago') return null
+  if (level.kind === 'island') {
+    const { origin, radius } = level.island
+    return {
+      minX: origin.x,
+      maxX: origin.x,
+      minZ: origin.z,
+      maxZ: origin.z,
+      round: islandExtent(radius),
+    }
+  }
+  return { ...level.core, round: AREA_MARGIN }
+}
+
+/** Where the pan target may go: the layer area, or the whole world on the archipelago. */
+export function panArea(model: SceneModel, focus: Focus): Area {
+  return layerArea(model, focus) ?? model.bounds
 }
 
 /** What the opening zoom must show: the shallows circle of an island, else the bounds' corners. */
@@ -85,7 +118,7 @@ export function focusOutline(model: SceneModel, focus: Focus): Point[] {
       z: origin.z + s * Math.sin((k * Math.PI) / 6),
     }))
   }
-  return corners(level.kind === 'district' ? level.box : model.bounds)
+  return corners(level.kind === 'district' ? grow(level.core, DISTRICT_MARGIN) : model.bounds)
 }
 
 /** The largest zoom that fits every outline point in the viewport, times FIT_MARGIN; 0 without one. */
@@ -135,8 +168,8 @@ export function cameraTarget(
     }
   }
   return {
-    x: (level.box.minX + level.box.maxX) / 2,
-    z: (level.box.minZ + level.box.maxZ) / 2,
+    x: (level.core.minX + level.core.maxX) / 2,
+    z: (level.core.minZ + level.core.maxZ) / 2,
     zoom: Math.max(DISTRICT_ZOOM, fit),
   }
 }

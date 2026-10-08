@@ -5,6 +5,7 @@ import { quietEconomy } from '../../test/sea-worlds'
 import type { Focus } from '../../world/selectors'
 import {
   ARCHIPELAGO_ZOOM,
+  AREA_MARGIN,
   cameraTarget,
   DISTRICT_MARGIN,
   DISTRICT_ZOOM,
@@ -13,8 +14,10 @@ import {
   focusBounds,
   focusOutline,
   ISLAND_ZOOM,
+  layerArea,
+  panArea,
 } from './camera'
-import { shallowsRadius } from './hex-space'
+import { islandExtent, shallowsRadius } from './hex-space'
 import { buildSceneModel } from './scene-model'
 import { toScreen } from './screen'
 
@@ -148,5 +151,63 @@ describe('cameraTarget with a viewport', () => {
     const t = cameraTarget(model, onMvp, null, { width: 1000, height: 800 })
     expect(t.x).toBeCloseTo((b.minX + b.maxX) / 2)
     expect(t.z).toBeCloseTo((b.minZ + b.maxZ) / 2)
+  })
+})
+
+describe('layerArea and panArea', () => {
+  test('the archipelago has no layer area; its pan area is the world box', () => {
+    expect(layerArea(model, { kind: 'archipelago' })).toBeNull()
+    expect(panArea(model, { kind: 'archipelago' })).toEqual(model.bounds)
+  })
+
+  test('an island is a circle out to its coastline', () => {
+    const { x, z } = island.origin
+    expect(layerArea(model, onBeta)).toEqual({
+      minX: x,
+      maxX: x,
+      minZ: z,
+      maxZ: z,
+      round: islandExtent(island.radius),
+    })
+    expect(panArea(model, onBeta)).toEqual(layerArea(model, onBeta))
+  })
+
+  test('a district is the box round its landmark and plots, with half a hex of round', () => {
+    const district = island.districts.find((d) => d.milestoneId === mvp.id)
+    if (!district) throw new Error('no mvp district')
+    const spots = [
+      district.position,
+      ...island.structures.filter((s) => s.milestoneId === mvp.id).map((s) => s.position),
+    ]
+    const xs = spots.map((p) => island.origin.x + p.x)
+    const zs = spots.map((p) => island.origin.z + p.z)
+    expect(layerArea(model, onMvp)).toEqual({
+      minX: Math.min(...xs),
+      maxX: Math.max(...xs),
+      minZ: Math.min(...zs),
+      maxZ: Math.max(...zs),
+      round: AREA_MARGIN,
+    })
+  })
+
+  test('a district with no tasks is its landmark alone, with half a hex of round', () => {
+    const d = island.districts.find((x) => x.milestoneId === empty.id)
+    if (!d) throw new Error('no empty district')
+    const x = island.origin.x + d.position.x
+    const z = island.origin.z + d.position.z
+    expect(layerArea(model, onEmpty)).toEqual({
+      minX: x,
+      maxX: x,
+      minZ: z,
+      maxZ: z,
+      round: AREA_MARGIN,
+    })
+  })
+
+  test('unknown ids fall back a level', () => {
+    expect(layerArea(model, { kind: 'island', projectId: 'nope' })).toBeNull()
+    expect(layerArea(model, { kind: 'district', projectId: beta.id, milestoneId: 'nope' })).toEqual(
+      layerArea(model, onBeta),
+    )
   })
 })
