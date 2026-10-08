@@ -24,9 +24,10 @@ export function createRewardStore(now: () => number = () => Date.now()): RewardS
   const notify = () => {
     for (const listener of [...listeners]) listener()
   }
-  const prune = () => {
-    const t = now()
-    const alive = events.filter((e) => t - e.at < REWARD_LIFETIME_MS)
+  // Each event leaves by id on its own timer: comparing wall-clock ages could miss by a
+  // millisecond and leave an event (and the ticker) alive with no timer left to remove it.
+  const expire = (id: number) => {
+    const alive = events.filter((e) => e.id !== id)
     if (alive.length === events.length) return
     events = alive
     notify()
@@ -36,7 +37,7 @@ export function createRewardStore(now: () => number = () => Date.now()): RewardS
     push(input) {
       const event: RewardEvent = { ...input, id: ++nextId, at: now() }
       events = [...events, event]
-      setTimeout(prune, REWARD_LIFETIME_MS)
+      setTimeout(() => expire(event.id), REWARD_LIFETIME_MS)
       notify()
       return event
     },

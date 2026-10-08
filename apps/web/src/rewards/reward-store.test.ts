@@ -39,4 +39,17 @@ describe('reward store', () => {
     store.push({ target: null, amounts: [5] })
     expect(listener).toHaveBeenCalledTimes(1)
   })
+
+  test('an event still leaves when the clock lags its timer', () => {
+    vi.useFakeTimers({ now: 1000 })
+    let lag = 0
+    const store = createRewardStore(() => Date.now() - lag)
+    store.push({ target: null, amounts: [5] })
+    // The timer fires while a coarse or adjusted wall clock reads 1ms short of 1.6s.
+    lag = 1
+    vi.advanceTimersByTime(REWARD_LIFETIME_MS)
+    expect(store.get()).toEqual([])
+    vi.advanceTimersByTime(REWARD_LIFETIME_MS * 10)
+    expect(store.get()).toEqual([])
+  })
 })
