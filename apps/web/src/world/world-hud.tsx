@@ -14,6 +14,7 @@ export function WorldHud({
   onNewMilestone,
   onEditProject,
   onEditMilestone,
+  onOpenShop,
 }: {
   resolved: Resolved
   empty: boolean
@@ -21,6 +22,7 @@ export function WorldHud({
   onNewMilestone?: () => void
   onEditProject?: () => void
   onEditMilestone?: () => void
+  onOpenShop?: () => void
 }) {
   const { focus, project, milestone } = resolved
   return (
@@ -54,6 +56,11 @@ export function WorldHud({
               New milestone
             </button>
           )}
+          {onOpenShop && (
+            <button type="button" onClick={onOpenShop} className={`${chip} text-brand`}>
+              Shop
+            </button>
+          )}
         </>
       )}
       {focus.kind === 'district' && project && milestone && (
@@ -72,6 +79,11 @@ export function WorldHud({
               className={`${chip} text-text-secondary`}
             >
               Edit milestone
+            </button>
+          )}
+          {onOpenShop && (
+            <button type="button" onClick={onOpenShop} className={`${chip} text-brand`}>
+              Shop
             </button>
           )}
         </>
