@@ -1,6 +1,6 @@
 import { decorationRotation, type WorldDto } from '@archipelago/shared'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
-import type * as THREE from 'three'
+import * as THREE from 'three'
 import { describe, expect, test, vi } from 'vitest'
 import { fakeBuilding, fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
 import { addDays, type Focus } from '../world/selectors'
@@ -286,6 +286,26 @@ describe('decorations and placement', () => {
     const well = fakeBuilding({ projectId: s.beta.id, type: 'well', plotX: -1, plotY: 1 })
     return { ...s, pine, well, world: { ...s.world, buildings: [pine, well] } }
   }
+
+  test('placed decorations stand on their plot, turned by their stored rotation', async () => {
+    const { world, beta } = decorated()
+    const { renderer } = await render(world, { kind: 'island', projectId: beta.id })
+    const island = one(renderer.scene, `island:${beta.id}`)
+    const check = (name: string, plot: { q: number; r: number }, rotation: number) => {
+      const mesh = one(island, name).instance as THREE.InstancedMesh
+      const actual = new THREE.Matrix4()
+      mesh.getMatrixAt(0, actual)
+      const at = hexToWorld(plot)
+      const expected = new THREE.Matrix4()
+        .makeRotationY((rotation * Math.PI) / 3)
+        .setPosition(at.x, LAND_HEIGHT, at.z)
+      actual.elements.forEach((v, i) => {
+        expect(v).toBeCloseTo(expected.elements[i] ?? Number.NaN)
+      })
+    }
+    check('pine', { q: 0, r: 1 }, 2)
+    check('well', { q: -1, r: 1 }, 0)
+  })
 
   test('draws decorations per type, each with a shadow', async () => {
     const { world, beta } = decorated()

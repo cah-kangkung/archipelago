@@ -1,3 +1,4 @@
+import { decorationRotation } from '@archipelago/shared'
 import { describe, expect, test } from 'vitest'
 import { createFakeApi, fakeBuilding, fakeEntry, fakeProject, fakeTask } from './fake-api'
 
@@ -52,5 +53,52 @@ describe('fake api shop', () => {
     })
     await api.deleteProject(beta.id)
     expect(state.world.buildings).toEqual([])
+  })
+
+  test('a balance equal to the price buys; the stored rotation is the shared hash', async () => {
+    const { api, beta } = seeded(30)
+    const placed = await api.placeBuilding({
+      projectId: beta.id,
+      type: 'pine',
+      plotX: -1,
+      plotY: 1,
+    })
+    expect(placed.balance).toBe(0)
+    expect(placed.building.rotation).toBe(decorationRotation({ q: -1, r: 1 }))
+  })
+
+  test('a negative balance, an unknown type and an archived island are refused', async () => {
+    const { api, beta, state } = seeded(0)
+    state.ledger.push(fakeEntry({ kind: 'purchase', amount: -5 }))
+    await expect(
+      api.placeBuilding({ projectId: beta.id, type: 'pine', plotX: 0, plotY: 1 }),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: 'insufficient_supplies',
+      message: 'Balance is negative',
+    })
+    await expect(
+      api.placeBuilding({
+        projectId: beta.id,
+        type: 'tree' as unknown as 'pine',
+        plotX: 0,
+        plotY: 1,
+      }),
+    ).rejects.toMatchObject({ status: 422, code: 'validation_failed' })
+    const archived = fakeProject({ archivedAt: '2026-10-07T00:00:00.000Z' })
+    state.world.projects.push(archived)
+    await expect(
+      api.placeBuilding({ projectId: archived.id, type: 'pine', plotX: 0, plotY: 1 }),
+    ).rejects.toMatchObject({ status: 404 })
+  })
+
+  test('removing a legacy decoration refunds nothing and writes no ledger row', async () => {
+    const beta = fakeProject()
+    const legacy = fakeBuilding({ projectId: beta.id, type: 'obelisk' })
+    const { api, state } = createFakeApi({
+      world: { projects: [beta], milestones: [], tasks: [], buildings: [legacy] },
+    })
+    expect(await api.removeBuilding(legacy.id)).toEqual({ refund: 0, balance: 0 })
+    expect(state.ledger).toEqual([])
   })
 })

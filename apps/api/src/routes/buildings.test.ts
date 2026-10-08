@@ -10,7 +10,13 @@ import { SHOP_ITEMS } from '@archipelago/shared'
 import { and, eq } from 'drizzle-orm'
 import { authedApp, readJson } from '../../test/auth'
 import { testDb, withRollback } from '../../test/db'
-import { insertBuilding, insertProject, insertTask, testConfig } from '../../test/fixtures'
+import {
+  insertBuilding,
+  insertMilestone,
+  insertProject,
+  insertTask,
+  testConfig,
+} from '../../test/fixtures'
 import { createApp } from '../app'
 import type { Db } from '../db/client'
 import { ledger, users } from '../db/schema'
@@ -136,9 +142,11 @@ describe('POST /buildings', () => {
     await withRollback(async (tx) => {
       const s = await setup(tx)
       await insertTask(tx, s.project.id, { plotX: 1, plotY: 0 })
+      await insertMilestone(tx, s.project.id, { districtQ: -1, districtR: 1 })
       await insertBuilding(tx, s.project.id, { type: 'pine', plotX: 0, plotY: 1 })
       for (const body of [
         { plotX: 1, plotY: 0 },
+        { plotX: -1, plotY: 1 },
         { plotX: 0, plotY: 1 },
       ]) {
         const res = await s.place(body)

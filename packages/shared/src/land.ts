@@ -32,7 +32,13 @@ export function isPlaceable(occupied: readonly Hex[], plot: Hex): boolean {
   return hexDistance(COMMONS_CENTER, plot) <= islandRadius(occupied) - SHORE_RINGS
 }
 
-/** A fixed 60° step per plot, so decorations face different ways without the user turning them. */
+/**
+ * A fixed 60° step per plot, so decorations face different ways without the user turning them.
+ * An integer hash of both coordinates: any linear form in q and r repeats along a line of hexes.
+ */
 export function decorationRotation(plot: Hex): number {
-  return (((plot.q * 7 + plot.r * 13) % 6) + 6) % 6
+  let h = Math.imul(plot.q, 0x27d4eb2d) ^ Math.imul(plot.r, 0x165667b1)
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b)
+  h ^= h >>> 13
+  return (h >>> 0) % 6
 }

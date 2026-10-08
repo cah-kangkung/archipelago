@@ -5,6 +5,15 @@ import { decorationRotation, islandRadius, isPlaceable, placeablePlots } from '.
 const O = { q: 0, r: 0 }
 
 describe('land rule', () => {
+  test('decorationRotation varies along every anti-diagonal', () => {
+    // The old (q*7 + r*13) % 6 reduces to (q + r) % 6: one turn per anti-diagonal.
+    for (const sum of [-2, 0, 1, 3]) {
+      const turns = new Set<number>()
+      for (let k = -4; k <= 4; k++) turns.add(decorationRotation({ q: k, r: sum - k }))
+      expect(turns.size).toBeGreaterThan(1)
+    }
+  })
+
   test('islandRadius is furthest occupied + 2, at least 4', () => {
     expect(islandRadius([])).toBe(4)
     expect(islandRadius([{ q: 1, r: 0 }])).toBe(4)
