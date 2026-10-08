@@ -343,6 +343,8 @@ export function WorldScreen() {
           onSelect={(taskId) => {
             setSelectedTaskId(taskId)
             setSelectedBuildingId(null)
+            // A milestone task would be filtered out by "No milestone": show it.
+            if (world.data.tasks.find((t) => t.id === taskId)?.milestoneId) setCommonsFor(null)
             // Show the selected row: a collapsed sheet rises; a taller one stays where it is.
             if (taskId) setSheetDetent((d) => Math.max(d, SHEET_MIDDLE))
           }}

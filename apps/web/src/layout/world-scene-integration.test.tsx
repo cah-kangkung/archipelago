@@ -229,11 +229,23 @@ describe('World screen with the 3D scene', () => {
     confirm.mockRestore()
   })
 
+  test('a task picked in the scene is shown even under the No milestone filter', async () => {
+    const { api, beta, inMvp } = seeded()
+    const { user } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    await screen.findByRole('heading', { level: 2, name: 'Beta' })
+    const select = screen.getByRole('combobox', { name: 'Milestone' })
+    await user.selectOptions(select, 'No milestone')
+    expect(screen.queryByText('MVP task')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: `select ${inMvp.id}` }))
+    expect(await screen.findByText('MVP task')).toBeInTheDocument()
+    expect(select).toHaveDisplayValue('All tasks')
+  })
+
   test('the scene learns how much of it the phone sheet covers; none on desktop', async () => {
     const { api, beta } = seeded()
     renderApp({ api, path: `/p/${beta.id}` })
     const scene = await screen.findByTestId('scene')
-    // jsdom: window.innerHeight is 768 and the switcher strip has no layout height.
+    // jsdom: window.innerHeight is 768 and the HUD has no layout height.
     await waitFor(() => expect(scene).toHaveAttribute('data-covered', '384'))
     fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize task sheet' }), {
       key: 'ArrowDown',

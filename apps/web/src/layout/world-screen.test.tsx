@@ -302,6 +302,18 @@ describe('WorldScreen', () => {
       expect(milestoneSelect()).toHaveDisplayValue('All tasks')
     })
 
+    test('All tasks on an island with No milestone on clears the filter in place', async () => {
+      const { api, beta } = seeded()
+      const { user, router } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+      await screen.findByRole('heading', { level: 2, name: 'Beta' })
+      await user.selectOptions(milestoneSelect(), 'No milestone')
+      expect(screen.queryByText('MVP task')).not.toBeInTheDocument()
+      await user.selectOptions(milestoneSelect(), 'All tasks')
+      expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
+      expect(screen.getByText('MVP task')).toBeInTheDocument()
+      expect(milestoneSelect()).toHaveDisplayValue('All tasks')
+    })
+
     test('No milestone from inside a district lands on the island with the filter on', async () => {
       const { api, beta, mvp } = seeded()
       const { user, router } = renderApp({

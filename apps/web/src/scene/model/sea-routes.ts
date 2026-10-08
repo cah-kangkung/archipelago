@@ -25,7 +25,8 @@ export function routeDistance(p: Point, route: Route): number {
 
 /**
  * Lanes join islands at most 2 slots apart through clear water at least `MIN_LANE` long;
- * neighbouring islands' shallows nearly touch, so in practice a lane crosses an empty slot.
+ * neighbours sit about one ISLAND_GAP of shallows apart, so adjacent islands get a short lane
+ * and a farther pair usually crosses an empty slot.
  * Without a lane there is one loop. Routes depend only on the layout, never on progress.
  */
 export function seaRoutes({ islands, bounds }: Pick<SceneModel, 'islands' | 'bounds'>): Route[] {
