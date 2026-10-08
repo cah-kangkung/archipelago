@@ -316,7 +316,7 @@ v1 is built in phases. Each phase is a vertical slice that gets its own implemen
 | 2 | Task core | Projects/milestones/tasks CRUD, complete/reopen (no rewards), `GET /world`, plot assignment (section 11.1), plain responsive list UI (bottom sheet on mobile / side panel on desktop), routing for the three states | Usable task manager on phone and desktop |
 | 3 | Economy | Ledger, complete/reopen with rewards, milestone bonus, streaks, daily bonus, `GET /economy`, reward events in the UI | Completing tasks earns Supplies, reversals are correct |
 | 4 | World (4a scene, section 13; 4b camera, section 14) | R3F scene: archipelago, islands, districts, task structures + states, landmarks, camera states, overflow panning, island switcher, edge indicators | The game renders the real data |
-| 5 | Shop & polish (5a shop, section 15; 5b polish) | Shop catalogue, decoration placement, reward animations, performance pass on a real device | Decorations purchasable and placeable; 60fps target met |
+| 5 | Shop & polish (5a shop, section 15; 5b polish, section 16) | Shop catalogue, decoration placement, reward animations, performance pass on a real device | Decorations purchasable and placeable; 60fps target met |
 | 6 | Ship | PWA + offline viewing, web build served by Caddy with HTTPS on the VPS, backups, Playwright smoke tests on both viewports | Live on the VPS and installable |
 
 ### Post-v1 roadmap (not in v1)
@@ -673,3 +673,71 @@ DELETE /buildings/:id       → { refund: number, balance }
 - **Scene graph:** decoration instance counts per type; in placement mode, a tap on a glowing plot reports that plot and a tap on a structure or landmark reports nothing; a decoration tap selects it.
 - **App** (RTL, stub-scene seam): the `Shop` chip shows only in island and district views on the scene; affordability states (enough, short, negative, no free land); picking enters placement and collapses the sheet; every cancel path; confirm success patches the balance and toasts; a 409 keeps placement open; remove confirm and refund toast.
 - **Manual:** buy, place and remove on a phone over the LAN and on desktop.
+
+## 16. Phase 5b Design Addendum (approved 2026-10-08)
+
+Phase 5b finishes Phase 5: reward animations (section 7.6 "Reward feedback", section 7.7), the performance pass (section 7.6 "Performance"), and the triaged carry-overs from Phases 2b, 3, 4a, 4b and 5a. This section refines sections 7.6, 7.7, 13, 14 and 15; where they disagree, this section wins.
+
+### 16.1 Reward events (`apps/web/src/rewards/`)
+
+- `reward-store.ts` holds short-lived events, built like the edge-indicator store (`get`/`subscribe`, no React state in the scene loop):
+  `RewardEvent { id, target: { kind: 'task' | 'building', id } | null, amounts: number[], at }`.
+- An event expires 1.6s after `at`. Events are pushed only from a mutation's server response, never from a refetch or a world diff, so a refetch never replays an effect.
+- **Producers:**
+  - task complete (`useTaskActions`): target the task, `amounts` = the response's reward amounts in order (task reward, milestone bonus, streak bonus);
+  - task reopen: no event (the balance chip counts down);
+  - placement (`usePlaceBuilding`): target the new building, `amounts: []` (a pop, no float; the cost is in the toast and chip);
+  - removal and daily claim: no event (chip only).
+- **Reconciliation:** the optimistic status flip shows the finished building at once; the pop and floats wait for the server response. On an error rollback no event is pushed.
+- Toasts stay unchanged as the full text breakdown.
+
+### 16.2 Effects
+
+- **Floating "+N":** a drei `<Html>` per amount (`+37`, palette `warning` text on a `surface-primary` pill), rising 1.2 world units and fading out over 1.4s. Lines stagger by 150ms. It starts above the target structure when the target's island is the focused island (island or district view); in the archipelago view it starts above the island centre. A target not in the scene model shows no float.
+- **Pop:** a newly done structure or a newly placed decoration scales 0 → 1.15 → 1 over 400ms (ease-out back). `ModelInstances` gains an optional `pop: { index, startedAt }` and animates only that instance's matrix in `useFrame`; the target index is resolved from the scene model after the refetch puts the building in place.
+- **Balance chip:** `useCountUp(value)` eases the displayed number from the previous value to the new one over 600ms with a DOM `requestAnimationFrame` (not three). The chip's `aria-label` always states the true balance.
+- **Reduced motion:** no floats, no pop, the chip shows the new value at once.
+
+### 16.3 Adaptive quality
+
+- drei `<PerformanceMonitor>` inside the Canvas sets a `quality` state held by `WorldScene`: `'high' | 'low'`.
+  - `high` (start): `dpr={[1, 2]}`, sea wave on.
+  - `low`: `dpr={1}`, sea wave frozen flat (the shallows ring stays).
+  - `onDecline` → `low`, `onIncline` → `high`; `flipflops={3}` with `onFallback` → `low` for the rest of the page load. The tier is not persisted.
+
+### 16.4 Ticker on demand
+
+- The 30fps ticker (section 13.3) runs only while something moves: the sea wave is on (`high` tier), a crane is in the scene (the world has a `doing` task), a reward effect is alive, or a camera flight or spring is running. Otherwise the scene renders on change only.
+- Under `prefers-reduced-motion: reduce` it never runs, as before.
+- Every `useFrame` consumer (camera rig, sea, crane jibs, pop, floats) clamps `delta` to 100ms, so the first frame after a hidden tab cannot skip a flight.
+- A camera flight captures its frame (cover and viewport) at flight start; a cover change mid-flight no longer jumps the hop zoom.
+
+### 16.5 Instrumentation and tuning
+
+- **`?perf` overlay:** when the page URL has `?perf` (read once at load), a small corner panel shows fps over the last second of rendered frames, quality tier, draw calls and triangles (`gl.info.render`) and the current DPR. It ships in production builds and costs nothing without the flag.
+- **`scene/tuning.ts`** gathers every device-tunable value: hemisphere and directional light intensities, sea amplitude and speed, flight and spring durations, band strength, marker size and colour, pop and float timings. 5b moves today's values there unchanged.
+- **Exit criterion:** on the owner's phone, the overlay shows ≥ 55fps on `high` while panning the busiest island for 10s, or the monitor settles on `low` and shows ≥ 55fps there. Constants are tuned in a short follow-up from those readings.
+
+### 16.6 Carry-over fixes
+
+- **Sheet (`panel-frame.tsx`):** the `dragged` flag clears on the next `pointerdown`, not in a microtask, so a mouse drag no longer fires a click; `pointercancel` restores the previous detent; the dead `_event`/`MouseEvent` parameter goes.
+- **Editor dialog (`editor-frame.tsx`):** crossing the 1024px breakpoint while open re-runs `showModal`/`close` for the new layout; the stray `relative` class goes; `autoFocus` applies on desktop only.
+- **Resize handles:** `role="separator"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and `aria-orientation`.
+- **Streak hint:** tapping the streak chip opens a small popover with "Next bonus at N days: +X" (or "Streak active today" when there is no next bonus); the `title` stays for hover.
+- **Switcher strip:** at the 92dvh detent its top is clamped to stay inside the viewport on short phones.
+- **Edge markers:** the top inset grows by the HUD chips' measured height, so no marker sits under them.
+- **Placement late settle:** `onSuccess`/`onError` of a purchase check the attempt id, so a purchase from island A settling after A→B→A cannot end a fresh placement on A.
+- **Shop chip:** hidden until the scene chunk has loaded and reported ready (`onReady` from `WorldScene`).
+- **Rotation:** `decorationRotation(plot)` becomes an integer hash of `(q, r)` mod 6 in `packages/shared`, so turns no longer repeat along anti-diagonals. New placements only; stored rotations are not migrated.
+- **Shop panel:** the disabled reason is read once (in `aria-describedby` only, not in the name); the dimming applies to the card body, not the red reason; "Placing…" gains a small spinner (a new `Spinner` in `apps/web/src/app/spinner.tsx`: a bordered `animate-spin` circle, static under reduced motion).
+- **Remove:** a synchronous in-flight ref, so a fast double tap sends one `DELETE`.
+- **Still parked:** refund at the price paid, the `removedProject` ref in `WorldScreen`, removal on archived projects, the forward-only marker sweep.
+
+### 16.7 Testing
+
+- **Unit:** reward store (push, expiry, subscribe); `useCountUp` (eases, snaps under reduced motion, label stays true); ticker demand (on and off for each condition); `decorationRotation` varies along an anti-diagonal.
+- **Producers:** completing a task pushes an event with the server's amounts in order; a reopen, removal, claim or failed request pushes none; a placement pushes a pop event.
+- **Scene graph** (`advanceFrames`): the pop instance's scale passes above 1 and settles at 1; a float appears and is gone after expiry; reduced motion shows neither; the `low` tier sets DPR 1 and freezes the sea; delta clamp keeps a long frame from finishing a flight; a cover change mid-flight leaves the hop zoom unchanged; momentum past the edge springs back.
+- **App** (RTL): `?perf` renders the overlay only with the flag; the shop chip waits for scene ready; the A→B→A settle leaves the new placement open; a double-tap remove sends one request; the streak popover opens on tap; the sheet drag/click, `pointercancel` and breakpoint dialog fixes; resize-handle ARIA values.
+- **API:** the "district centre" 409 test inserts a real milestone. **Fake API:** the shop branches the 5a test skipped. **Scene:** placed decorations' rotation matrices.
+- **Manual:** the `?perf` reading on the owner's phone (section 16.5), and a look at floats, pop and count-up on phone and desktop.
