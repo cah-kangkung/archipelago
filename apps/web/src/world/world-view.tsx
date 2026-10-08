@@ -1,4 +1,4 @@
-import type { WorldDto } from '@archipelago/shared'
+import type { Hex, WorldDto } from '@archipelago/shared'
 import { useNavigate } from '@tanstack/react-router'
 import { Suspense, useMemo, useState } from 'react'
 import { createIndicatorStore } from '../scene/indicator-store'
@@ -6,6 +6,7 @@ import { focusKey } from '../scene/model/camera'
 import type { IslandUrgency } from '../scene/model/indicators'
 import { buildSceneModel } from '../scene/model/scene-model'
 import { hasWebGL } from '../scene/webgl'
+import type { Placement } from '../scene/world-contents'
 import { CardWorld } from './card-world'
 import { EdgeIndicatorLayer } from './edge-indicators'
 import { createLazyWorldScene } from './load-world-scene'
@@ -21,9 +22,13 @@ export function WorldView({
   summaries,
   today,
   selectedTaskId,
+  selectedBuildingId,
+  placement,
   coveredBottom,
   anchor,
   onSelect,
+  onSelectBuilding,
+  onPickPlot,
   onNewProject,
   onNewMilestone,
   onEditProject,
@@ -34,9 +39,13 @@ export function WorldView({
   summaries: IslandSummary[]
   today: string
   selectedTaskId: string | null
+  selectedBuildingId: string | null
+  placement: Placement | null
   coveredBottom: number
   anchor: string | null
   onSelect: (taskId: string | null) => void
+  onSelectBuilding: (buildingId: string) => void
+  onPickPlot: (plot: Hex) => void
   onNewProject?: () => void
   onNewMilestone?: () => void
   onEditProject?: () => void
@@ -85,9 +94,13 @@ export function WorldView({
               model={model}
               focus={resolved.focus}
               selectedTaskId={selectedTaskId}
+              selectedBuildingId={selectedBuildingId}
+              placement={placement}
               coveredBottom={coveredBottom}
               anchor={anchor}
               onSelect={onSelect}
+              onSelectBuilding={onSelectBuilding}
+              onPickPlot={onPickPlot}
               urgent={urgent}
               indicators={indicators}
               onOpenIsland={openIsland}

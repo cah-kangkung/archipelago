@@ -10,11 +10,14 @@ import { onTap } from './tap'
 export function ModelInstances({
   kind,
   points,
+  turns,
   material = solidMaterial,
   onPick,
 }: {
   kind: ModelKind
   points: readonly Point[]
+  /** Radians about y, one per point. */
+  turns?: readonly number[]
   material?: THREE.Material
   onPick?: (index: number) => void
 }) {
@@ -26,13 +29,14 @@ export function ModelInstances({
     if (!mesh) return
     const matrix = new THREE.Matrix4()
     points.forEach((p, i) => {
-      mesh.setMatrixAt(i, matrix.makeTranslation(p.x, LAND_HEIGHT, p.z))
+      matrix.makeRotationY(turns?.[i] ?? 0).setPosition(p.x, LAND_HEIGHT, p.z)
+      mesh.setMatrixAt(i, matrix)
     })
     mesh.instanceMatrix.needsUpdate = true
     // Raycasting tests against the instances' bounds, so they must follow the matrices.
     mesh.computeBoundingSphere()
     invalidate()
-  }, [points, invalidate])
+  }, [points, turns, invalidate])
 
   if (points.length === 0) return null
   return (

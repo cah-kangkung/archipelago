@@ -1,12 +1,13 @@
-import type { WorldDto } from '@archipelago/shared'
+import { decorationRotation, type WorldDto } from '@archipelago/shared'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import type * as THREE from 'three'
 import { describe, expect, test, vi } from 'vitest'
-import { fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
+import { fakeBuilding, fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
 import { addDays, type Focus } from '../world/selectors'
 import { ghostMaterial, solidMaterial } from './materials'
+import { hexToWorld, LAND_HEIGHT } from './model/hex-space'
 import { buildSceneModel } from './model/scene-model'
-import { WorldContents } from './world-contents'
+import { WorldContents, type WorldContentsProps } from './world-contents'
 
 type Renderer = Awaited<ReturnType<typeof ReactThreeTestRenderer.create>>
 type Node = Renderer['scene']
@@ -81,15 +82,28 @@ function seeded() {
   return { world, beta, gamma, mvp, tasks }
 }
 
-const handlers = () => ({ onSelect: vi.fn(), onOpenIsland: vi.fn(), onOpenDistrict: vi.fn() })
+const handlers = () => ({
+  onSelect: vi.fn(),
+  onSelectBuilding: vi.fn(),
+  onPickPlot: vi.fn(),
+  onOpenIsland: vi.fn(),
+  onOpenDistrict: vi.fn(),
+})
 
-async function render(world: WorldDto, focus: Focus, selectedTaskId: string | null = null) {
+async function render(
+  world: WorldDto,
+  focus: Focus,
+  selectedTaskId: string | null = null,
+  extra: Partial<Pick<WorldContentsProps, 'selectedBuildingId' | 'placement'>> = {},
+) {
   const h = handlers()
   const renderer = await ReactThreeTestRenderer.create(
     <WorldContents
       model={buildSceneModel(world, today)}
       focus={focus}
       selectedTaskId={selectedTaskId}
+      selectedBuildingId={extra.selectedBuildingId ?? null}
+      placement={extra.placement ?? null}
       animate={false}
       {...h}
     />,
@@ -223,7 +237,14 @@ describe('WorldContents', () => {
     const { renderer } = await render(world, focus)
     const terrain = () => one(one(renderer.scene, `island:${beta.id}`), 'terrain').props.geometry
     const before = terrain()
-    const props = { focus, selectedTaskId: null, animate: false, ...handlers() }
+    const props = {
+      focus,
+      selectedTaskId: null,
+      selectedBuildingId: null,
+      placement: null,
+      animate: false,
+      ...handlers(),
+    }
     await renderer.update(<WorldContents model={buildSceneModel({ ...world }, today)} {...props} />)
     expect(terrain()).toBe(before)
   })
@@ -236,11 +257,121 @@ describe('WorldContents', () => {
       ...world,
       tasks: [...world.tasks, fakeTask({ projectId: beta.id, status: 'todo', plotX: 0, plotY: 1 })],
     }
-    const props = { focus, selectedTaskId: null, animate: false, ...handlers() }
+    const props = {
+      focus,
+      selectedTaskId: null,
+      selectedBuildingId: null,
+      placement: null,
+      animate: false,
+      ...handlers(),
+    }
     await renderer.update(<WorldContents model={buildSceneModel(more, today)} {...props} />)
     expect(instanceCount(one(renderer.scene, `island:${beta.id}`), 'scaffold')).toBe(3)
     const fewer = { ...world, tasks: world.tasks.filter((t) => t.status !== 'todo') }
     await renderer.update(<WorldContents model={buildSceneModel(fewer, today)} {...props} />)
     expect(named(one(renderer.scene, `island:${beta.id}`), 'scaffold')).toHaveLength(0)
+  })
+})
+
+describe('decorations and placement', () => {
+  function decorated() {
+    const s = seeded()
+    const pine = fakeBuilding({
+      projectId: s.beta.id,
+      type: 'pine',
+      plotX: 0,
+      plotY: 1,
+      rotation: 2,
+    })
+    const well = fakeBuilding({ projectId: s.beta.id, type: 'well', plotX: -1, plotY: 1 })
+    return { ...s, pine, well, world: { ...s.world, buildings: [pine, well] } }
+  }
+
+  test('draws decorations per type, each with a shadow', async () => {
+    const { world, beta } = decorated()
+    const { renderer } = await render(world, { kind: 'island', projectId: beta.id })
+    const island = one(renderer.scene, `island:${beta.id}`)
+    expect(instanceCount(island, 'pine')).toBe(1)
+    expect(instanceCount(island, 'well')).toBe(1)
+    expect(instanceCount(island, 'shadow')).toBe(6)
+  })
+
+  test('a decoration tap on the focused island selects it; the ring follows', async () => {
+    const { world, beta, pine } = decorated()
+    const { renderer, onSelectBuilding } = await render(world, {
+      kind: 'island',
+      projectId: beta.id,
+    })
+    await renderer.fireEvent(one(renderer.scene, 'pine'), 'click', { instanceId: 0, delta: 1 })
+    expect(onSelectBuilding).toHaveBeenCalledWith(pine.id)
+    const again = await render(world, { kind: 'island', projectId: beta.id }, null, {
+      selectedBuildingId: pine.id,
+    })
+    const ring = one(again.renderer.scene, 'selection')
+    const at = hexToWorld({ q: 0, r: 1 })
+    const [x, y, z] = ring.props.position as [number, number, number]
+    expect(x).toBeCloseTo(at.x)
+    expect(y).toBe(LAND_HEIGHT)
+    expect(z).toBeCloseTo(at.z)
+  })
+
+  test('placement glows each plot; a tap picks it, a pan does not', async () => {
+    const { world, beta } = decorated()
+    const plots = [
+      { q: 1, r: -1 },
+      { q: 2, r: -1 },
+      { q: -2, r: 1 },
+    ]
+    const { renderer, onPickPlot } = await render(
+      world,
+      { kind: 'island', projectId: beta.id },
+      null,
+      { placement: { projectId: beta.id, plots, ghost: null } },
+    )
+    const glow = one(renderer.scene, 'plot')
+    expect((glow.instance as THREE.InstancedMesh).count).toBe(3)
+    await renderer.fireEvent(glow, 'click', { instanceId: 2, delta: 20 })
+    expect(onPickPlot).not.toHaveBeenCalled()
+    await renderer.fireEvent(glow, 'click', { instanceId: 2, delta: 2 })
+    expect(onPickPlot).toHaveBeenCalledWith({ q: -2, r: 1 })
+    expect(named(renderer.scene, 'ghost')).toHaveLength(0)
+  })
+
+  test('the ghost stands on its plot, turned like the server will turn it', async () => {
+    const { world, beta } = decorated()
+    const plot = { q: 2, r: -1 }
+    const { renderer } = await render(world, { kind: 'island', projectId: beta.id }, null, {
+      placement: { projectId: beta.id, plots: [plot], ghost: { type: 'fountain', plot } },
+    })
+    const ghost = one(renderer.scene, 'ghost')
+    const at = hexToWorld(plot)
+    expect(ghost.props.position).toEqual([at.x, LAND_HEIGHT, at.z])
+    expect(ghost.props.rotation).toEqual([0, (decorationRotation(plot) * Math.PI) / 3, 0])
+  })
+
+  test('while placing, nothing else answers a tap', async () => {
+    const { world, beta, gamma, mvp } = decorated()
+    const r = await render(world, { kind: 'island', projectId: beta.id }, null, {
+      placement: { projectId: beta.id, plots: [{ q: 1, r: -1 }], ghost: null },
+    })
+    const island = one(r.renderer.scene, `island:${beta.id}`)
+    await r.renderer.fireEvent(one(island, 'scaffold'), 'click', { instanceId: 0, delta: 1 })
+    await r.renderer.fireEvent(one(island, 'pine'), 'click', { instanceId: 0, delta: 1 })
+    await r.renderer.fireEvent(one(island, 'terrain'), 'click', { delta: 1 })
+    await r.renderer.fireEvent(one(r.renderer.scene, 'sea'), 'click', { delta: 1 })
+    await r.renderer.fireEvent(one(r.renderer.scene, `island:${gamma.id}`), 'click', { delta: 1 })
+    await r.renderer.fireEvent(one(r.renderer.scene, `landmark:${mvp.id}`), 'click', { delta: 0 })
+    expect(r.onSelect).not.toHaveBeenCalled()
+    expect(r.onSelectBuilding).not.toHaveBeenCalled()
+    expect(r.onOpenIsland).not.toHaveBeenCalled()
+    expect(r.onOpenDistrict).not.toHaveBeenCalled()
+  })
+
+  test('only the island being decorated shows the glow', async () => {
+    const { world, beta, gamma } = decorated()
+    const { renderer } = await render(world, { kind: 'island', projectId: beta.id }, null, {
+      placement: { projectId: gamma.id, plots: [{ q: 1, r: -1 }], ghost: null },
+    })
+    expect(named(one(renderer.scene, `island:${beta.id}`), 'plot')).toHaveLength(0)
   })
 })

@@ -180,6 +180,11 @@ export function WorldScreen() {
           summaries={summaries}
           today={today}
           selectedTaskId={selectedTask ? selectedTaskId : null}
+          // Wired up with placement mode.
+          selectedBuildingId={null}
+          placement={null}
+          onSelectBuilding={() => {}}
+          onPickPlot={() => {}}
           coveredBottom={isDesktop ? 0 : cover}
           anchor={anchor}
           onSelect={(taskId) => {

@@ -1,23 +1,36 @@
+import {
+  DECORATION_TYPES,
+  type DecorationType,
+  decorationRotation,
+  type Hex,
+} from '@archipelago/shared'
 import { useEffect, useMemo } from 'react'
 import { CraneJibs } from './crane-jibs'
 import { Landmark } from './landmark'
-import { shadowMaterial, solidMaterial } from './materials'
-import { LAND_HEIGHT } from './model/hex-space'
+import { placementGhostMaterial, plotMaterial, shadowMaterial, solidMaterial } from './materials'
+import { hexToWorld, LAND_HEIGHT } from './model/hex-space'
 import type { SceneIsland, SceneStructure } from './model/scene-model'
 import { STRUCTURE_KINDS } from './model/state'
 import { ModelInstances } from './model-instances'
 import { modelGeometry } from './models/structures'
 import { islandGeometry } from './models/terrain-geometry'
 import { onTap } from './tap'
-import type { SceneHandlers } from './world-contents'
+import type { Placement, SceneHandlers } from './world-contents'
+
+/** One rotation step is 60°. */
+const TURN = Math.PI / 3
 
 export function Island({
   island,
   focused,
   pickable,
   selectedTaskId,
+  selectedBuildingId,
+  placement,
   animate,
   onSelect,
+  onSelectBuilding,
+  onPickPlot,
   onOpenIsland,
   onOpenDistrict,
 }: SceneHandlers & {
@@ -26,6 +39,9 @@ export function Island({
   /** Which structures a tap may select; the rest clear the selection, like terrain. */
   pickable: (s: SceneStructure) => boolean
   selectedTaskId: string | null
+  selectedBuildingId: string | null
+  /** Already filtered to this island by WorldContents. */
+  placement: Placement | null
   animate: boolean
 }) {
   // A refetch builds fresh tiles with the same content; only the seed and radius change them.
@@ -49,12 +65,29 @@ export function Island({
       byKind,
       storms: carrying(island.structures.filter((s) => s.marker === 'storm')),
       lanterns: carrying(island.structures.filter((s) => s.marker === 'lantern')),
-      shadows: island.structures.map((s) => s.position),
+      shadows: [...island.structures, ...island.decorations].map((s) => s.position),
       cranes: carrying(island.structures.filter((s) => s.kind === 'crane')),
     }
-  }, [island.structures])
+  }, [island.structures, island.decorations])
 
-  const selected = island.structures.find((s) => s.taskId === selectedTaskId)
+  const decorationLayers = useMemo(
+    () =>
+      DECORATION_TYPES.map((type) => {
+        const decorations = island.decorations.filter((d) => d.type === type)
+        return {
+          type,
+          decorations,
+          points: decorations.map((d) => d.position),
+          turns: decorations.map((d) => d.rotation * TURN),
+        }
+      }),
+    [island.decorations],
+  )
+  const plotPoints = useMemo(() => placement?.plots.map(hexToWorld) ?? [], [placement?.plots])
+
+  const selected =
+    island.structures.find((s) => s.taskId === selectedTaskId) ??
+    island.decorations.find((d) => d.buildingId === selectedBuildingId)
   // Structures, their markers and crane jibs select only on the focused island.
   const picker = (structures: readonly SceneStructure[]) =>
     focused
@@ -89,6 +122,34 @@ export function Island({
         points={layers.lanterns.points}
         onPick={picker(layers.lanterns.structures)}
       />
+      {decorationLayers.map(({ type, decorations, points, turns }) => (
+        <ModelInstances
+          key={type}
+          kind={type}
+          points={points}
+          turns={turns}
+          onPick={
+            focused
+              ? (i) => {
+                  const d = decorations[i]
+                  if (d) onSelectBuilding(d.buildingId)
+                }
+              : undefined
+          }
+        />
+      ))}
+      {placement && (
+        <ModelInstances
+          kind="plot"
+          points={plotPoints}
+          material={plotMaterial}
+          onPick={(i) => {
+            const plot = placement.plots[i]
+            if (plot) onPickPlot(plot)
+          }}
+        />
+      )}
+      {placement?.ghost && <Ghost type={placement.ghost.type} plot={placement.ghost.plot} />}
       <ModelInstances kind="shadow" points={layers.shadows} material={shadowMaterial} />
       <CraneJibs
         points={layers.cranes.points}
@@ -111,5 +172,19 @@ export function Island({
         />
       )}
     </group>
+  )
+}
+
+/** The decoration about to be bought; no handlers, so taps fall through to the glow beneath. */
+function Ghost({ type, plot }: { type: DecorationType; plot: Hex }) {
+  const at = hexToWorld(plot)
+  return (
+    <mesh
+      name="ghost"
+      geometry={modelGeometry(type)}
+      material={placementGhostMaterial}
+      position={[at.x, LAND_HEIGHT, at.z]}
+      rotation={[0, decorationRotation(plot) * TURN, 0]}
+    />
   )
 }

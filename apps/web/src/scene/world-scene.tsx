@@ -12,12 +12,14 @@ import { scenePalette } from './model/palette'
 import type { SceneModel } from './model/scene-model'
 import { startTicker } from './ticker'
 import { usePrefersReducedMotion } from './use-reduced-motion'
-import { type SceneHandlers, WorldContents } from './world-contents'
+import { type Placement, type SceneHandlers, WorldContents } from './world-contents'
 
 export type WorldSceneProps = SceneHandlers & {
   model: SceneModel
   focus: Focus
   selectedTaskId: string | null
+  selectedBuildingId: string | null
+  placement: Placement | null
   coveredBottom: number
   anchor: string | null
   urgent: readonly IslandUrgency[]
