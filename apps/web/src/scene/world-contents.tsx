@@ -8,6 +8,7 @@ import { type AmbientLife, NO_LIFE } from './model/ambient-life'
 import { scenePalette } from './model/palette'
 import type { SceneModel, SceneStructure } from './model/scene-model'
 import { RewardFloats } from './reward-floats'
+import { SceneryLayer } from './scenery'
 import { Sea } from './sea'
 import { SeaScatter } from './sea-scatter'
 import { DIRECTIONAL_INTENSITY, HEMISPHERE_INTENSITY } from './tuning'
@@ -41,6 +42,10 @@ export type WorldContentsProps = SceneHandlers & {
   onNewProject?: () => void
   /** Boats, gulls and the whale (spec 17.5); none by default. */
   life?: AmbientLife
+  /** The `low` quality tier: scenery draws its thinner half (spec 18.2). */
+  lowTier?: boolean
+  /** A scenery grow-in started (true) or ended (false); keeps the ticker running for it. */
+  onGrowth?: (running: boolean) => void
 }
 
 const ignore = () => {}
@@ -57,6 +62,8 @@ export function WorldContents({
   rewards,
   onNewProject,
   life = NO_LIFE,
+  lowTier = false,
+  onGrowth,
   ...handlers
 }: WorldContentsProps) {
   // While placing, only a glowing plot answers a tap (spec 15.5).
@@ -85,6 +92,12 @@ export function WorldContents({
       />
       <SeaScatter model={model} />
       <AmbientLifeLayer life={life} islands={model.islands} animate={seaWave} />
+      <SceneryLayer
+        islands={model.islands}
+        lowTier={lowTier}
+        animate={seaWave}
+        onGrowth={onGrowth}
+      />
       {model.islands.length === 0 && <EmptySea onCreate={onNewProject} />}
       {model.islands.map((island) => (
         <Island

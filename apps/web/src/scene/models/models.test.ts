@@ -5,6 +5,7 @@ import { islandExtent } from '../model/hex-space'
 import { scenePalette } from '../model/palette'
 import { islandTerrain } from '../model/terrain'
 import { landmarkSegments } from './landmarks'
+import { SCENERY_KINDS, sceneryGeometry } from './scenery'
 import { foamGeometry, SEA_KINDS, seaGeometry } from './sea-props'
 import { MODEL_KINDS, modelGeometry } from './structures'
 import { islandGeometry } from './terrain-geometry'
@@ -112,5 +113,47 @@ describe('sea props', () => {
     ])
     expectPaletteColoured(two)
     expect(two.getAttribute('position').count).toBe(one.getAttribute('position').count * 2)
+  })
+})
+
+describe('scenery models', () => {
+  const triangles = (g: THREE.BufferGeometry) =>
+    (g.index ? g.index.count : g.getAttribute('position').count) / 3
+  const height = (g: THREE.BufferGeometry) => {
+    g.computeBoundingBox()
+    const b = g.boundingBox ?? new THREE.Box3()
+    return b.max.y - b.min.y
+  }
+
+  test.each(SCENERY_KINDS)('%s is palette-coloured and cached', (kind) => {
+    expectPaletteColoured(sceneryGeometry(kind))
+    expect(sceneryGeometry(kind)).toBe(sceneryGeometry(kind))
+  })
+
+  test.each(SCENERY_KINDS.filter((k) => k !== 'dock'))('%s is small and light', (kind) => {
+    const g = sceneryGeometry(kind)
+    g.computeBoundingBox()
+    const box = g.boundingBox ?? new THREE.Box3()
+    expect(box.min.y).toBeGreaterThanOrEqual(-1e-6)
+    for (const v of [box.min.x, box.max.x, box.min.z, box.max.z]) {
+      // A cluster offset of 0.55 plus this stays inside the hex at the largest scale (1.2).
+      expect(Math.abs(v) * 1.2).toBeLessThanOrEqual(0.3)
+    }
+    expect(triangles(g)).toBeGreaterThanOrEqual(12)
+    expect(triangles(g)).toBeLessThanOrEqual(40)
+  })
+
+  test('the tallest scenery tree stays under 0.6 of the shop pine', () => {
+    expect(height(sceneryGeometry('tree')) * 1.2).toBeLessThanOrEqual(
+      0.6 * height(modelGeometry('pine')),
+    )
+  })
+
+  test('the dock reaches out along +x from its shore hex', () => {
+    const g = sceneryGeometry('dock')
+    g.computeBoundingBox()
+    const box = g.boundingBox ?? new THREE.Box3()
+    expect(box.max.x).toBeGreaterThan(1)
+    expect(box.min.x).toBeGreaterThanOrEqual(-0.1)
   })
 })

@@ -679,4 +679,16 @@ describe('reward effects', () => {
     const { renderer } = await render(world, { kind: 'archipelago' })
     expect(named(renderer.scene, 'uncharted')).toHaveLength(0)
   })
+
+  test('scenery is drawn archipelago-wide, outside the islands, and ignores taps', async () => {
+    const { world } = seeded()
+    const { renderer } = await render(world, { kind: 'archipelago' })
+    const layers = renderer.scene.findAll((n) => String(n.props.name).startsWith('scenery:'))
+    expect(layers.length).toBeGreaterThan(0)
+    for (const n of layers) expect(n.props.onClick).toBeUndefined()
+    const islands = renderer.scene.findAll((n) => String(n.props.name).startsWith('island:'))
+    for (const island of islands) {
+      expect(island.findAll((n) => String(n.props.name).startsWith('scenery:'))).toHaveLength(0)
+    }
+  })
 })
