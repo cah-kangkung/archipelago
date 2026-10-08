@@ -90,3 +90,29 @@ export type LandmarkType = (typeof LANDMARK_TYPES)[number]
 
 export const landmarkForIndex = (i: number): LandmarkType =>
   LANDMARK_TYPES[mod(i, LANDMARK_TYPES.length)] ?? 'lighthouse'
+
+/** Hexes on the straight line from `a` to `b`, both ends included. */
+export function hexLine(a: Hex, b: Hex): Hex[] {
+  const n = hexDistance(a, b)
+  const line: Hex[] = []
+  for (let i = 0; i <= n; i++) {
+    const t = n === 0 ? 0 : i / n
+    // The nudge keeps a point on a hex edge from rounding both ways along one line.
+    line.push(hexRound(a.q + (b.q - a.q) * t + 1e-6, a.r + (b.r - a.r) * t + 1e-6))
+  }
+  return line
+}
+
+function hexRound(q: number, r: number): Hex {
+  const s = -q - r
+  let rq = Math.round(q)
+  let rr = Math.round(r)
+  const rs = Math.round(s)
+  const dq = Math.abs(rq - q)
+  const dr = Math.abs(rr - r)
+  const ds = Math.abs(rs - s)
+  if (dq > dr && dq > ds) rq = -rr - rs
+  else if (dr > ds) rr = -rq - rs
+  // `+ 0` turns -0 into 0, so lines compare equal to plain literals.
+  return { q: rq + 0, r: rr + 0 }
+}

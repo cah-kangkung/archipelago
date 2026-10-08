@@ -159,7 +159,7 @@ describe('buildSceneModel', () => {
     ]
     for (const h of occupied) {
       const tile = island?.tiles.find((t) => t.q === h.q && t.r === h.r)
-      expect(tile?.height).toBe(LAND_HEIGHT)
+      expect(tile?.height).toBeGreaterThanOrEqual(LAND_HEIGHT)
     }
   })
 

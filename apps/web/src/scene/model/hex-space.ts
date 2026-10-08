@@ -2,6 +2,9 @@ import type { Hex } from '@archipelago/shared'
 
 export type Point = { x: number; z: number }
 
+/** A point on the land: `y` is the height of the tile it stands on (spec 18.3). */
+export type Spot = Point & { y: number }
+
 export const SQRT3 = Math.sqrt(3)
 
 /** Height of the flat island interior; structures and landmarks stand on it. */

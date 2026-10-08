@@ -108,3 +108,29 @@ export const FOAM_WIDTH = 0.5
 export const FOAM_OPACITY = 0.45
 export const FOAM_PULSE = 0.15
 export const FOAM_PULSE_S = 4
+
+// Island growth (spec 18).
+/** Finished tasks at which an island reaches stages 1, 2, 3 and 4. */
+export const GROWTH_THRESHOLDS = [3, 8, 15, 30] as const
+/** Share of free interior hexes holding scenery, per stage 0–4. */
+export const GROWTH_FILL = [0.05, 0.2, 0.4, 0.6, 0.75] as const
+/** Shore hexes fill at this share of the interior rate. */
+export const SHORE_FILL = 0.5
+/** Hills rise in steps of this many world units. */
+export const HILL_STEP = 0.15
+/** Tallest hill above LAND_HEIGHT, per stage. */
+export const HILL_MAX = [0.15, 0.3, 0.4, 0.5, 0.6] as const
+/** World units across one hill of the noise lattice. */
+export const HILL_SCALE = 4
+/** Meadow share of interior grass, per stage. */
+export const MEADOW_SHARE = [0.1, 0.15, 0.2, 0.3, 0.35] as const
+/** Scenery type shares per zone; each zone sums to 1. */
+export const SCENERY_WEIGHTS = {
+  inland: { tree: 0.45, flowers: 0.25, grass: 0.3 },
+  edge: { bush: 0.6, rock: 0.4 },
+  shore: { rock: 0.4, reeds: 0.35, driftwood: 0.25 },
+} as const
+/** Pieces of a cluster sit at most this far from their hex centre. */
+export const CLUSTER_OFFSET = 0.55
+export const SCENERY_SCALE: readonly [min: number, max: number] = [0.8, 1.2]
+export const GROW_IN_MS = 600

@@ -4,6 +4,7 @@ import {
   DISTRICT_SPACING,
   hexDistance,
   hexKey,
+  hexLine,
   hexRing,
   hexSpiral,
   LANDMARK_TYPES,
@@ -129,4 +130,28 @@ describe('seedDirection and landmarks', () => {
 
 test('COMMONS_CENTER is frozen', () => {
   expect(Object.isFrozen(COMMONS_CENTER)).toBe(true)
+})
+
+describe('hexLine', () => {
+  test('runs from a to b inclusive, one hex per step', () => {
+    const a = { q: 0, r: 0 }
+    const b = { q: 5, r: -3 }
+    const line = hexLine(a, b)
+    expect(line[0]).toEqual(a)
+    expect(line.at(-1)).toEqual(b)
+    expect(line).toHaveLength(hexDistance(a, b) + 1)
+    line.slice(1).forEach((h, i) => {
+      expect(hexDistance(line[i] ?? h, h)).toBe(1)
+    })
+  })
+
+  test('an axis is exact, and a line to itself is one hex', () => {
+    expect(hexLine({ q: 0, r: 0 }, { q: 0, r: 4 })).toEqual(
+      [0, 1, 2, 3, 4].map((r) => ({ q: 0, r })),
+    )
+    expect(hexLine({ q: 0, r: 0 }, { q: -5, r: 0 })).toEqual(
+      [0, -1, -2, -3, -4, -5].map((q) => ({ q: q + 0, r: 0 })),
+    )
+    expect(hexLine({ q: 2, r: 1 }, { q: 2, r: 1 })).toEqual([{ q: 2, r: 1 }])
+  })
 })
