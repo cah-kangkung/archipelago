@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Suspense, useCallback, useMemo, useState } from 'react'
 import { useRewardStore } from '../rewards/reward-context'
 import { createIndicatorStore } from '../scene/indicator-store'
+import { buildAmbientLife } from '../scene/model/ambient-life'
 import { focusKey } from '../scene/model/camera'
 import type { IslandUrgency } from '../scene/model/indicators'
 import { buildSceneModel } from '../scene/model/scene-model'
@@ -61,6 +62,8 @@ export function WorldView({
   const navigate = useNavigate()
   const rewards = useRewardStore()
   const model = useMemo(() => buildSceneModel(world, today), [world, today])
+  // Built with the scene model, so a refetch (a completion) is what moves the windows on.
+  const life = useMemo(() => buildAmbientLife(model, world, Date.now()), [model, world])
   const [indicators] = useState(createIndicatorStore)
   const [hudHeight, setHudHeight] = useState(0)
   // Without `?perf` nothing is created, sampled or drawn.
@@ -111,6 +114,7 @@ export function WorldView({
             <WorldScene
               rewards={rewards}
               model={model}
+              life={life}
               focus={resolved.focus}
               selectedTaskId={selectedTaskId}
               selectedBuildingId={selectedBuildingId}

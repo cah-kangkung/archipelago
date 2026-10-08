@@ -9,6 +9,7 @@ import { Framing } from './framing'
 import { IndicatorProbe } from './indicator-probe'
 import type { IndicatorStore } from './indicator-store'
 import { Labels } from './labels'
+import { type AmbientLife, hasLife } from './model/ambient-life'
 import { ARCHIPELAGO_ZOOM } from './model/camera'
 import type { IslandUrgency } from './model/indicators'
 import { scenePalette } from './model/palette'
@@ -38,6 +39,8 @@ export type WorldSceneProps = SceneHandlers & {
   onReady?: () => void
   /** Opens the new-island editor; offered over the empty sea. */
   onNewProject?: () => void
+  /** Boats, gulls and the whale (spec 17.5). */
+  life: AmbientLife
 }
 
 function AnimationTicker({ enabled }: { enabled: boolean }) {
@@ -64,7 +67,7 @@ export function WorldScene(props: WorldSceneProps) {
     cranes,
     effects: rewards.length > 0,
     camera: cameraMoving,
-    life: false,
+    life: seaWave && hasLife(props.life),
   })
   return (
     <Canvas

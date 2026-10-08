@@ -24,6 +24,7 @@ vi.mock('../scene/world-scene', () => ({
     anchor,
     hudInset,
     onNewProject,
+    life,
   }: WorldSceneProps) => {
     seenAnchors.push(anchor ?? '')
     return (
@@ -34,6 +35,8 @@ vi.mock('../scene/world-scene', () => ({
         data-covered={coveredBottom}
         data-anchor={anchor ?? ''}
         data-hud-inset={hudInset}
+        data-boats={life.boats.length}
+        data-flocks={life.flocks.length}
       >
         <button
           type="button"
@@ -118,6 +121,21 @@ describe('World screen with the 3D scene', () => {
     const vignette = screen.getByTestId('vignette')
     expect(vignette).toHaveClass('pointer-events-none')
     expect(vignette).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  test('recent progress reaches the scene as boats and gulls', async () => {
+    const beta = fakeProject({ name: 'Beta' })
+    const justNow = new Date().toISOString()
+    const tasks = [1, 2, 3, 4].map((i) =>
+      fakeTask({ projectId: beta.id, status: 'done', completedAt: justNow, plotX: i, plotY: 0 }),
+    )
+    const { api } = createFakeApi({
+      world: { projects: [beta], milestones: [], tasks, buildings: [] },
+    })
+    renderApp({ api, path: '/' })
+    const scene = await screen.findByTestId('scene')
+    expect(scene).toHaveAttribute('data-boats', '2')
+    expect(scene).toHaveAttribute('data-flocks', '1')
   })
 
   test('an empty world offers its first island from the sea, not a HUD note', async () => {

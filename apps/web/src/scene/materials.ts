@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { FOAM_OPACITY } from './tuning'
 
 /** Shared by every mesh in the scene; never disposed. */
 export const solidMaterial = new THREE.MeshLambertMaterial({
@@ -37,5 +38,20 @@ export const placementGhostMaterial = new THREE.MeshLambertMaterial({
   flatShading: true,
   transparent: true,
   opacity: 0.5,
+  depthWrite: false,
+})
+
+/** Foam rings at every shallows edge; their opacity pulses on `high` (spec 17.5). */
+export const foamMaterial = new THREE.MeshBasicMaterial({
+  vertexColors: true,
+  transparent: true,
+  opacity: FOAM_OPACITY,
+  depthWrite: false,
+})
+/** The whale's splash ring; it fades as it widens. */
+export const splashMaterial = new THREE.MeshBasicMaterial({
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.6,
   depthWrite: false,
 })

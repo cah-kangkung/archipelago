@@ -1,8 +1,10 @@
 import type { DecorationType, Hex } from '@archipelago/shared'
 import type { RewardEvent } from '../rewards/reward-store'
 import type { Focus } from '../world/selectors'
+import { AmbientLifeLayer } from './ambient-life'
 import { EmptySea } from './empty-sea'
 import { Island } from './island'
+import { type AmbientLife, NO_LIFE } from './model/ambient-life'
 import { scenePalette } from './model/palette'
 import type { SceneModel, SceneStructure } from './model/scene-model'
 import { RewardFloats } from './reward-floats'
@@ -37,6 +39,8 @@ export type WorldContentsProps = SceneHandlers & {
   rewards: readonly RewardEvent[]
   /** Opens the new-island editor; offered over the empty sea. */
   onNewProject?: () => void
+  /** Boats, gulls and the whale (spec 17.5); none by default. */
+  life?: AmbientLife
 }
 
 const ignore = () => {}
@@ -52,6 +56,7 @@ export function WorldContents({
   seaWave = animate,
   rewards,
   onNewProject,
+  life = NO_LIFE,
   ...handlers
 }: WorldContentsProps) {
   // While placing, only a glowing plot answers a tap (spec 15.5).
@@ -79,6 +84,7 @@ export function WorldContents({
         onTapSea={() => live.onSelect(null)}
       />
       <SeaScatter model={model} />
+      <AmbientLifeLayer life={life} islands={model.islands} animate={seaWave} />
       {model.islands.length === 0 && <EmptySea onCreate={onNewProject} />}
       {model.islands.map((island) => (
         <Island
