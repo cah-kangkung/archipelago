@@ -73,6 +73,6 @@ export async function reverseEntries(
 }
 
 export function toRewardDto(row: LedgerRow): RewardDto {
-  // Only reward kinds are ever passed here; reversals and purchases are not rewards.
+  // Only reward kinds are ever passed here; reversals, purchases and refunds are not rewards.
   return { kind: row.kind as RewardKind, amount: row.amount, streakDays: row.streakDays }
 }

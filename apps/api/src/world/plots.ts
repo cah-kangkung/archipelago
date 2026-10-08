@@ -39,7 +39,8 @@ export async function findMilestoneInProject(
   return milestone ?? null
 }
 
-export async function takenPlots(tx: Db, projectId: string): Promise<Set<string>> {
+/** Task plots, decoration plots and district centres on the island; the commons centre is not included. */
+export async function occupiedHexes(tx: Db, projectId: string): Promise<Hex[]> {
   const [taskPlots, buildingPlots, centres] = await Promise.all([
     tx.select({ q: tasks.plotX, r: tasks.plotY }).from(tasks).where(eq(tasks.projectId, projectId)),
     tx
@@ -51,7 +52,11 @@ export async function takenPlots(tx: Db, projectId: string): Promise<Set<string>
       .from(milestones)
       .where(eq(milestones.projectId, projectId)),
   ])
-  const taken = new Set([...taskPlots, ...buildingPlots, ...centres].map(hexKey))
+  return [...taskPlots, ...buildingPlots, ...centres]
+}
+
+export async function takenPlots(tx: Db, projectId: string): Promise<Set<string>> {
+  const taken = new Set((await occupiedHexes(tx, projectId)).map(hexKey))
   taken.add(hexKey(COMMONS_CENTER))
   return taken
 }

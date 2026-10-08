@@ -1,9 +1,11 @@
 import { Hono } from 'hono'
 import { errorBody, handleError } from './errors'
 import { authRoutes } from './routes/auth'
+import { buildingRoutes } from './routes/buildings'
 import { economyRoutes } from './routes/economy'
 import { milestoneRoutes } from './routes/milestones'
 import { projectRoutes } from './routes/projects'
+import { shopRoutes } from './routes/shop'
 import { taskRoutes } from './routes/tasks'
 import { tokenRoutes } from './routes/tokens'
 import { worldRoutes } from './routes/world'
@@ -22,6 +24,8 @@ export function createApp(deps: Deps) {
     .route('/milestones', milestoneRoutes(deps))
     .route('/tasks', taskRoutes(deps))
     .route('/economy', economyRoutes(deps))
+    .route('/shop', shopRoutes(deps))
+    .route('/buildings', buildingRoutes(deps))
     .route('/world', worldRoutes(deps))
 }
 
