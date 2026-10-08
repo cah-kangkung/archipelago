@@ -28,25 +28,25 @@ export function ShopPanel({
           const reason = hasFreeLand ? shortfall(item.price, balance) : null
           const reasonId = `${id}-${item.type}`
           return (
-            <li key={item.type}>
+            <li key={item.type} className="rounded-md bg-surface-secondary">
               <button
                 type="button"
                 disabled={!hasFreeLand || reason !== null}
                 aria-describedby={reason ? reasonId : undefined}
                 onClick={() => onPick(item.type)}
-                className="flex min-h-11 w-full items-center gap-2 rounded-md bg-surface-secondary p-2 text-left disabled:opacity-50"
+                className="flex min-h-11 w-full items-center gap-2 p-2 text-left disabled:opacity-50"
               >
                 <DecorationIcon type={item.type} />
                 <span className="flex flex-col">
                   <span className="text-sm text-text-primary">{item.name}</span>
                   <span className="text-xs text-text-secondary">{item.price} Supplies</span>
-                  {reason && (
-                    <span id={reasonId} className="text-xs text-error">
-                      {reason}
-                    </span>
-                  )}
                 </span>
               </button>
+              {reason && (
+                <p id={reasonId} className="px-2 pb-2 text-xs text-error">
+                  {reason}
+                </p>
+              )}
             </li>
           )
         })}

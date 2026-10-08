@@ -1,8 +1,9 @@
 import type { ShopItemDto } from '@archipelago/shared'
+import { Spinner } from '../app/spinner'
 
 const bar =
   'pointer-events-auto flex min-h-11 items-center justify-between gap-2 rounded-md bg-surface-primary/95 px-3 py-1 shadow'
-const action = 'inline-flex min-h-11 items-center rounded-md px-3'
+const action = 'inline-flex min-h-11 items-center gap-2 rounded-md px-3'
 
 export function PlacementBar({
   item,
@@ -26,7 +27,14 @@ export function PlacementBar({
           disabled={pending}
           className={`${action} bg-brand text-text-on-brand disabled:opacity-50`}
         >
-          {pending ? 'Placing…' : `Place · ${item.price}`}
+          {pending ? (
+            <>
+              <Spinner />
+              Placing…
+            </>
+          ) : (
+            `Place · ${item.price}`
+          )}
         </button>
       ) : (
         <p className="text-sm text-text-secondary">Tap a glowing plot</p>

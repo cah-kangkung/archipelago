@@ -33,6 +33,8 @@ export type WorldSceneProps = SceneHandlers & {
   indicators: IndicatorStore
   rewards: RewardStore
   perf?: PerfStore | null
+  /** Called once the canvas exists. */
+  onReady?: () => void
 }
 
 function AnimationTicker({ enabled }: { enabled: boolean }) {
@@ -63,6 +65,7 @@ export function WorldScene(props: WorldSceneProps) {
   return (
     <Canvas
       frameloop="demand"
+      onCreated={() => props.onReady?.()}
       dpr={qualityDpr(quality.tier)}
       orthographic
       flat

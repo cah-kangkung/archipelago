@@ -37,4 +37,12 @@ describe('ShopPanel', () => {
     expect(screen.getByText('No free land. Islands grow as you add tasks.')).toBeInTheDocument()
     for (const button of screen.getAllByRole('button')) expect(button).toBeDisabled()
   })
+
+  test('the reason is read once, as the description, and sits outside the dimmed card', () => {
+    render(<ShopPanel balance={50} hasFreeLand onPick={() => {}} />)
+    const garden = item(/Flower garden/)
+    expect(garden).not.toHaveAccessibleName(/Need/)
+    expect(garden).toHaveAccessibleDescription('Need 10 more')
+    expect(garden).not.toContainElement(screen.getByText('Need 10 more'))
+  })
 })

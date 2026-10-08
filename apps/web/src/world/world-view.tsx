@@ -1,6 +1,6 @@
 import type { Hex, WorldDto } from '@archipelago/shared'
 import { useNavigate } from '@tanstack/react-router'
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useCallback, useMemo, useState } from 'react'
 import { useRewardStore } from '../rewards/reward-context'
 import { createIndicatorStore } from '../scene/indicator-store'
 import { focusKey } from '../scene/model/camera'
@@ -64,6 +64,10 @@ export function WorldView({
   const [hudHeight, setHudHeight] = useState(0)
   // Without `?perf` nothing is created, sampled or drawn.
   const [perf] = useState(() => (perfEnabled() ? createPerfStore() : null))
+  // The Shop needs the scene to place anything: hide its chip until the chunk has loaded and the
+  // canvas exists (spec 16.6).
+  const [sceneReady, setSceneReady] = useState(false)
+  const markReady = useCallback(() => setSceneReady(true), [])
   // Three.js lives in its own chunk. A failed load is cached by `lazy`, so a retry builds a new one.
   const [WorldScene, setWorldScene] = useState(createLazyWorldScene)
   const urgent = useMemo(
@@ -92,7 +96,10 @@ export function WorldView({
     <SceneBoundary
       fallback={cards}
       resetKey={focusKey(resolved.focus)}
-      onRetry={() => setWorldScene(createLazyWorldScene)}
+      onRetry={() => {
+        setSceneReady(false)
+        setWorldScene(createLazyWorldScene)
+      }}
     >
       <section
         aria-label={label}
@@ -116,6 +123,7 @@ export function WorldView({
               urgent={urgent}
               indicators={indicators}
               perf={perf}
+              onReady={markReady}
               onOpenIsland={openIsland}
               onOpenDistrict={(projectId, milestoneId) =>
                 void navigate({
@@ -131,7 +139,7 @@ export function WorldView({
         <WorldHud
           resolved={resolved}
           empty={world.projects.length === 0}
-          onOpenShop={onOpenShop}
+          onOpenShop={sceneReady ? onOpenShop : undefined}
           onHeight={setHudHeight}
           {...actions}
         />

@@ -75,6 +75,8 @@ export function WorldScreen() {
   const [submitting, setSubmitting] = useState(false)
   // Numbers each purchase, so one that settles after a route change leaves the next island alone.
   const attempt = useRef(0)
+  // Set synchronously, like `submitting`: `remove.isPending` flips too late to stop a double tap.
+  const removing = useRef(false)
   const place = usePlaceBuilding()
   const remove = useRemoveBuilding()
 
@@ -235,8 +237,15 @@ export function WorldScreen() {
     place.mutate(
       { projectId, type, plotX: ghostPlot.q, plotY: ghostPlot.r },
       {
-        onSuccess: () => setPlacing((p) => (p?.projectId === projectId ? null : p)),
-        onError: () => setPlacing((p) => (p?.projectId === projectId ? { ...p, plot: null } : p)),
+        // A purchase that settles after the route moved on (even back to this island) is stale.
+        onSuccess: () => {
+          if (attempt.current === id) setPlacing((p) => (p?.projectId === projectId ? null : p))
+        },
+        onError: () => {
+          if (attempt.current === id) {
+            setPlacing((p) => (p?.projectId === projectId ? { ...p, plot: null } : p))
+          }
+        },
         onSettled: () => {
           if (attempt.current === id) setSubmitting(false)
         },
@@ -320,9 +329,16 @@ export function WorldScreen() {
               name={selectedBuildingItem.name}
               refund={refundFor(selectedBuildingItem.price)}
               pending={remove.isPending}
-              onRemove={() =>
-                remove.mutate(selectedBuilding.id, { onSuccess: () => setSelectedBuildingId(null) })
-              }
+              onRemove={() => {
+                if (removing.current) return
+                removing.current = true
+                remove.mutate(selectedBuilding.id, {
+                  onSuccess: () => setSelectedBuildingId(null),
+                  onSettled: () => {
+                    removing.current = false
+                  },
+                })
+              }}
             />
           ) : (
             <IslandSwitcher

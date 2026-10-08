@@ -13,44 +13,62 @@ if (typeof Element.prototype.setPointerCapture !== 'function') {
 
 vi.mock('../scene/webgl', () => ({ hasWebGL: () => true, resetWebGLProbe: () => {} }))
 
+const sceneControl = vi.hoisted(() => ({ holdReady: false }))
+
 // Stands in for the canvas: exposes placement plots, decorations and structures as buttons.
-vi.mock('../scene/world-scene', () => ({
-  WorldScene: ({
-    model,
-    placement,
-    selectedBuildingId,
-    coveredBottom,
-    onPickPlot,
-    onSelectBuilding,
-    onSelect,
-  }: WorldSceneProps) => (
-    <div
-      data-testid="scene"
-      data-covered={coveredBottom}
-      data-plots={placement?.plots.length ?? 0}
-      data-ghost={placement?.ghost ? `${placement.ghost.plot.q},${placement.ghost.plot.r}` : ''}
-      data-building={selectedBuildingId ?? ''}
-    >
-      {placement?.plots.map((p) => (
-        <button key={`${p.q},${p.r}`} type="button" onClick={() => onPickPlot(p)}>
-          plot {p.q},{p.r}
-        </button>
-      ))}
-      {model.islands.flatMap((island) => [
-        ...island.decorations.map((d) => (
-          <button key={d.buildingId} type="button" onClick={() => onSelectBuilding(d.buildingId)}>
-            decoration {d.type}
+vi.mock('../scene/world-scene', async () => {
+  const { useEffect } = await import('react')
+  return {
+    WorldScene: ({
+      model,
+      placement,
+      selectedBuildingId,
+      coveredBottom,
+      onPickPlot,
+      onSelectBuilding,
+      onSelect,
+      onReady,
+    }: WorldSceneProps) => {
+      useEffect(() => {
+        if (!sceneControl.holdReady) onReady?.()
+      }, [onReady])
+      return (
+        <div
+          data-testid="scene"
+          data-covered={coveredBottom}
+          data-plots={placement?.plots.length ?? 0}
+          data-ghost={placement?.ghost ? `${placement.ghost.plot.q},${placement.ghost.plot.r}` : ''}
+          data-building={selectedBuildingId ?? ''}
+        >
+          <button type="button" onClick={() => onReady?.()}>
+            report ready
           </button>
-        )),
-        ...island.structures.map((s) => (
-          <button key={s.taskId} type="button" onClick={() => onSelect(s.taskId)}>
-            structure {s.taskId}
-          </button>
-        )),
-      ])}
-    </div>
-  ),
-}))
+          {placement?.plots.map((p) => (
+            <button key={`${p.q},${p.r}`} type="button" onClick={() => onPickPlot(p)}>
+              plot {p.q},{p.r}
+            </button>
+          ))}
+          {model.islands.flatMap((island) => [
+            ...island.decorations.map((d) => (
+              <button
+                key={d.buildingId}
+                type="button"
+                onClick={() => onSelectBuilding(d.buildingId)}
+              >
+                decoration {d.type}
+              </button>
+            )),
+            ...island.structures.map((s) => (
+              <button key={s.taskId} type="button" onClick={() => onSelect(s.taskId)}>
+                structure {s.taskId}
+              </button>
+            )),
+          ])}
+        </div>
+      )
+    },
+  }
+})
 
 function seeded(funds = 100) {
   const beta = fakeProject({ name: 'Beta' })
@@ -217,6 +235,64 @@ describe('shop on the world screen', () => {
     expect(confirm).toHaveBeenCalledWith('Remove Pine tree for 15 Supplies back?')
     expect(await screen.findByText('+15 Supplies')).toBeInTheDocument()
     expect(state.world.buildings).toEqual([])
+    confirm.mockRestore()
+  })
+
+  test('the Shop chip waits until the scene reports ready', async () => {
+    sceneControl.holdReady = true
+    try {
+      const { api, beta } = seeded()
+      const { user } = renderApp({ api, path: `/p/${beta.id}` })
+      await screen.findByTestId('scene')
+      expect(screen.queryByRole('button', { name: 'Shop' })).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'report ready' }))
+      expect(screen.getByRole('button', { name: 'Shop' })).toBeInTheDocument()
+    } finally {
+      sceneControl.holdReady = false
+    }
+  })
+
+  test('a purchase from A settling after A→B→A leaves the new placement on A open', async () => {
+    const { api, beta, state } = seeded()
+    const gamma = fakeProject({ name: 'Gamma' })
+    state.world.projects.push(gamma)
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const placeBuilding = api.placeBuilding
+    api.placeBuilding = async (input) => {
+      await gate
+      return placeBuilding(input)
+    }
+    const { user, router } = renderApp({ api, path: `/p/${beta.id}` })
+    await startPlacing(user)
+    await user.click(screen.getByRole('button', { name: 'plot 0,1' }))
+    await user.click(screen.getByRole('button', { name: 'Place · 30' }))
+    const placing = screen.getByRole('button', { name: 'Placing…' })
+    expect(placing.querySelector('.motion-safe\\:animate-spin')).not.toBeNull()
+
+    await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: gamma.id } }))
+    await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: beta.id } }))
+    await startPlacing(user)
+    await user.click(screen.getByRole('button', { name: 'plot -1,1' }))
+
+    await act(async () => release())
+    expect(await screen.findByText('Pine tree placed · −30')).toBeInTheDocument()
+    expect(screen.getByRole('toolbar', { name: 'Placing Pine tree' })).toBeInTheDocument()
+    await waitFor(() => expect(scene().dataset.ghost).toBe('-1,1'))
+  })
+
+  test('a double tap on Remove sends one request', async () => {
+    const { api, beta, calls } = seeded()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { user } = renderApp({ api, path: `/p/${beta.id}` })
+    await user.click(await screen.findByRole('button', { name: 'decoration pine' }))
+    const remove = screen.getByRole('button', { name: 'Remove (+15)' })
+    fireEvent.click(remove)
+    fireEvent.click(remove)
+    expect(await screen.findByText('+15 Supplies')).toBeInTheDocument()
+    expect(calls.filter((c) => c === 'removeBuilding')).toHaveLength(1)
     confirm.mockRestore()
   })
 })
