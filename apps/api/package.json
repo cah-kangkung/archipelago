@@ -10,7 +10,8 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "db:generate": "bunx --bun drizzle-kit generate",
-    "seed:user": "bun src/cli/seed-user.ts"
+    "seed:user": "bun src/cli/seed-user.ts",
+    "seed:demo": "bun src/cli/seed-demo.ts"
   },
   "devDependencies": {
     "@archipelago/tsconfig": "workspace:*",
