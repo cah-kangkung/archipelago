@@ -64,6 +64,7 @@ export function WorldScene(props: WorldSceneProps) {
     cranes,
     effects: rewards.length > 0,
     camera: cameraMoving,
+    life: false,
   })
   return (
     <Canvas

@@ -22,9 +22,11 @@ export type TickerDemand = {
   effects: boolean
   /** A camera flight or spring is running. */
   camera: boolean
+  /** Boats, gulls or a whale are moving (`high` tier, spec 17.5). */
+  life: boolean
 }
 
 /** The ticker runs only while something moves (spec 16.4); otherwise frames come on change. */
 export function tickerWanted(d: TickerDemand): boolean {
-  return d.animate && (d.seaWave || d.cranes || d.effects || d.camera)
+  return d.animate && (d.seaWave || d.cranes || d.effects || d.camera || d.life)
 }

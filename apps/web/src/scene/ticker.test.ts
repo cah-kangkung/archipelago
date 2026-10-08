@@ -57,18 +57,26 @@ describe('tickerWanted', () => {
     cranes: false,
     effects: false,
     camera: false,
+    life: false,
   }
 
   test('runs while anything moves, each condition on its own', () => {
     expect(tickerWanted(still)).toBe(false)
-    for (const key of ['seaWave', 'cranes', 'effects', 'camera'] as const) {
+    for (const key of ['seaWave', 'cranes', 'effects', 'camera', 'life'] as const) {
       expect(tickerWanted({ ...still, [key]: true })).toBe(true)
     }
   })
 
   test('never runs under reduced motion', () => {
     expect(
-      tickerWanted({ animate: false, seaWave: true, cranes: true, effects: true, camera: true }),
+      tickerWanted({
+        animate: false,
+        seaWave: true,
+        cranes: true,
+        effects: true,
+        camera: true,
+        life: true,
+      }),
     ).toBe(false)
   })
 })
