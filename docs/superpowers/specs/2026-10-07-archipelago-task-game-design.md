@@ -953,7 +953,7 @@ Phase 5f finishes the "each layer is a room" idea of section 19. Entering an isl
 
 ### 20.1 The layer area (`scene/model/camera.ts`, pure)
 
-- `type Area = { minX: number; maxX: number; minZ: number; maxZ: number; round: number }`: a rounded rectangle in world x/z, the box `min..max` grown by `round` with round corners. `round` 0 is a plain box; a box shrunk to a point with `round` r is a circle.
+- `type Area = Bounds & { round?: number }`: a rounded rectangle in world x/z, the box `min..max` grown by `round` with round corners. A plain `Bounds` (no `round`) is a box with square corners; a box shrunk to a point with `round` r is a circle.
 - `layerArea(model, focus): Area | null`:
   - **Archipelago:** `null` (no spotlight, nothing dead).
   - **Island:** the point box at the island origin with `round = islandExtent(radius)`: a circle out to the coastline.
@@ -973,8 +973,9 @@ Phase 5f finishes the "each layer is a room" idea of section 19. Entering an isl
 
 ### 20.3 Spotlight
 
-- Shared spotlight uniforms: the area's box (`vec4`), its `round`, a feather width and a strength 0..1. The shared scene materials (`solidMaterial`, `seaMaterial`, `shadowMaterial`, `foamMaterial`, `splashMaterial`, `plotMaterial`, the ghost materials) are patched once (`onBeforeCompile`) to pass the world x/z to the fragment shader and, outside the area, mix the colour toward its own grey (`SPOTLIGHT_DESATURATE` 0.8) and darken it (`SPOTLIGHT_DIM` to 0.55 brightness), with a smoothstep edge `SPOTLIGHT_FEATHER` wide (one hex, `SQRT3`), all scaled by the strength. Instanced meshes use their instance matrix. No new draw calls, no per-object work.
-- Page-element labels and markers (island names, edge indicators, reward floats) whose world position is outside the area fade to `SPOTLIGHT_LABEL_OPACITY` (0.4).
+- Shared spotlight uniforms: the area's box (`vec4`), its `round`, a feather width and a strength 0..1. The shared scene materials (`solidMaterial`, `seaMaterial`, `shadowMaterial`, `foamMaterial`, `splashMaterial`, `plotMaterial`, the ghost materials) are patched once (`onBeforeCompile`) to pass the world x/z to the fragment shader and, after the fog (so fogged sea dims too) and outside the area, mix the colour toward its own grey (`SPOTLIGHT_DESATURATE` 0.8) and darken it (`SPOTLIGHT_DIM` to 0.55 brightness), with a smoothstep edge `SPOTLIGHT_FEATHER` wide (one hex, `SQRT3`), all scaled by the strength. Instanced meshes use their instance matrix. No new draw calls, no per-object work.
+- The clear colour (seen past the sea mesh) dims with the sea: `dimHex(seaDeep, strength)`, the shader's maths in sRGB, so no bright seam shows at the world's edge.
+- District labels whose anchor is outside the area fade to `SPOTLIGHT_LABEL_OPACITY` (0.4). Edge markers (the HUD's shortcut to other urgent islands) and reward floats are unchanged.
 - Transitions over `SPOTLIGHT_MS` (300), eased:
   - Archipelago → island or district: the area is set, the strength goes 0 → 1.
   - Island ↔ island, island ↔ district: the strength stays 1 and the area's box and `round` interpolate from the old shape to the new.
@@ -999,7 +1000,7 @@ Phase 5f finishes the "each layer is a room" idea of section 19. Entering an isl
 
 ### 20.6 Testing
 
-- Pure: `layerArea` per layer and its fallbacks; `areaDistance`/`insideArea` for a circle and a box; `clampToArea`, the banded and unbanded targets on a circle and a box, with a square-cornered box reproducing 14.3's numbers exactly.
+- Pure: `layerArea` per layer and its fallbacks; `areaDistance`/`insideArea` for a circle and a box; `clampToArea`, the banded and unbanded targets on a circle and a box, with a square-cornered box reproducing 14.3's numbers along each side (at a corner the band now stretches outward from the corner rather than per axis).
 - Spotlight: the patched materials carry the shared uniforms; the shader chunk and `areaDistance` share their constants; the tween reaches strength 1 in `SPOTLIGHT_MS`, slides the area island → island at strength 1, fades to 0 on the archipelago, is instant under reduced motion, and releases its ticker demand.
 - Taps: on an island a neighbour's tap does not call `onOpenIsland`; in a district other landmarks have no open handler and outside decorations do not select; placement plots are filtered to the area.
 - Rig: a diagonal pan on an island stops at the coastline circle, short of 19.1's square corner; the archipelago clamp is unchanged.
