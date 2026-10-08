@@ -17,16 +17,17 @@ export function EditorFrame({
   const titleId = useId()
   const dialogRef = useRef<HTMLDialogElement>(null)
 
+  // Each layout mounts its own element: a new <dialog> needs showModal again (spec 16.6). Only the
+  // desktop dialog moves focus to the first field; on a phone that would pop the keyboard.
   useEffect(() => {
     const dialog = dialogRef.current
-    if (!dialog) return
+    if (!isDesktop || !dialog) return
     if (!dialog.open) dialog.showModal()
-    // Browsers focus the first focusable element (Close); the first field is the better start.
     dialog.querySelector<HTMLElement>('input, textarea, select')?.focus()
     return () => {
       if (dialog.open) dialog.close()
     }
-  }, [])
+  }, [isDesktop])
 
   if (isDesktop) {
     return (
@@ -37,7 +38,7 @@ export function EditorFrame({
           event.preventDefault()
           onClose()
         }}
-        className="relative m-auto w-full max-w-lg rounded-lg bg-surface-primary p-6 shadow-xl backdrop:bg-text-primary/40"
+        className="m-auto w-full max-w-lg rounded-lg bg-surface-primary p-6 shadow-xl backdrop:bg-text-primary/40"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 id={titleId} className="text-lg font-semibold text-text-primary">

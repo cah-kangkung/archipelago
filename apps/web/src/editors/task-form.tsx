@@ -68,13 +68,7 @@ export function TaskForm({
         </p>
       )}
       <Field label="Title" errors={errors.title}>
-        <input
-          // biome-ignore lint/a11y/noAutofocus: the editor is a modal that should start on its first field
-          autoFocus
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className={inputClass}
-        />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
       </Field>
       <Field label="Notes" errors={errors.notes}>
         <textarea

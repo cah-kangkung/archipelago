@@ -58,13 +58,7 @@ export function ProjectForm({
         </p>
       )}
       <Field label="Name" errors={errors.name}>
-        <input
-          // biome-ignore lint/a11y/noAutofocus: the editor is a modal that should start on its first field
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className={inputClass}
-        />
+        <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
       </Field>
       <div className="flex flex-wrap gap-2">
         <button type="submit" disabled={busy} className={primary}>

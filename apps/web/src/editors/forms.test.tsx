@@ -17,6 +17,14 @@ function seeded() {
 const dialog = () => screen.getByRole('dialog')
 
 describe('editors', () => {
+  test('phone: opening a form does not focus its first field', async () => {
+    const { api } = seeded()
+    const { user } = renderApp({ api, path: '/' })
+    await user.click(await screen.findByRole('button', { name: 'New island' }))
+    await screen.findByTestId('editor-sheet')
+    expect(screen.getByLabelText('Name')).not.toHaveFocus()
+  })
+
   test('creates an island from the archipelago (desktop dialog)', async () => {
     const { api } = seeded()
     const { user } = renderApp({ api, path: '/', desktop: true })

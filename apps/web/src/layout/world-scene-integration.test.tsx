@@ -137,7 +137,7 @@ describe('World screen with the 3D scene', () => {
     const { api, beta, loose } = seeded()
     const { user } = renderApp({ api, path: `/p/${beta.id}` })
     const sheet = await screen.findByTestId('task-sheet')
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Resize task sheet' }), {
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize task sheet' }), {
       key: 'ArrowDown',
     })
     expect(sheet).toHaveAttribute('data-detent', '0')
@@ -152,7 +152,9 @@ describe('World screen with the 3D scene', () => {
     const { api, beta, loose } = seeded()
     const { user } = renderApp({ api, path: `/p/${beta.id}` })
     const sheet = await screen.findByTestId('task-sheet')
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Resize task sheet' }), { key: 'ArrowUp' })
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize task sheet' }), {
+      key: 'ArrowUp',
+    })
     await user.click(await screen.findByRole('button', { name: `select ${loose.id}` }))
     expect(sheet).toHaveAttribute('data-detent', '2')
 
@@ -178,7 +180,7 @@ describe('World screen with the 3D scene', () => {
     const scene = await screen.findByTestId('scene')
     // jsdom: window.innerHeight is 768 and the switcher strip has no layout height.
     await waitFor(() => expect(scene).toHaveAttribute('data-covered', '384'))
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Resize task sheet' }), {
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize task sheet' }), {
       key: 'ArrowDown',
     })
     await waitFor(() => expect(scene).toHaveAttribute('data-covered', '120'))

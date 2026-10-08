@@ -1,7 +1,6 @@
 import {
   type Dispatch,
   type KeyboardEvent,
-  type MouseEvent,
   type PointerEvent,
   type ReactNode,
   type SetStateAction,
@@ -116,6 +115,16 @@ const DETENTS = [
   { label: '92dvh', px: (vh: number) => vh * 0.92 },
 ]
 const TAP_SLOP = 4
+const TOP = DETENTS.length - 1
+
+/**
+ * A detent's height in px. On a short phone the tallest one gives way so the strip riding on top
+ * of the sheet stays inside the viewport.
+ */
+function detentPx(index: number, vh: number, strip: number): number {
+  const px = DETENTS[index]?.px(vh) ?? 0
+  return index === TOP ? Math.min(px, vh - strip) : px
+}
 
 function MobileSheet({
   title,
@@ -158,15 +167,15 @@ function MobileSheet({
 
   // The world frames around the settled sheet (spec §14.3); a drag in progress does not count.
   useEffect(() => {
-    onCoverChange?.(Math.round((DETENTS[detent]?.px(windowHeight) ?? 0) + stripHeight))
+    onCoverChange?.(Math.round(detentPx(detent, windowHeight, stripHeight) + stripHeight))
   }, [detent, stripHeight, windowHeight, onCoverChange])
 
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     const startY = event.clientY
     const measured = sectionRef.current?.getBoundingClientRect().height ?? 0
-    const startHeight = measured > 0 ? measured : (DETENTS[detent]?.px(window.innerHeight) ?? 0)
+    const startHeight = measured > 0 ? measured : detentPx(detent, window.innerHeight, stripHeight)
     dragged.current = false
-    const maxHeight = () => window.innerHeight * 0.92
+    const maxHeight = () => detentPx(TOP, window.innerHeight, stripHeight)
     const heightAt = (clientY: number) =>
       Math.min(maxHeight(), Math.max(120, startHeight + (startY - clientY)))
     startDrag(
@@ -182,17 +191,17 @@ function MobileSheet({
         if (end.type === 'pointercancel' || !dragged.current) return
         const height = heightAt(end.clientY)
         let nearest = 0
-        DETENTS.forEach((d, i) => {
-          const best = DETENTS[nearest]
-          const vh = window.innerHeight
-          if (best && Math.abs(d.px(vh) - height) < Math.abs(best.px(vh) - height)) nearest = i
+        const vh = window.innerHeight
+        DETENTS.forEach((_, i) => {
+          const gap = Math.abs(detentPx(i, vh, stripHeight) - height)
+          if (gap < Math.abs(detentPx(nearest, vh, stripHeight) - height)) nearest = i
         })
         setDetent(nearest)
       },
     )
   }
 
-  const onClick = (_event: MouseEvent<HTMLButtonElement>) => {
+  const onClick = () => {
     if (dragged.current) return
     setDetent((d) => (d + 1) % DETENTS.length)
   }
@@ -210,22 +219,38 @@ function MobileSheet({
     }
   }
 
+  const topPx = detentPx(TOP, windowHeight, stripHeight)
+  const resting =
+    detent === TOP && topPx < (DETENTS[TOP]?.px(windowHeight) ?? 0)
+      ? `${Math.round(topPx)}px`
+      : DETENTS[detent]?.label
+
   return (
     <section
       ref={sectionRef}
       aria-label={title}
       data-testid="task-sheet"
       data-detent={detent}
-      style={{ height: dragHeight ?? DETENTS[detent]?.label }}
+      style={{ height: dragHeight ?? resting }}
       className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[640px] flex-col rounded-t-lg border-t border-border-primary bg-surface-primary shadow-2xl"
     >
       {accessory && (
-        <div ref={stripRef} className="absolute inset-x-0 bottom-full">
+        <div
+          ref={stripRef}
+          data-testid="sheet-accessory"
+          className="absolute inset-x-0 bottom-full"
+        >
           {accessory}
         </div>
       )}
+      {/* biome-ignore lint/a11y/useSemanticElements: a focusable splitter needs button behaviour (click, Enter, Space); the separator role carries the value */}
       <button
         type="button"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-valuemin={0}
+        aria-valuemax={TOP}
+        aria-valuenow={detent}
         aria-label="Resize task sheet"
         onPointerDown={onPointerDown}
         onClick={onClick}
@@ -293,8 +318,14 @@ function DesktopPanel({
       style={{ width }}
       className="relative flex h-full shrink-0 flex-col border-l border-border-primary bg-surface-primary"
     >
+      {/* biome-ignore lint/a11y/useSemanticElements: a focusable splitter needs button behaviour (pointer and key handling); the separator role carries the value */}
       <button
         type="button"
+        role="separator"
+        aria-orientation="vertical"
+        aria-valuemin={MIN_WIDTH}
+        aria-valuemax={MAX_WIDTH}
+        aria-valuenow={width}
         aria-label="Resize task panel"
         onPointerDown={onPointerDown}
         onKeyDown={onKeyDown}

@@ -49,7 +49,7 @@ describe('WorldScreen', () => {
     expect(within(panel).getByRole('navigation', { name: 'Islands' })).toBeInTheDocument()
     expect(screen.getAllByRole('navigation', { name: 'Islands' })).toHaveLength(1)
     expect(panel).toHaveStyle({ width: '400px' })
-    const handle = screen.getByRole('button', { name: 'Resize task panel' })
+    const handle = screen.getByRole('separator', { name: 'Resize task panel' })
     fireEvent.keyDown(handle, { key: 'ArrowLeft' })
     expect(panel).toHaveStyle({ width: '416px' })
     expect(screen.queryByTestId('task-sheet')).not.toBeInTheDocument()
@@ -83,7 +83,7 @@ describe('WorldScreen', () => {
     const { user, router } = renderApp({ api, path: '/' })
     const sheet = await screen.findByTestId('task-sheet')
     expect(sheet).toHaveAttribute('data-detent', '1')
-    const handle = screen.getByRole('button', { name: 'Resize task sheet' })
+    const handle = screen.getByRole('separator', { name: 'Resize task sheet' })
     await user.click(handle)
     expect(sheet).toHaveAttribute('data-detent', '2')
     await user.click(handle)
@@ -139,12 +139,61 @@ describe('WorldScreen', () => {
       Object.defineProperty(window, 'innerHeight', { configurable: true, value })
     afterEach(() => setHeight(originalHeight))
 
+    test('the handles are separators that state their value', async () => {
+      const { api } = seeded()
+      renderApp({ api, path: '/' })
+      const handle = await screen.findByRole('separator', { name: 'Resize task sheet' })
+      expect(handle).toHaveAttribute('aria-orientation', 'horizontal')
+      expect(handle).toHaveAttribute('aria-valuemin', '0')
+      expect(handle).toHaveAttribute('aria-valuemax', '2')
+      expect(handle).toHaveAttribute('aria-valuenow', '1')
+      fireEvent.keyDown(handle, { key: 'ArrowUp' })
+      expect(handle).toHaveAttribute('aria-valuenow', '2')
+    })
+
+    test('desktop: the panel handle states its width in px', async () => {
+      const { api } = seeded()
+      renderApp({ api, path: '/', desktop: true })
+      const handle = await screen.findByRole('separator', { name: 'Resize task panel' })
+      expect(handle).toHaveAttribute('aria-orientation', 'vertical')
+      expect(handle).toHaveAttribute('aria-valuemin', '320')
+      expect(handle).toHaveAttribute('aria-valuemax', '640')
+      expect(handle).toHaveAttribute('aria-valuenow', '400')
+      fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+      expect(handle).toHaveAttribute('aria-valuenow', '416')
+    })
+
+    test('on a short phone the tallest detent leaves the strip above it on screen', async () => {
+      setHeight(700)
+      const measured = vi
+        .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
+        .mockImplementation(function (this: HTMLElement) {
+          return this.dataset.testid === 'sheet-accessory' ? 72 : 0
+        })
+      try {
+        const { api } = seeded()
+        renderApp({ api, path: '/' })
+        const sheet = await screen.findByTestId('task-sheet')
+        fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize task sheet' }), {
+          key: 'ArrowUp',
+        })
+        expect(sheet).toHaveAttribute('data-detent', '2')
+        // 92% of 700 is 644px; with a 72px strip on top that would leave the strip 16px off screen.
+        expect(sheet.style.height).toBe('628px')
+        setHeight(1000)
+        fireEvent(window, new Event('resize'))
+        await waitFor(() => expect(sheet.style.height).toBe('92dvh'))
+      } finally {
+        measured.mockRestore()
+      }
+    })
+
     test('dragging up and releasing snaps to the nearest detent', async () => {
       setHeight(800)
       const { api } = seeded()
       renderApp({ api, path: '/' })
       const sheet = await screen.findByTestId('task-sheet')
-      const handle = screen.getByRole('button', { name: 'Resize task sheet' })
+      const handle = screen.getByRole('separator', { name: 'Resize task sheet' })
       fireEvent.pointerDown(handle, { clientY: 600, pointerId: 1 })
       fireEvent.pointerMove(window, { clientY: 100, pointerId: 1 })
       fireEvent.pointerUp(window, { clientY: 100, pointerId: 1 })
@@ -157,7 +206,7 @@ describe('WorldScreen', () => {
       const { api } = seeded()
       renderApp({ api, path: '/' })
       const sheet = await screen.findByTestId('task-sheet')
-      const handle = screen.getByRole('button', { name: 'Resize task sheet' })
+      const handle = screen.getByRole('separator', { name: 'Resize task sheet' })
       expect(sheet).toHaveAttribute('data-detent', '1')
       fireEvent.pointerDown(handle, { clientY: 600, pointerId: 1 })
       fireEvent.pointerMove(window, { clientY: 300, pointerId: 1 })
@@ -177,7 +226,7 @@ describe('WorldScreen', () => {
       const { api } = seeded()
       renderApp({ api, path: '/' })
       const sheet = await screen.findByTestId('task-sheet')
-      const handle = screen.getByRole('button', { name: 'Resize task sheet' })
+      const handle = screen.getByRole('separator', { name: 'Resize task sheet' })
       fireEvent.pointerDown(handle, { clientY: 600, pointerId: 1 })
       fireEvent.pointerMove(window, { clientY: 100, pointerId: 1 })
       fireEvent.pointerUp(window, { clientY: 100, pointerId: 1 })
@@ -198,7 +247,7 @@ describe('WorldScreen', () => {
       const { api } = seeded()
       const { user } = renderApp({ api, path: '/' })
       const sheet = await screen.findByTestId('task-sheet')
-      const handle = screen.getByRole('button', { name: 'Resize task sheet' })
+      const handle = screen.getByRole('separator', { name: 'Resize task sheet' })
       fireEvent.pointerDown(handle, { clientY: 600, pointerId: 1 })
       fireEvent.pointerMove(window, { clientY: 100, pointerId: 1 })
       fireEvent.pointerUp(window, { clientY: 100, pointerId: 1 })
@@ -214,7 +263,7 @@ describe('WorldScreen', () => {
       const { api } = seeded()
       renderApp({ api, path: '/', desktop: true })
       const panel = await screen.findByTestId('task-side-panel')
-      const handle = screen.getByRole('button', { name: 'Resize task panel' })
+      const handle = screen.getByRole('separator', { name: 'Resize task panel' })
       const spy = vi.spyOn(Storage.prototype, 'setItem')
       fireEvent.pointerDown(handle, { clientX: 800, pointerId: 1 })
       fireEvent.pointerMove(window, { clientX: 700, pointerId: 1 })
