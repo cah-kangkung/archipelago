@@ -100,6 +100,7 @@ export function WorldScene(props: WorldSceneProps) {
         model={props.model}
         focus={props.focus}
         covered={props.coveredBottom}
+        hudInset={props.hudInset}
         anchor={props.anchor}
         animate={animate}
         onMotion={setCameraMoving}

@@ -3,10 +3,16 @@ import { useThree } from '@react-three/fiber'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import type * as THREE from 'three'
 import { describe, expect, test, vi } from 'vitest'
-import { fakeProject } from '../test/fake-api'
+import { fakeMilestone, fakeProject } from '../test/fake-api'
 import type { Focus } from '../world/selectors'
 import { CameraRig, ISO_DISTANCE } from './camera-rig'
-import { cameraTarget, ISLAND_ZOOM, MAX_ZOOM_FACTOR } from './model/camera'
+import {
+  cameraTarget,
+  clampToBounds,
+  focusBounds,
+  ISLAND_ZOOM,
+  MAX_ZOOM_FACTOR,
+} from './model/camera'
 import { flyDuration, flyFrame, hopZoom } from './model/camera-motion'
 import { buildSceneModel, type SceneModel } from './model/scene-model'
 import type { View } from './model/screen'
@@ -55,15 +61,17 @@ type RigProps = {
   focus: Focus
   animate?: boolean
   covered?: number
+  hudInset?: number
   onMotion?: (moving: boolean) => void
 }
-const scene = ({ model, focus, animate = true, covered = 0, onMotion }: RigProps) => (
+const scene = ({ model, focus, animate = true, covered = 0, hudInset = 0, onMotion }: RigProps) => (
   <>
     <CameraRig
       model={model}
       focus={focus}
       animate={animate}
       covered={covered}
+      hudInset={hudInset}
       onMotion={onMotion}
     />
     <Grab />
@@ -126,13 +134,20 @@ describe('CameraRig', () => {
     await r.advanceFrames(3, 0.1)
     const mid = view()
     controls().dispatchEvent({ type: 'start' })
-    await r.advanceFrames(20, 0.1)
-    expectView(view(), mid)
+    // The grab is outside the island it was flying to, so the band takes up the overshoot once;
+    // from there the camera holds still, at the same zoom.
+    await r.advanceFrames(1, 0.1)
+    const held = view()
+    expect(held.zoom).toBeCloseTo(mid.zoom)
+    await r.advanceFrames(19, 0.1)
+    expectView(view(), held)
     expect(controls().minZoom).toBeLessThanOrEqual(mid.zoom)
     expect(controls().maxZoom).toBeGreaterThanOrEqual(mid.zoom)
+    // Released, the camera is still outside the island it is flying to: it springs in to the edge.
     controls().dispatchEvent({ type: 'end' })
     await r.advanceFrames(20, 0.1)
-    expectView(view(), mid)
+    const edge = clampToBounds(focusBounds(both, onGamma), held.x, held.z)
+    expectView(view(), { ...edge, zoom: mid.zoom })
   })
 
   test('reduced motion snaps on a route change', async () => {
@@ -164,7 +179,7 @@ describe('CameraRig', () => {
 
   test('a drag past the edge stretches with resistance, then springs back on release', async () => {
     const r = await mount({ model: both, focus: onGamma })
-    const { maxX } = both.bounds
+    const { maxX } = focusBounds(both, onGamma)
     const c = controls()
     c.dispatchEvent({ type: 'start' })
     const push = maxX + 50 - c.target.x
@@ -188,7 +203,7 @@ describe('CameraRig', () => {
     const r = await mount({ model: both, focus: onGamma })
     const c = controls()
     c.dispatchEvent({ type: 'start' })
-    const push = both.bounds.maxX + 50 - c.target.x
+    const push = focusBounds(both, onGamma).maxX + 50 - c.target.x
     c.target.x += push
     camera().position.x += push
     c.dispatchEvent({ type: 'change' })
@@ -216,7 +231,7 @@ describe('CameraRig', () => {
 
   test('a spring that lands on the edge settles: float drift past it starts no new spring', async () => {
     const r = await mount({ model: both, focus: onGamma })
-    const { maxX } = both.bounds
+    const { maxX } = focusBounds(both, onGamma)
     const c = controls()
     c.dispatchEvent({ type: 'start' })
     const push = maxX + 50 - c.target.x
@@ -236,7 +251,7 @@ describe('CameraRig', () => {
 
   test('reduced motion: a release past the edge snaps straight to the edge', async () => {
     const r = await mount({ model: both, focus: onGamma, animate: false })
-    const { maxX } = both.bounds
+    const { maxX } = focusBounds(both, onGamma)
     const c = controls()
     c.dispatchEvent({ type: 'start' })
     const push = maxX + 50 - c.target.x
@@ -293,7 +308,7 @@ describe('CameraRig', () => {
 
   test('momentum that carries the camera past the edge after release springs back', async () => {
     const r = await mount({ model: both, focus: onGamma })
-    const { maxX } = both.bounds
+    const { maxX } = focusBounds(both, onGamma)
     const c = controls()
     c.dispatchEvent({ type: 'start' })
     const push = maxX - 1 - c.target.x
@@ -321,5 +336,58 @@ describe('CameraRig', () => {
     await r.advanceFrames(20, 0.1)
     expect(onMotion).toHaveBeenLastCalledWith(false)
     expect(onMotion).toHaveBeenCalledTimes(2)
+  })
+
+  test('on an island, a pan toward the neighbour stops at this island, not the world edge', async () => {
+    const r = await mount({ model: both, focus: onGamma })
+    const island = focusBounds(both, onGamma)
+    expect(island.minX).toBeGreaterThan(both.bounds.minX)
+    const c = controls()
+    c.dispatchEvent({ type: 'start' })
+    const push = island.minX - 50 - c.target.x
+    c.target.x += push
+    camera().position.x += push
+    c.dispatchEvent({ type: 'change' })
+    c.dispatchEvent({ type: 'end' })
+    await r.advanceFrames(8, 0.1)
+    expect(view().x).toBeCloseTo(island.minX)
+  })
+
+  test('a district clamps to its own box', async () => {
+    const m = fakeMilestone({ projectId: beta.id, districtQ: 5, districtR: 0 })
+    const withDistrict = buildSceneModel({ ...worldOf([beta, gamma]), milestones: [m] }, today)
+    const onDistrict: Focus = { kind: 'district', projectId: beta.id, milestoneId: m.id }
+    const r = await mount({ model: withDistrict, focus: onDistrict })
+    const box = focusBounds(withDistrict, onDistrict)
+    const c = controls()
+    c.dispatchEvent({ type: 'start' })
+    const push = box.maxX + 50 - c.target.x
+    c.target.x += push
+    camera().position.x += push
+    c.dispatchEvent({ type: 'change' })
+    c.dispatchEvent({ type: 'end' })
+    await r.advanceFrames(8, 0.1)
+    expect(view().x).toBeCloseTo(box.maxX)
+  })
+
+  test('the zoom-out limit is the fitted zoom, and follows a cover change at rest', async () => {
+    // A big canvas, so the fit beats the floor (at 400×800 it never does).
+    const big = (props: RigProps) =>
+      ReactThreeTestRenderer.create(scene(props), {
+        orthographic: true,
+        width: 2000,
+        height: 1600,
+        camera: { position: [ISO_DISTANCE, ISO_DISTANCE, ISO_DISTANCE], zoom: 10 },
+      })
+    // The sheet starts high: little room, so the limit sits at the floor.
+    const r = await big({ model: both, focus: onGamma, animate: false, covered: 1200 })
+    expect(controls().minZoom).toBeCloseTo(ISLAND_ZOOM)
+    expect(camera().zoom).toBeCloseTo(ISLAND_ZOOM)
+    // The sheet drops: the island fits bigger, the limit rises and the camera comes in to it.
+    await r.update(scene({ model: both, focus: onGamma, animate: false, covered: 0 }))
+    const roomy = cameraTarget(both, onGamma, null, { width: 2000, height: 1600 })
+    expect(roomy.zoom).toBeGreaterThan(ISLAND_ZOOM)
+    expect(controls().minZoom).toBeCloseTo(roomy.zoom)
+    expect(camera().zoom).toBeCloseTo(roomy.zoom)
   })
 })

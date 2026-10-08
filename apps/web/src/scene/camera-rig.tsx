@@ -2,7 +2,7 @@ import { MapControls } from '@react-three/drei'
 import { type Camera, useFrame, useThree } from '@react-three/fiber'
 import { type ComponentRef, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import type { Focus } from '../world/selectors'
-import { cameraTarget, clampToBounds, focusKey, MAX_ZOOM_FACTOR } from './model/camera'
+import { cameraTarget, clampToBounds, focusBounds, focusKey, MAX_ZOOM_FACTOR } from './model/camera'
 import {
   bandedTarget,
   bandLimit,
@@ -15,7 +15,7 @@ import {
 } from './model/camera-motion'
 import type { Point } from './model/hex-space'
 import type { SceneModel } from './model/scene-model'
-import type { Frame, View } from './model/screen'
+import { type Frame, type View, visibleSize } from './model/screen'
 import { clampDelta } from './tuning'
 import { useFrameSize } from './use-frame-size'
 
@@ -64,6 +64,8 @@ export type CameraRigProps = {
   anchor?: string | null
   /** Canvas px hidden behind the phone sheet. */
   covered?: number
+  /** Canvas px the HUD covers at the top; the fitted zoom leaves it clear (spec 19.1). */
+  hudInset?: number
   /** False under reduced motion: every movement snaps. */
   animate?: boolean
   /** Called when a flight or spring starts (true) or ends (false). */
@@ -75,6 +77,7 @@ export function CameraRig({
   focus,
   anchor = null,
   covered = 0,
+  hudInset = 0,
   animate = true,
   onMotion,
 }: CameraRigProps) {
@@ -82,9 +85,15 @@ export function CameraRig({
   const camera = useThree((s) => s.camera)
   const invalidate = useThree((s) => s.invalidate)
   const frame = useFrameSize(covered)
-  const target = cameraTarget(model, focus, anchor)
-  const latest = useRef({ target, bounds: model.bounds, frame, animate })
-  latest.current = { target, bounds: model.bounds, frame, animate }
+  const room = visibleSize(frame)
+  const target = cameraTarget(model, focus, anchor, {
+    width: room.width,
+    height: Math.max(0, room.height - hudInset),
+  })
+  // Pans stay inside the current layer: the whole world, one island or one district.
+  const bounds = focusBounds(model, focus)
+  const latest = useRef({ target, bounds, frame, animate })
+  latest.current = { target, bounds, frame, animate }
   const motion = useRef<Motion>(IDLE)
   const onMotionRef = useRef(onMotion)
   onMotionRef.current = onMotion
@@ -153,11 +162,23 @@ export function CameraRig({
     invalidate()
   }, [key, camera, invalidate])
 
-  // A refetch can shrink the world under a resting camera; one frame lets the spring check run.
+  // A refetch can shrink the area under a resting camera; one frame lets the spring check run.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the bounds are the trigger
   useEffect(() => {
     invalidate()
-  }, [model.bounds, invalidate])
+  }, [bounds.minX, bounds.maxX, bounds.minZ, bounds.maxZ, invalidate])
+
+  // At rest, a new fit (window resize, sheet detent) moves the zoom-out limit with it, and a camera
+  // left zoomed out past it comes in to the limit.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the fitted zoom is the trigger
+  useEffect(() => {
+    if (!mounted.current || motion.current.kind !== 'idle') return
+    setZoomLimits(target.zoom, target.zoom * MAX_ZOOM_FACTOR)
+    if (camera.zoom < target.zoom) {
+      show({ ...viewOf(camera), zoom: target.zoom })
+      invalidate()
+    }
+  }, [target.zoom])
 
   useFrame((_, delta) => {
     const step = clampDelta(delta) * 1000
