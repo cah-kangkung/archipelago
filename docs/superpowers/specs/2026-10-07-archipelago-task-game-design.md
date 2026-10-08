@@ -721,7 +721,7 @@ Phase 5b finishes Phase 5: reward animations (section 7.6 "Reward feedback", sec
 ### 16.6 Carry-over fixes
 
 - **Sheet (`panel-frame.tsx`):** the `dragged` flag clears on the next `pointerdown`, not in a microtask, so a mouse drag no longer fires a click; `pointercancel` restores the previous detent; the dead `_event`/`MouseEvent` parameter goes.
-- **Editor dialog (`editor-frame.tsx`):** crossing the 1024px breakpoint while open re-runs `showModal`/`close` for the new layout; the stray `relative` class goes; `autoFocus` applies on desktop only.
+- **Editor dialog (`editor-frame.tsx`):** crossing the 1024px breakpoint while open re-runs `showModal`/`close` for the new layout (the form remounts in the new container, so unsaved input resets; acceptable for a rare resize or rotation); the stray `relative` class goes; `autoFocus` applies on desktop only.
 - **Resize handles:** `role="separator"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and `aria-orientation`.
 - **Streak hint:** tapping the streak chip opens a small popover with "Next bonus at N days: +X" (or "Top streak bonus reached" when there is no next bonus); the `title` stays for hover.
 - **Switcher strip:** at the 92dvh detent its top is clamped to stay inside the viewport on short phones.
