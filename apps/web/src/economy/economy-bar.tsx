@@ -1,7 +1,21 @@
 import { useWorld } from '../world/use-world'
 import { useClaimDaily } from './use-claim-daily'
+import { useCountUp } from './use-count-up'
 
 const pill = 'rounded-full bg-surface-primary px-2 py-1 sm:px-3 text-sm font-semibold tabular-nums'
+
+function BalanceChip({ balance }: { balance: number }) {
+  const shown = useCountUp(balance)
+  return (
+    <span
+      role="img"
+      aria-label={`${balance} Supplies`}
+      className={`${pill} ${balance < 0 ? 'text-error' : 'text-text-primary'}`}
+    >
+      ◆ {shown}
+    </span>
+  )
+}
 
 export function EconomyBar() {
   const { data: world } = useWorld()
@@ -12,13 +26,7 @@ export function EconomyBar() {
 
   return (
     <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-      <span
-        role="img"
-        aria-label={`${balance} Supplies`}
-        className={`${pill} ${balance < 0 ? 'text-error' : 'text-text-primary'}`}
-      >
-        ◆ {balance}
-      </span>
+      <BalanceChip balance={balance} />
       <span
         role="img"
         aria-label={`${streak.days}-day streak`}

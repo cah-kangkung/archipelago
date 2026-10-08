@@ -2,6 +2,7 @@ import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
 import { createFakeApi, fakeEntry } from '../test/fake-api'
 import { renderApp } from '../test/render-app'
+import { setReducedMotion } from '../test/viewport'
 import { addDays } from '../world/selectors'
 
 const TODAY = '2026-10-07'
@@ -70,5 +71,22 @@ describe('EconomyBar', () => {
     await waitFor(() => expect(claim).toBeDisabled())
     release()
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Claim +15' })).toBeNull())
+  })
+
+  test('the chip shows the new balance after a change; its label states the true balance at once', async () => {
+    const { api } = createFakeApi({ today: TODAY })
+    const { user } = renderApp({ api, path: '/' })
+    expect(await screen.findByLabelText('0 Supplies')).toHaveTextContent('◆ 0')
+    await user.click(await screen.findByRole('button', { name: 'Claim +15' }))
+    const chip = await screen.findByLabelText('15 Supplies')
+    await waitFor(() => expect(chip).toHaveTextContent('◆ 15'))
+  })
+
+  test('under reduced motion the chip shows the new balance immediately', async () => {
+    setReducedMotion(true)
+    const { api } = createFakeApi({ today: TODAY })
+    const { user } = renderApp({ api, path: '/' })
+    await user.click(await screen.findByRole('button', { name: 'Claim +15' }))
+    expect(await screen.findByLabelText('15 Supplies')).toHaveTextContent('◆ 15')
   })
 })
