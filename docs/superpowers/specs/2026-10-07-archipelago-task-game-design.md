@@ -316,7 +316,7 @@ v1 is built in phases. Each phase is a vertical slice that gets its own implemen
 | 2 | Task core | Projects/milestones/tasks CRUD, complete/reopen (no rewards), `GET /world`, plot assignment (section 11.1), plain responsive list UI (bottom sheet on mobile / side panel on desktop), routing for the three states | Usable task manager on phone and desktop |
 | 3 | Economy | Ledger, complete/reopen with rewards, milestone bonus, streaks, daily bonus, `GET /economy`, reward events in the UI | Completing tasks earns Supplies, reversals are correct |
 | 4 | World (4a scene, section 13; 4b camera, section 14) | R3F scene: archipelago, islands, districts, task structures + states, landmarks, camera states, overflow panning, island switcher, edge indicators | The game renders the real data |
-| 5 | Shop & polish | Shop catalogue, decoration placement, reward animations, performance pass on a real device | Decorations purchasable and placeable; 60fps target met |
+| 5 | Shop & polish (5a shop, section 15; 5b polish) | Shop catalogue, decoration placement, reward animations, performance pass on a real device | Decorations purchasable and placeable; 60fps target met |
 | 6 | Ship | PWA + offline viewing, web build served by Caddy with HTTPS on the VPS, backups, Playwright smoke tests on both viewports | Live on the VPS and installable |
 
 ### Post-v1 roadmap (not in v1)
@@ -579,3 +579,97 @@ No Three.js imports; unit-tested. `CameraRig` keeps drei `MapControls` and drive
 - **Scene graph** (`@react-three/test-renderer`, frames driven with `advanceFrames`): a route change lands on the target after the duration and sits partway mid-flight; a controls `start` stops the flight in place; reduced motion snaps in one frame; a bounds-shrinking refetch springs the camera back inside; an off-screen urgent island reports an indicator and the current island never does.
 - **App** (RTL, stub-scene seam): the switcher renders in the sheet accessory on phone and in the side panel on desktop, the top bar is gone, chips navigate; a stub-reported indicator renders as a labelled button that navigates; `coveredBottom` follows the detent, caps at 50dvh, and is 0 on desktop; the last-viewed island is written on island routes and throwing storage is harmless; `SceneBoundary` falls back, retries on route change, and stays on cards after two failures; a mouse drag then click does not toggle the detent; a pointer cancel restores the previous detent.
 - **Manual:** fly feel on desktop and on a phone over the LAN, the rubber band at all four edges, framing at each detent, indicators while panning, switcher chips over the world.
+
+## 15. Phase 5a Design Addendum (approved 2026-10-08)
+
+Phase 5 ships in two halves. **5a (this section)** adds the decoration shop: a fixed catalogue, buying a decoration by placing it on a free plot, and removing it for a half refund. **5b** covers reward animations (including a placement animation), the real-device performance pass and the Phase 4a/4b carry-overs; 5a uses plain toasts. This section refines sections 3, 5, 6, 7.2 and 7.6; where they disagree, this section wins.
+
+### 15.1 Catalogue (`packages/shared/src/shop.ts`)
+
+A fixed list of `{ type, name, price }`. Each type has one procedural model.
+
+| Type | Name | Price |
+|---|---|---|
+| `pine` | Pine tree | 30 |
+| `palm` | Palm tree | 40 |
+| `garden` | Flower garden | 60 |
+| `lamp` | Bench and lamp | 80 |
+| `well` | Well | 120 |
+| `stall` | Market stall | 160 |
+| `fountain` | Fountain | 220 |
+| `statue` | Statue | 350 |
+
+- `refundFor(price) = floor(price × 0.5)`.
+- The catalogue lives in code, not the database. The web app imports it directly; `GET /shop` serves it to API-token clients.
+
+### 15.2 Land rule (`packages/shared`)
+
+- `islandRadius(occupied)` moves from `apps/web/src/scene/model/terrain.ts` to `packages/shared`, unchanged: the largest hex distance from the island origin to an occupied hex, plus 2, minimum 4.
+- **Occupied** now means task plots, district centres **and decoration plots**. Decorations keep the island from shrinking under them when tasks are deleted.
+- `placeablePlots(occupied)` returns every hex within `islandRadius(occupied) − 2` of the origin (the flat interior) that is not occupied and is not the commons centre.
+- A placement is checked against the radius **before** the new decoration is added, so decorations never grow an island. Islands grow only from tasks and milestones.
+- **Rotation** is not chosen by the user: the server stores `rotation = hash(plotX, plotY) mod 6` (60° steps) for variety.
+
+### 15.3 API
+
+```
+GET    /shop                → { items: ShopItemDto[] }                  ShopItemDto { type, name, price }
+POST   /buildings           { projectId, type, plotX, plotY }
+                            → 201 { building: BuildingDto, balance }
+DELETE /buildings/:id       → { refund: number, balance }
+```
+
+- **Purchase** (`POST /buildings`), one transaction:
+  1. lock the project (owned by the user, not archived), then the user row (`FOR NO KEY UPDATE`), the same order as section 12.7;
+  2. validate `type` against the catalogue and the plot against `placeablePlots`;
+  3. require `balance ≥ 0` and `balance ≥ price`;
+  4. insert a `purchase` ledger entry (`amount = −price`, `ref_type 'building'`, `ref_id` = the building id) and the `buildings` row.
+- **Remove** (`DELETE /buildings/:id`): lock the project then the user, insert a `refund` ledger entry (`amount = refundFor(price)`, `ref_type 'building'`, `ref_id` = the building id), delete the row. The purchase entry stays live: a refund is not a reversal.
+- **Ledger:** the `ledger_kind` enum gains `refund` (migration `ALTER TYPE … ADD VALUE`). Ledger rows have no foreign key to buildings, so history outlives them.
+- **Project delete** cascades its buildings and refunds nothing, as section 12.5 reverses nothing on project delete.
+- **Errors:**
+  - unknown `type`, or a plot that is off the flat interior or the commons centre: `422 validation_failed`;
+  - a plot already occupied, including two placements racing for one plot (the unique index decides): `409 conflict`;
+  - balance negative or below the price: `409 insufficient_supplies`, a new error code;
+  - a project or building the user does not own: `404`.
+- `GET /projects/:id/buildings` from section 6 is dropped; `GET /world` already returns buildings.
+- `GET /economy` and the balance need no change: the balance is the sum of ledger entries, purchases and refunds included.
+
+### 15.4 Shop panel (web)
+
+- A `Shop` chip in the HUD in island and district views. It is hidden in the archipelago view (too far out to pick a plot) and on the card fallback (placement needs the scene).
+- The shop opens in `EditorFrame`: a full-screen sheet on phone, a centred dialog on desktop.
+- A grid of items: a static SVG silhouette per type (the shop never loads the 3D chunk), the name and the price.
+- An item is disabled when the price exceeds the balance, with the reason: "Need N more", or "Balance is negative" below zero.
+- If the island has no placeable plot, every item is disabled and the panel says "No free land. Islands grow as you add tasks."
+
+### 15.5 Placement mode (web)
+
+- `WorldScreen` holds `placing: { type, plot: Hex | null } | null`.
+- **Enter:** picking an item closes the shop, collapses the sheet to its lowest detent, and outlines every placeable plot of the current island with a soft `brand` hex ring (one instanced mesh). A bar replaces the switcher strip: "Tap a glowing plot" and `Cancel`.
+- **Pick:** tapping a glowing plot puts a ghost there (the decoration's model at 50% opacity), and the bar becomes `Place · <price>` / `Cancel`. Tapping another glowing plot moves the ghost. Taps on structures, landmarks, sea or non-glowing terrain do nothing. Panning works as usual; the 6px tap rule (section 13.5) applies.
+- **Tap to plot:** a pure `worldToHex(point)` in `scene/model/hex-space.ts` (inverse of `hexToWorld`, with cube rounding) turns a terrain hit, in island-local space, into a hex.
+- **Cancel:** the `Cancel` button, `Esc`, back, and any route change.
+- **Confirm:** `POST /buildings`; the button is disabled with a spinner while in flight. On success: patch the cached balance from the response, refetch `/world`, leave placement mode, toast "<Name> placed · −<price>". On `409`/`422`: an error toast with the server message, and placement stays open on the same item with the ghost cleared.
+- Placement is not optimistic: the server decides validity.
+- **Refetch while placing:** the glowing set is recomputed from the new world; if the ghost's plot is no longer placeable, the ghost clears.
+
+### 15.6 Removing (web)
+
+- Outside placement mode, tapping a decoration selects it with the `brand` ring used for tasks; selecting a decoration clears any selected task and vice versa.
+- A bar shows "<Name> · Remove (+<refund>)". Remove asks "Remove <name> for <refund> Supplies back?"; confirming calls `DELETE`, patches the balance, refetches and toasts "+<refund> Supplies".
+
+### 15.7 Rendering
+
+- `buildSceneModel` adds `decorations: { buildingId, type, position, rotation }[]` per island and passes decoration plots to `islandRadius`.
+- `scene/models/decorations.ts` builds each type once as a merged low-poly geometry with palette vertex colours, inside its hex footprint; one `InstancedMesh` per type with a blob shadow, the same pattern as structures (section 13.3).
+- The web fake API gains `GET /shop`, `POST /buildings` and `DELETE /buildings/:id`, enforcing the same rules through the shared functions.
+
+### 15.8 Testing
+
+- **Shared:** `islandRadius` with decorations; `placeablePlots` excludes occupied hexes, the commons centre and the shore; `refundFor`; catalogue prices are positive integers with unique types.
+- **API:** every route's success path; 401, 404 (another user's project or building, an archived project), 422 (unknown type, shore plot, commons centre, off-island plot) and 409 (occupied plot, negative balance, balance below price); two concurrent placements on one plot → one 201, one 409; the purchase and refund ledger entries and the returned balance; deleting tasks after placing an edge decoration keeps the island radius; project delete leaves the ledger untouched.
+- **Model:** `worldToHex` round-trips with `hexToWorld` and rounds points near hex edges to the nearest hex; decorations appear in the scene model; the web placeable set equals the shared one.
+- **Scene graph:** decoration instance counts per type; in placement mode, a tap on a glowing plot reports that plot and a tap on a structure or landmark reports nothing; a decoration tap selects it.
+- **App** (RTL, stub-scene seam): the `Shop` chip shows only in island and district views on the scene; affordability states (enough, short, negative, no free land); picking enters placement and collapses the sheet; every cancel path; confirm success patches the balance and toasts; a 409 keeps placement open; remove confirm and refund toast.
+- **Manual:** buy, place and remove on a phone over the LAN and on desktop.
