@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { startTicker, TICK_MS } from './ticker'
+import { startTicker, TICK_MS, type TickerDemand, tickerWanted } from './ticker'
 import { usePrefersReducedMotion } from './use-reduced-motion'
 
 afterEach(() => {
@@ -47,5 +47,28 @@ describe('usePrefersReducedMotion', () => {
       window.matchMedia = original
     }
     expect(renderHook(() => usePrefersReducedMotion()).result.current).toBe(false)
+  })
+})
+
+describe('tickerWanted', () => {
+  const still: TickerDemand = {
+    animate: true,
+    seaWave: false,
+    cranes: false,
+    effects: false,
+    camera: false,
+  }
+
+  test('runs while anything moves, each condition on its own', () => {
+    expect(tickerWanted(still)).toBe(false)
+    for (const key of ['seaWave', 'cranes', 'effects', 'camera'] as const) {
+      expect(tickerWanted({ ...still, [key]: true })).toBe(true)
+    }
+  })
+
+  test('never runs under reduced motion', () => {
+    expect(
+      tickerWanted({ animate: false, seaWave: true, cranes: true, effects: true, camera: true }),
+    ).toBe(false)
   })
 })

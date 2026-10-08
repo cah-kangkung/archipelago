@@ -30,6 +30,8 @@ export type WorldContentsProps = SceneHandlers & {
   selectedBuildingId: string | null
   placement: Placement | null
   animate: boolean
+  /** The sea wave runs; false on the low tier. Defaults to `animate`. */
+  seaWave?: boolean
   rewards: readonly RewardEvent[]
 }
 
@@ -43,6 +45,7 @@ export function WorldContents({
   selectedBuildingId,
   placement,
   animate,
+  seaWave = animate,
   rewards,
   ...handlers
 }: WorldContentsProps) {
@@ -64,7 +67,7 @@ export function WorldContents({
     <>
       <hemisphereLight args={[scenePalette.wall, scenePalette.sea, HEMISPHERE_INTENSITY]} />
       <directionalLight position={[12, 20, 6]} intensity={DIRECTIONAL_INTENSITY} />
-      <Sea bounds={model.bounds} animate={animate} onTapSea={() => live.onSelect(null)} />
+      <Sea bounds={model.bounds} animate={seaWave} onTapSea={() => live.onSelect(null)} />
       {model.islands.map((island) => (
         <Island
           key={island.projectId}

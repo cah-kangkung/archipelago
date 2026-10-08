@@ -1,5 +1,5 @@
-import { useFrame } from '@react-three/fiber'
-import { useEffect, useMemo, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { seaMaterial } from './materials'
 import type { Bounds } from './model/scene-model'
@@ -36,6 +36,15 @@ export function Sea({
   }, [minX, maxX, minZ, maxZ])
   const rest = useMemo(() => Float32Array.from(geometry.getAttribute('position').array), [geometry])
   useEffect(() => () => geometry.dispose(), [geometry])
+  const invalidate = useThree((s) => s.invalidate)
+  // Low tier (or reduced motion): the wave stops flat at sea level; the shallows ring is terrain.
+  useLayoutEffect(() => {
+    if (animate) return
+    const position = geometry.getAttribute('position')
+    ;(position.array as Float32Array).set(rest)
+    position.needsUpdate = true
+    invalidate()
+  }, [animate, geometry, rest, invalidate])
 
   const time = useRef(0)
   useFrame((_, delta) => {

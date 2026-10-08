@@ -1,7 +1,8 @@
 import { Canvas, useThree } from '@react-three/fiber'
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { RewardStore } from '../rewards/reward-store'
 import type { Focus } from '../world/selectors'
+import { AdaptiveQuality } from './adaptive-quality'
 import { CameraRig, ISO_DISTANCE } from './camera-rig'
 import { Framing } from './framing'
 import { IndicatorProbe } from './indicator-probe'
@@ -10,8 +11,9 @@ import { Labels } from './labels'
 import { ARCHIPELAGO_ZOOM } from './model/camera'
 import type { IslandUrgency } from './model/indicators'
 import { scenePalette } from './model/palette'
+import { nextQuality, qualityDpr, START_QUALITY } from './model/quality'
 import type { SceneModel } from './model/scene-model'
-import { startTicker } from './ticker'
+import { startTicker, tickerWanted } from './ticker'
 import { usePrefersReducedMotion } from './use-reduced-motion'
 import { type Placement, type SceneHandlers, WorldContents } from './world-contents'
 
@@ -34,14 +36,29 @@ function AnimationTicker({ enabled }: { enabled: boolean }) {
   return null
 }
 
-/** The 3D world. Renders on demand; the ticker adds frames only for sea and crane motion. */
+/** The 3D world. Renders on demand; the ticker adds frames only while something moves. */
 export function WorldScene(props: WorldSceneProps) {
   const animate = !usePrefersReducedMotion()
   const rewards = useSyncExternalStore(props.rewards.subscribe, props.rewards.get)
+  const [quality, setQuality] = useState(START_QUALITY)
+  const [cameraMoving, setCameraMoving] = useState(false)
+  const cranes = useMemo(
+    () => props.model.islands.some((i) => i.structures.some((s) => s.kind === 'crane')),
+    [props.model],
+  )
+  const seaWave = animate && quality.tier === 'high'
+  // Reward floats do not invalidate themselves: a live event keeps the ticker running for them.
+  const ticking = tickerWanted({
+    animate,
+    seaWave,
+    cranes,
+    effects: rewards.length > 0,
+    camera: cameraMoving,
+  })
   return (
     <Canvas
       frameloop="demand"
-      dpr={[1, 2]}
+      dpr={qualityDpr(quality.tier)}
       orthographic
       flat
       camera={{
@@ -53,7 +70,7 @@ export function WorldScene(props: WorldSceneProps) {
       className="touch-none"
     >
       <color attach="background" args={[scenePalette.sea]} />
-      <WorldContents {...props} rewards={rewards} animate={animate} />
+      <WorldContents {...props} rewards={rewards} animate={animate} seaWave={seaWave} />
       <Labels model={props.model} focus={props.focus} />
       <CameraRig
         model={props.model}
@@ -61,6 +78,7 @@ export function WorldScene(props: WorldSceneProps) {
         covered={props.coveredBottom}
         anchor={props.anchor}
         animate={animate}
+        onMotion={setCameraMoving}
       />
       <Framing covered={props.coveredBottom} animate={animate} />
       <IndicatorProbe
@@ -70,7 +88,17 @@ export function WorldScene(props: WorldSceneProps) {
         covered={props.coveredBottom}
         store={props.indicators}
       />
-      <AnimationTicker enabled={animate} />
+      {/*
+        The monitor is mounted only while the ticker runs, so it guards the 30fps ticker. A device
+        on `low` may not climb back to `high` while nothing ticks; the spec's 55fps panning figure
+        is a manual check through the ?perf overlay, not something the monitor decides.
+      */}
+      <AdaptiveQuality
+        tier={quality.tier}
+        monitoring={ticking && !quality.settled}
+        onSignal={(signal) => setQuality((q) => nextQuality(q, signal))}
+      />
+      <AnimationTicker enabled={ticking} />
     </Canvas>
   )
 }

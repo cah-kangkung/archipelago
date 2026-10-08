@@ -57,6 +57,8 @@ export type CameraRigProps = {
   covered?: number
   /** False under reduced motion: every movement snaps. */
   animate?: boolean
+  /** Called when a flight or spring starts (true) or ends (false). */
+  onMotion?: (moving: boolean) => void
 }
 
 export function CameraRig({
@@ -65,6 +67,7 @@ export function CameraRig({
   anchor = null,
   covered = 0,
   animate = true,
+  onMotion,
 }: CameraRigProps) {
   const controls = useRef<Controls>(null)
   const camera = useThree((s) => s.camera)
@@ -74,6 +77,15 @@ export function CameraRig({
   const latest = useRef({ target, bounds: model.bounds, frame, animate })
   latest.current = { target, bounds: model.bounds, frame, animate }
   const motion = useRef<Motion>(IDLE)
+  const onMotionRef = useRef(onMotion)
+  onMotionRef.current = onMotion
+  // Every motion change goes through here, so the ticker hears when the camera starts and stops.
+  const setMotion = useCallback((next: Motion) => {
+    const was = motion.current.kind !== 'idle'
+    motion.current = next
+    const is = next.kind !== 'idle'
+    if (was !== is) onMotionRef.current?.(is)
+  }, [])
   // `shown` is the target on screen; `raw` is where the drag would have put it without the band.
   const pan = useRef<{ raw: Point | null; shown: Point }>({
     raw: null,
@@ -122,12 +134,12 @@ export function CameraRig({
     const duration = smooth && mounted.current ? flyDuration(from, to) : 0
     mounted.current = true
     if (duration === 0) {
-      motion.current = IDLE
+      setMotion(IDLE)
       show(to)
       setZoomLimits(to.zoom, to.zoom * MAX_ZOOM_FACTOR)
     } else {
       setZoomLimits(0, Infinity)
-      motion.current = { kind: 'fly', from, to, elapsed: 0, duration, frame: startFrame }
+      setMotion({ kind: 'fly', from, to, elapsed: 0, duration, frame: startFrame })
     }
     invalidate()
   }, [key, camera, invalidate])
@@ -149,7 +161,7 @@ export function CameraRig({
         invalidate()
         return
       }
-      motion.current = IDLE
+      setMotion(IDLE)
       setZoomLimits(m.to.zoom, m.to.zoom * MAX_ZOOM_FACTOR)
       return
     }
@@ -158,7 +170,7 @@ export function CameraRig({
       const t = Math.min(1, m.elapsed / m.duration)
       show({ ...springFrame(m.from, m.to, t), zoom: camera.zoom })
       if (t < 1) invalidate()
-      else motion.current = IDLE
+      else setMotion(IDLE)
       return
     }
     // At rest past the edge (released there, flung there, or the world shrank): spring home.
@@ -172,13 +184,13 @@ export function CameraRig({
       show({ ...to, zoom: here.zoom })
       return
     }
-    motion.current = {
+    setMotion({
       kind: 'spring',
       from: { x: here.x, z: here.z },
       to,
       elapsed: 0,
       duration: SPRING_MS,
-    }
+    })
     invalidate()
   })
 
@@ -203,7 +215,7 @@ export function CameraRig({
     dragging.current = true
     const m = motion.current
     if (m.kind === 'idle') return
-    motion.current = IDLE
+    setMotion(IDLE)
     const here = viewOf(camera)
     // Keep the stretch: the shown point may be banded, so the raw drag is its inverse.
     const { bounds, frame: f } = latest.current
@@ -218,7 +230,7 @@ export function CameraRig({
         Math.max(m.to.zoom * MAX_ZOOM_FACTOR, here.zoom),
       )
     }
-  }, [camera, setZoomLimits])
+  }, [camera, setZoomLimits, setMotion])
 
   const onEnd = useCallback(() => {
     dragging.current = false

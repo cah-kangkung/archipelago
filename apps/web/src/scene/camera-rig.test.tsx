@@ -50,10 +50,22 @@ function Grab() {
   return null
 }
 
-type RigProps = { model: SceneModel; focus: Focus; animate?: boolean; covered?: number }
-const scene = ({ model, focus, animate = true, covered = 0 }: RigProps) => (
+type RigProps = {
+  model: SceneModel
+  focus: Focus
+  animate?: boolean
+  covered?: number
+  onMotion?: (moving: boolean) => void
+}
+const scene = ({ model, focus, animate = true, covered = 0, onMotion }: RigProps) => (
   <>
-    <CameraRig model={model} focus={focus} animate={animate} covered={covered} />
+    <CameraRig
+      model={model}
+      focus={focus}
+      animate={animate}
+      covered={covered}
+      onMotion={onMotion}
+    />
     <Grab />
   </>
 )
@@ -287,5 +299,16 @@ describe('CameraRig', () => {
     expect(view().x).toBeGreaterThan(maxX)
     await r.advanceFrames(8, 0.1)
     expect(view().x).toBeCloseTo(maxX)
+  })
+
+  test('reports when a flight starts and when it ends', async () => {
+    const onMotion = vi.fn()
+    const r = await mount({ model: both, focus: archipelago, onMotion })
+    expect(onMotion).not.toHaveBeenCalled()
+    await r.update(scene({ model: both, focus: onGamma, onMotion }))
+    expect(onMotion).toHaveBeenLastCalledWith(true)
+    await r.advanceFrames(20, 0.1)
+    expect(onMotion).toHaveBeenLastCalledWith(false)
+    expect(onMotion).toHaveBeenCalledTimes(2)
   })
 })

@@ -56,3 +56,12 @@ export const FLOAT_STAGGER_MS = 150
 export const FLOAT_ABOVE_STRUCTURE = 1.4
 /** Clear of the island name label (drawn at 1.6). */
 export const FLOAT_ABOVE_ISLAND = 2.4
+
+// Adaptive quality (spec 16.3).
+/**
+ * fps below / above which the monitor declines / inclines. drei's defaults (40 / 60) assume a
+ * continuous loop; this scene draws at the 33ms ticker, so they would decline every device.
+ */
+export const QUALITY_MONITOR_BOUNDS: [lower: number, upper: number] = [22, 28]
+/** Real tier changes (high↔low) after which the tier settles on `low` for the page load. */
+export const QUALITY_FLIPFLOPS = 3
