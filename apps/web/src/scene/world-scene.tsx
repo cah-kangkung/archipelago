@@ -4,6 +4,7 @@ import type { RewardStore } from '../rewards/reward-store'
 import type { Focus } from '../world/selectors'
 import { AdaptiveQuality } from './adaptive-quality'
 import { CameraRig, ISO_DISTANCE } from './camera-rig'
+import { FogRig } from './fog-rig'
 import { Framing } from './framing'
 import { IndicatorProbe } from './indicator-probe'
 import type { IndicatorStore } from './indicator-store'
@@ -78,6 +79,7 @@ export function WorldScene(props: WorldSceneProps) {
       className="touch-none"
     >
       <color attach="background" args={[scenePalette.seaDeep]} />
+      <FogRig bounds={props.model.bounds} />
       <WorldContents {...props} rewards={rewards} animate={animate} seaWave={seaWave} />
       <Labels model={props.model} focus={props.focus} />
       <CameraRig

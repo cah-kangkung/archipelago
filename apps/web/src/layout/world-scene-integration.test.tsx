@@ -105,6 +105,15 @@ describe('World screen with the 3D scene', () => {
     expect(screen.getByRole('button', { name: 'New milestone' })).toBeInTheDocument()
   })
 
+  test('a vignette softens the canvas edges without catching taps', async () => {
+    const { api } = seeded()
+    renderApp({ api, path: '/' })
+    await screen.findByTestId('scene')
+    const vignette = screen.getByTestId('vignette')
+    expect(vignette).toHaveClass('pointer-events-none')
+    expect(vignette).toHaveAttribute('aria-hidden', 'true')
+  })
+
   test('an empty world says so over the sea', async () => {
     const { api } = createFakeApi()
     renderApp({ api, path: '/' })

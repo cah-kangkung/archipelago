@@ -16,6 +16,7 @@ import { perfEnabled } from './perf-flag'
 import { PerfOverlay } from './perf-overlay'
 import { SceneBoundary } from './scene-boundary'
 import { type IslandSummary, type resolveFocus, urgencyOf } from './selectors'
+import { Vignette } from './vignette'
 import { WorldHud } from './world-hud'
 
 type Resolved = ReturnType<typeof resolveFocus>
@@ -134,6 +135,7 @@ export function WorldView({
             />
           </Suspense>
         </div>
+        <Vignette />
         <EdgeIndicatorLayer store={indicators} onOpen={openIsland} />
         {perf && <PerfOverlay store={perf} />}
         <WorldHud
