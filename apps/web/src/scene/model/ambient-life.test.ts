@@ -51,7 +51,7 @@ describe('boats', () => {
   test('sail the open lane when there is one, the loop otherwise', () => {
     const lane = life(withTasks(worldAt([0, 0], [2, 0]), [doneAt('p0', 1)]))
     expect(lane.boats[0]?.route.kind).toBe('lane')
-    const loop = life(withTasks(worldAt([0, 0], [1, 0]), [doneAt('p0', 1)]))
+    const loop = life(withTasks(worldAt([0, 0], [3, 0]), [doneAt('p0', 1)]))
     expect(loop.boats[0]?.route.kind).toBe('loop')
   })
 

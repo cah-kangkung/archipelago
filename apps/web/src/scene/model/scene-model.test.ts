@@ -18,10 +18,10 @@ import {
   ISLAND_ZOOM,
   openingIsland,
 } from './camera'
-import { hexToWorld, islandExtent, LAND_HEIGHT, SQRT3 } from './hex-space'
+import { hexToWorld, islandExtent, LAND_HEIGHT, SQRT3, shallowsRadius } from './hex-space'
 import { pathHexes } from './island-growth'
 import { mulberry32 } from './random'
-import { buildSceneModel } from './scene-model'
+import { buildSceneModel, ISLAND_GAP } from './scene-model'
 import { landmarkFor, solidSegments, structureFor } from './state'
 import { heightAt, tileHeights } from './terrain'
 
@@ -205,6 +205,9 @@ describe('buildSceneModel', () => {
         for (const b of islands.slice(i + 1)) {
           const gap = Math.hypot(a.origin.x - b.origin.x, a.origin.z - b.origin.z)
           expect(gap).toBeGreaterThanOrEqual(islandExtent(a.radius) + islandExtent(b.radius))
+          expect(gap).toBeGreaterThanOrEqual(
+            shallowsRadius(a.radius) + shallowsRadius(b.radius) + ISLAND_GAP,
+          )
         }
       })
     }

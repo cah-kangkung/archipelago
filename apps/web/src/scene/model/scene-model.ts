@@ -66,7 +66,7 @@ export type Bounds = { minX: number; maxX: number; minZ: number; maxZ: number }
 export type SceneModel = { islands: SceneIsland[]; bounds: Bounds }
 
 /** Hex rings of open sea between neighbouring islands' shores. */
-export const ISLAND_GAP = 3
+export const ISLAND_GAP = 8
 const EMPTY_BOUNDS: Bounds = { minX: -10, maxX: 10, minZ: -10, maxZ: 10 }
 
 /** Positions within an island are island-local; `origin` places the island in the world. */

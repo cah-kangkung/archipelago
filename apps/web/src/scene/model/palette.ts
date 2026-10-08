@@ -10,10 +10,10 @@ export function mix(a: string, b: string, t: number): string {
 
 /** Every colour the 3D scene uses, derived only from A'raf tokens. */
 export const scenePalette = {
-  sea: colors.brand,
-  shallows: colors.brandSecondary,
-  seaShallow: mix(colors.brand, colors.brandSecondary, 0.3),
-  seaDeep: mix(colors.brand, colors.textPrimary, 0.35),
+  sea: mix(colors.brandSecondary, colors.surfacePrimary, 0.3),
+  shallows: mix(colors.brandSecondary, colors.surfacePrimary, 0.6),
+  seaShallow: mix(colors.brandSecondary, colors.surfacePrimary, 0.45),
+  seaDeep: mix(colors.brandSecondary, colors.surfacePrimary, 0.15),
   foam: colors.surfacePrimary,
   buoy: colors.error,
   whale: mix(colors.textPrimary, colors.brand, 0.4),

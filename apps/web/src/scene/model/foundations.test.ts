@@ -52,10 +52,27 @@ describe('palette', () => {
   })
 
   test('scene colours are tokens or blends of tokens', () => {
-    expect(scenePalette.sea).toBe(colors.brand)
-    expect(scenePalette.shallows).toBe(colors.brandSecondary)
+    expect(scenePalette.shallows).toBe(mix(colors.brandSecondary, colors.surfacePrimary, 0.6))
+    expect(scenePalette.seaShallow).toBe(mix(colors.brandSecondary, colors.surfacePrimary, 0.45))
+    expect(scenePalette.sea).toBe(mix(colors.brandSecondary, colors.surfacePrimary, 0.3))
+    expect(scenePalette.seaDeep).toBe(mix(colors.brandSecondary, colors.surfacePrimary, 0.15))
     expect(scenePalette.grass).toBe(colors.success)
     for (const value of Object.values(scenePalette)) expect(value).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  test('the sea lightens from open water to the coast (spec 19.2)', () => {
+    const light = (hex: string) =>
+      [1, 3, 5].reduce((sum, i) => sum + Number.parseInt(hex.slice(i, i + 2), 16), 0)
+    const { seaDeep, sea, seaShallow, shallows } = scenePalette
+    expect(light(sea)).toBeGreaterThan(light(seaDeep))
+    expect(light(seaShallow)).toBeGreaterThan(light(sea))
+    expect(light(shallows)).toBeGreaterThan(light(seaShallow))
+    expect([shallows, seaShallow, sea, seaDeep]).toEqual([
+      '#99c3ed',
+      '#73ade6',
+      '#4d96e0',
+      '#2680d9',
+    ])
   })
 })
 

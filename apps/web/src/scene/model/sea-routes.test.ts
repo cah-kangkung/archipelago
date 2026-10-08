@@ -22,10 +22,10 @@ describe('seaRoutes', () => {
     ])
   })
 
-  test('adjacent islands get no lane: boats circle the archipelago', () => {
+  test('adjacent islands now get a lane across the wider sea (spec 19.2)', () => {
     const routes = seaRoutes(modelAt([0, 0], [1, 0]))
     expect(routes).toHaveLength(1)
-    expect(routes[0]).toMatchObject({ kind: 'loop', key: 'loop|archipelago' })
+    expect(routes[0]).toMatchObject({ kind: 'lane', key: 'p0|p1' })
   })
 
   test('an empty slot between two islands gives one lane through open water', () => {
@@ -46,9 +46,9 @@ describe('seaRoutes', () => {
     }
   })
 
-  test('an island in the gap blocks the lane', () => {
+  test('an island in the gap blocks the long lane but gets its own short ones', () => {
     const routes = seaRoutes(modelAt([0, 0], [1, 0], [2, 0]))
-    expect(routes.map((r) => r.kind)).toEqual(['loop'])
+    expect(routes.map((r) => r.key).sort()).toEqual(['p0|p1', 'p1|p2'])
   })
 
   test('islands three slots apart are never joined', () => {
