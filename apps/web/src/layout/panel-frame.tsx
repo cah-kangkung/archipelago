@@ -5,6 +5,7 @@ import {
   type ReactNode,
   type SetStateAction,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -54,10 +55,34 @@ function useDrag() {
   }
 }
 
+/**
+ * Whether the desktop side panel is expanded, remembered across visits. Storage can be
+ * unavailable (private mode); the panel then just opens expanded.
+ */
+export function usePanelOpen(): [boolean, Dispatch<SetStateAction<boolean>>] {
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(OPEN_KEY) !== 'false'
+    } catch {
+      return true
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem(OPEN_KEY, String(open))
+    } catch {
+      // Not remembered; nothing else depends on it.
+    }
+  }, [open])
+  return [open, setOpen]
+}
+
+const OPEN_KEY = 'archipelago.panelOpen'
 const DEFAULT_WIDTH = 400
 const MIN_WIDTH = 320
 const MAX_WIDTH = 640
 const KEY_STEP = 16
+const COLLAPSED_WIDTH = 44
 const STORAGE_KEY = 'archipelago.panelWidth'
 
 const clampWidth = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(w)))
@@ -78,11 +103,16 @@ export function PanelFrame({
   title,
   detent,
   onDetentChange,
+  open,
+  onOpenChange,
   accessory,
   onCoverChange,
   children,
 }: {
   title: string
+  /** The desktop side panel is expanded; ignored by the phone sheet. */
+  open: boolean
+  onOpenChange: Dispatch<SetStateAction<boolean>>
   /** The phone sheet's detent index; ignored by the desktop side panel. */
   detent: number
   onDetentChange: Dispatch<SetStateAction<number>>
@@ -93,7 +123,7 @@ export function PanelFrame({
   children: ReactNode
 }) {
   return useIsDesktop() ? (
-    <DesktopPanel title={title} accessory={accessory}>
+    <DesktopPanel title={title} open={open} setOpen={onOpenChange} accessory={accessory}>
       {children}
     </DesktopPanel>
   ) : (
@@ -266,17 +296,25 @@ function MobileSheet({
   )
 }
 
+const toggleButton =
+  'flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-surface-secondary'
+
 function DesktopPanel({
   title,
+  open,
+  setOpen,
   accessory,
   children,
 }: {
   title: string
+  open: boolean
+  setOpen: Dispatch<SetStateAction<boolean>>
   accessory?: ReactNode
   children: ReactNode
 }) {
   const [width, setWidth] = useState(readStoredWidth)
   const startDrag = useDrag()
+  const contentId = useId()
 
   // The panel sits on the right, so dragging the handle left widens it.
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
@@ -311,28 +349,49 @@ function DesktopPanel({
     }
   }
 
+  // Collapsed, the content stays mounted but hidden, so a search or scroll position survives.
   return (
     <aside
       aria-label={title}
       data-testid="task-side-panel"
-      style={{ width }}
+      data-collapsed={!open}
+      style={{ width: open ? width : COLLAPSED_WIDTH }}
       className="relative flex h-full shrink-0 flex-col border-l border-border-primary bg-surface-primary"
     >
-      {/* biome-ignore lint/a11y/useSemanticElements: a focusable splitter needs button behaviour (pointer and key handling); the separator role carries the value */}
-      <button
-        type="button"
-        role="separator"
-        aria-orientation="vertical"
-        aria-valuemin={MIN_WIDTH}
-        aria-valuemax={MAX_WIDTH}
-        aria-valuenow={width}
-        aria-label="Resize task panel"
-        onPointerDown={onPointerDown}
-        onKeyDown={onKeyDown}
-        className="absolute inset-y-0 -left-1 w-2 cursor-col-resize focus:bg-brand-secondary focus:outline-none"
-      />
-      {accessory}
-      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      {open && (
+        // biome-ignore lint/a11y/useSemanticElements: a focusable splitter needs button behaviour (pointer and key handling); the separator role carries the value
+        <button
+          type="button"
+          role="separator"
+          aria-orientation="vertical"
+          aria-valuemin={MIN_WIDTH}
+          aria-valuemax={MAX_WIDTH}
+          aria-valuenow={width}
+          aria-label="Resize task panel"
+          onPointerDown={onPointerDown}
+          onKeyDown={onKeyDown}
+          className="absolute inset-y-0 -left-1 w-2 cursor-col-resize focus:bg-brand-secondary focus:outline-none"
+        />
+      )}
+      <div className="flex items-start">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={contentId}
+          aria-label={open ? 'Collapse task panel' : 'Expand task panel'}
+          title={open ? 'Collapse panel (])' : 'Expand panel (])'}
+          onClick={() => setOpen((o) => !o)}
+          className={`${toggleButton} ${open ? 'mt-2 ml-1' : 'mx-auto mt-2'}`}
+        >
+          <span aria-hidden>{open ? '»' : '«'}</span>
+        </button>
+        <div hidden={!open} className="min-w-0 flex-1">
+          {accessory}
+        </div>
+      </div>
+      <div id={contentId} hidden={!open} className="min-h-0 flex-1 overflow-y-auto">
+        {children}
+      </div>
     </aside>
   )
 }

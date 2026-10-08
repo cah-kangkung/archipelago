@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import type { WorldSceneProps } from '../scene/world-scene'
 import { createFakeApi, fakeBuilding, fakeEntry, fakeProject, fakeTask } from '../test/fake-api'
@@ -294,5 +294,78 @@ describe('shop on the world screen', () => {
     expect(await screen.findByText('+15 Supplies')).toBeInTheDocument()
     expect(calls.filter((c) => c === 'removeBuilding')).toHaveLength(1)
     confirm.mockRestore()
+  })
+})
+
+describe('desktop task panel toggle', () => {
+  const panel = () => screen.getByTestId('task-side-panel')
+  const search = () => screen.getByRole('searchbox', { name: 'Search tasks', hidden: true })
+  const collapse = (user: ReturnType<typeof renderApp>['user']) =>
+    user.click(screen.getByRole('button', { name: 'Collapse task panel' }))
+
+  test('collapses to a strip without the resize handle, expands back, and remembers', async () => {
+    const { api, beta } = seeded()
+    const { user } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    await screen.findByTestId('scene')
+    await collapse(user)
+    expect(panel()).toHaveAttribute('data-collapsed', 'true')
+    expect(search()).not.toBeVisible()
+    expect(screen.queryByRole('separator', { name: 'Resize task panel' })).not.toBeInTheDocument()
+    const expand = screen.getByRole('button', { name: 'Expand task panel' })
+    expect(expand).toHaveAttribute('aria-expanded', 'false')
+
+    cleanup()
+    renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    await screen.findByTestId('scene')
+    expect(panel()).toHaveAttribute('data-collapsed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Expand task panel' }))
+    expect(panel()).toHaveAttribute('data-collapsed', 'false')
+    expect(search()).toBeVisible()
+    expect(screen.getByRole('separator', { name: 'Resize task panel' })).toBeInTheDocument()
+  })
+
+  test('] toggles the panel, except while typing', async () => {
+    const { api, beta } = seeded()
+    const { user } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    await screen.findByTestId('scene')
+    await user.click(search())
+    await user.keyboard(']')
+    expect(panel()).toHaveAttribute('data-collapsed', 'false')
+    expect(search()).toHaveValue(']')
+    search().blur()
+    await user.keyboard(']')
+    expect(panel()).toHaveAttribute('data-collapsed', 'true')
+    await user.keyboard(']')
+    expect(panel()).toHaveAttribute('data-collapsed', 'false')
+  })
+
+  test('/ opens a collapsed panel and focuses the search', async () => {
+    const { api, beta } = seeded()
+    const { user } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    await screen.findByTestId('scene')
+    await collapse(user)
+    await user.keyboard('/')
+    expect(panel()).toHaveAttribute('data-collapsed', 'false')
+    expect(search()).toHaveFocus()
+  })
+
+  test('placing, or selecting a structure or decoration, opens a collapsed panel', async () => {
+    const { api, beta, task } = seeded()
+    const { user } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    await screen.findByTestId('scene')
+
+    await collapse(user)
+    await startPlacing(user)
+    expect(panel()).toHaveAttribute('data-collapsed', 'false')
+    expect(screen.getByRole('toolbar', { name: 'Placing Pine tree' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    await collapse(user)
+    await user.click(screen.getByRole('button', { name: `structure ${task.id}` }))
+    expect(panel()).toHaveAttribute('data-collapsed', 'false')
+
+    await collapse(user)
+    await user.click(screen.getByRole('button', { name: 'decoration pine' }))
+    expect(panel()).toHaveAttribute('data-collapsed', 'false')
   })
 })

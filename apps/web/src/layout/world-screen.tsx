@@ -7,6 +7,7 @@ import {
 } from '@archipelago/shared'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { EditorFrame } from '../editors/editor-frame'
 import { MilestoneForm } from '../editors/milestone-form'
 import { ProjectForm } from '../editors/project-form'
@@ -29,7 +30,7 @@ import {
 } from '../world/selectors'
 import { useMe, useWorld } from '../world/use-world'
 import { WorldView } from '../world/world-view'
-import { PanelFrame, SHEET_MIDDLE } from './panel-frame'
+import { PanelFrame, SHEET_MIDDLE, usePanelOpen } from './panel-frame'
 import { useIsDesktop } from './use-is-desktop'
 import { useShortcuts } from './use-shortcuts'
 
@@ -63,6 +64,7 @@ export function WorldScreen() {
   const searchRef = useRef<HTMLInputElement>(null)
   const [editor, setEditor] = useState<Editor | null>(null)
   const [sheetDetent, setSheetDetent] = useState(SHEET_MIDDLE)
+  const [panelOpen, setPanelOpen] = usePanelOpen()
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [cover, setCover] = useState(0)
   const [placing, setPlacing] = useState<{
@@ -161,6 +163,13 @@ export function WorldScreen() {
     setSubmitting(false)
   }, [params.projectId, params.milestoneId])
 
+  // The placement bar, the building bar and the selected row all live in the panel: starting a
+  // placement or making a new selection shows it.
+  const isPlacing = placing !== null
+  useEffect(() => {
+    if (isPlacing || selectedTaskId !== null || selectedBuildingId !== null) setPanelOpen(true)
+  }, [isPlacing, selectedTaskId, selectedBuildingId, setPanelOpen])
+
   // The island of the latest island or district route: where the archipelago opens on step-out.
   const lastProject = useRef<string | null>(null)
   // An island just deleted or archived: the world cache still lists it until the refetch lands, so
@@ -177,8 +186,12 @@ export function WorldScreen() {
     enabled: isDesktop,
     onNew: openNewTask,
     onSearch: () => {
-      if (editor === null) searchRef.current?.focus()
+      if (editor !== null) return
+      // The search box is hidden in a collapsed panel; show it before focusing.
+      flushSync(() => setPanelOpen(true))
+      searchRef.current?.focus()
     },
+    onTogglePanel: () => setPanelOpen((o) => !o),
     onEscape: () => {
       if (placing) return setPlacing(null)
       if (editor) return setEditor(null)
@@ -315,6 +328,8 @@ export function WorldScreen() {
         title={panelTitle}
         detent={sheetDetent}
         onDetentChange={setSheetDetent}
+        open={panelOpen}
+        onOpenChange={setPanelOpen}
         accessory={
           placingItem ? (
             <PlacementBar

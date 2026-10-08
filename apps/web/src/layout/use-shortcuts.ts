@@ -7,14 +7,16 @@ export function useShortcuts({
   onNew,
   onSearch,
   onEscape,
+  onTogglePanel,
 }: {
   enabled: boolean
   onNew: () => void
   onSearch: () => void
   onEscape: () => void
+  onTogglePanel: () => void
 }) {
-  const handlers = useRef({ onNew, onSearch, onEscape })
-  handlers.current = { onNew, onSearch, onEscape }
+  const handlers = useRef({ onNew, onSearch, onEscape, onTogglePanel })
+  handlers.current = { onNew, onSearch, onEscape, onTogglePanel }
 
   useEffect(() => {
     if (!enabled) return
@@ -33,6 +35,9 @@ export function useShortcuts({
       } else if (event.key === '/') {
         event.preventDefault()
         handlers.current.onSearch()
+      } else if (event.key === ']') {
+        event.preventDefault()
+        handlers.current.onTogglePanel()
       }
     }
     window.addEventListener('keydown', handler)
