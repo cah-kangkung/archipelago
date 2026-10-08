@@ -1008,3 +1008,46 @@ Amended 2026-10-09: the grey-and-darken look was too strong; the haze replaced i
 - Rig: a diagonal pan on an island stops at the coastline circle, short of 19.1's square corner; the archipelago clamp is unchanged.
 - Picker: island list on the archipelago; "(whole island)" plus milestones with urgency on an island and in a district, with the current one selected; picking flies both ways; no milestone select in the drawer.
 - Owner's check: `bun run seed:demo`, desktop and phone; `?perf` shows no new draw calls and no tier drop; the spotlight edge reads on the lighter sea.
+
+## 21. Phase 5g Design Addendum: Cloud Ring (approved 2026-10-09)
+
+Phase 5g opens the light-and-mood phase with a cloud ring: soft low-poly clouds gather in a band just outside the current island or district, and part when you leave for the archipelago. It is the layer's main edge cue; the sea haze of 20.3 stays underneath at `SPOTLIGHT_HAZE` 0.2. It refines section 20; where they disagree, this section wins. No API or DTO change. Taps, panning and the haze are unchanged.
+
+### 21.1 The ring (`scene/model/clouds.ts`, pure)
+
+- `cloudRing(area, seed): CloudPuff[]` with `CloudPuff = { x: number; z: number; scale: number; turn: number }` (world x/z on the ground the puff appears over, before the height offset of 21.2).
+  - Puffs sit in a band outside `area` (an `Area`, 20.1): the band's inner edge is the area's edge grown by `inset`, its depth `CLOUD_BAND` (two hexes, `2 × SQRT3`).
+  - Puffs are spread along the band's centre line at `CLOUD_DENSITY` puffs per world unit of its length (perimeter of the rounded rectangle grown to the band's middle), each jittered across the band and along it by a seeded hash of `(seed, index)`. Scale 0.8–1.4, turn 0–2π, from the same hash. Total capped at `CLOUD_MAX` (120); past the cap the density thins evenly.
+  - Same area and seed → the same ring.
+- `cloudArea(model, focus): { area: Area; inset: number; seed: number } | null`:
+  - **Archipelago:** `null` (no clouds).
+  - **Island:** the island's layer area (20.1) with `inset = SHALLOWS_MARGIN` (the band starts at the shallows edge); seed = the island's seed.
+  - **District:** by `CLOUD_DISTRICT_RING`: `'district'` (default) — the district's layer area with `inset = AREA_MARGIN`, over the island's own land; `'coast'` — the island's ring as above. Seed = the island's seed plus the milestone's sort order.
+  - Unknown ids fall back a level, as `layerArea` does.
+- **Switches** (in `scene/tuning.ts`): `CLOUD_DENSITY` 1.0 gives the closed band; about 0.4 gives scattered puffs. `CLOUD_DISTRICT_RING` `'district' | 'coast'`.
+
+### 21.2 Look
+
+- Each puff is one shared low-poly geometry: 3–5 merged low-detail icosahedra, flat-shaded, built once in `scene/models/cloud.ts`.
+- Colour: a new palette key `cloud = mix(surfacePrimary, brandSecondary, 0.15)` (spec 15's rule: tokens or blends of tokens). Material: an opaque flat-shaded Lambert `cloudMaterial` that is **not** spotlight-patched (clouds are outside the layer by design and must not haze).
+- Height `CLOUD_HEIGHT` 3, above the tallest landmark. The isometric camera looks down (1, 1, 1), so a point raised by h shows over the ground point shifted by −h in x and z; puffs are drawn at `(x + h, h, z + h)` so the ring wraps the layer on screen.
+- One `InstancedMesh` for every puff (old and new rings share it during a switch), `raycast` disabled: taps pass through to whatever is below.
+
+### 21.3 Motion
+
+- A layer change replaces the ring: the old ring's puffs shrink to 0 while drifting outward 1.5 hexes; the new ring's puffs grow from 0 while gliding in from 1.5 hexes further out. Each puff's start is staggered by up to 25% of `CLOUD_MS` (600) by its hash; ease-out. Archipelago → layer: gather only. Layer → archipelago: part only. A refetch whose `cloudArea` is unchanged (same area value and seed) does nothing.
+- On the `high` tier (the sea wave is on, so the 30fps ticker already runs), resting puffs creep along the ring at `CLOUD_DRIFT` (0.05 world units/s) and bob by `CLOUD_BOB` (0.08) with a per-puff phase. On `low`, they gather and part but rest still.
+- Reduced motion: rings appear and vanish at once; no drift.
+- A `clouds` ticker demand is held only while a gather or part runs.
+
+### 21.4 Cost
+
+- One extra draw call, up to `CLOUD_MAX` × 2 instances during a switch. Ring positions are computed only on a layer change; per-frame work is instance matrices while gathering, parting or drifting on `high`.
+
+### 21.5 Testing
+
+- Pure: every puff of `cloudRing` lies outside the area, between its edge + `inset` and edge + `inset` + `CLOUD_BAND`; deterministic for the same area and seed; count scales with `CLOUD_DENSITY` and respects `CLOUD_MAX`; `cloudArea` is null on the archipelago, the island ring on an island, and follows `CLOUD_DISTRICT_RING` in a district; unknown ids fall back. The height offset: a puff drawn at `(x + h, h, z + h)` projects to the same screen point as ground `(x, 0, z)` (via `toScreen`).
+- Transition model: gather/part progress per puff with stagger; old and new rings during a switch; finished state has only the new ring; reduced motion is instant.
+- Scene: one instanced mesh with raycast disabled; its count follows the rings; the ticker demand is held only while transitioning; no drift on `low`; a refetch with the same cloud area does not restart the gather.
+- The headless WebGL compile check covers `cloudMaterial`.
+- Owner's check: `bun run seed:demo`; `?perf` shows at most one more draw call than 5f and no tier drop; judge the band (B) against scattered (A, `CLOUD_DENSITY` ≈ 0.4) and the district ring against `'coast'`.
