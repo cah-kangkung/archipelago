@@ -535,6 +535,39 @@ describe('reward effects', () => {
     expect(float.position.y).toBeCloseTo(startY)
   })
 
+  test('a refetch carrying the same live event restarts neither the pop nor the float', async () => {
+    const s = seeded()
+    const focus: Focus = { kind: 'island', projectId: s.beta.id }
+    const event = reward({ kind: 'task', id: shippedOf(s).id })
+    const contents = (world: WorldDto, rewards: RewardEvent[]) => (
+      <WorldContents
+        model={buildSceneModel(world, today)}
+        focus={focus}
+        selectedTaskId={null}
+        selectedBuildingId={null}
+        placement={null}
+        rewards={rewards}
+        animate
+        {...handlers()}
+      />
+    )
+    const renderer = await ReactThreeTestRenderer.create(contents(s.world, [event]))
+    await renderer.advanceFrames(4, 0.05)
+    const hut = () => one(one(renderer.scene, `island:${s.beta.id}`), 'hut')
+    const float = () => one(renderer.scene, 'float').instance as THREE.Group
+    const scale = scaleOf(hut(), 0)
+    const y = float().position.y
+    expect(scale).toBeGreaterThan(0.5)
+    // A refetch: fresh world objects, and the same event copied into a new list.
+    const refetched = { ...s.world, tasks: s.world.tasks.map((t) => ({ ...t })) }
+    await renderer.update(contents(refetched, [{ ...event }]))
+    expect(scaleOf(hut(), 0)).toBeCloseTo(scale)
+    expect(float().position.y).toBeCloseTo(y)
+    await renderer.advanceFrames(1, 0.05)
+    expect(scaleOf(hut(), 0)).toBeGreaterThan(0.5)
+    expect(float().position.y).toBeGreaterThan(y)
+  })
+
   test('a target outside the scene model shows no float', async () => {
     const s = seeded()
     const { renderer } = await render(s.world, { kind: 'archipelago' }, null, {
