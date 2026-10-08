@@ -144,7 +144,7 @@ describe('rubber band', () => {
     expect(bandLimit({ width: 400, height: 800, covered: 640, framed: 400 }, 10)).toBe(4)
   })
 
-  test('bandedTarget leaves points inside alone and pulls overshoot in per axis', () => {
+  test('bandedTarget leaves points inside alone and pulls overshoot in toward the edge', () => {
     expect(bandedTarget(bounds, { x: 3, z: -2 }, 4)).toEqual({ x: 3, z: -2 })
     const p = bandedTarget(bounds, { x: 30, z: -25 }, 4)
     expect(p.x).toBeGreaterThan(10)
@@ -164,6 +164,28 @@ describe('rubber band', () => {
       expect(back.x).toBeCloseTo(p.x)
       expect(back.z).toBeCloseTo(p.z)
     }
+  })
+
+  test('on a circle the band stretches outward from the nearest edge point, and inverts', () => {
+    const circle = { minX: 0, maxX: 0, minZ: 0, maxZ: 0, round: 5 }
+    const p = bandedTarget(circle, { x: 20, z: 0 }, 4)
+    expect(p.x).toBeCloseTo(5 + band(15, 4))
+    expect(p.z).toBeCloseTo(0)
+    const d = bandedTarget(circle, { x: 30, z: 40 }, 4)
+    const along = band(45, 4) + 5
+    expect(d.x).toBeCloseTo(0.6 * along)
+    expect(d.z).toBeCloseTo(0.8 * along)
+    for (const q of [
+      { x: 1, z: 1 },
+      { x: 20, z: 0 },
+      { x: -9, z: 12 },
+    ]) {
+      const back = unbandedTarget(circle, bandedTarget(circle, q, 4), 4)
+      expect(back.x).toBeCloseTo(q.x)
+      expect(back.z).toBeCloseTo(q.z)
+    }
+    expect(isOutside(circle, { x: 3, z: 4 })).toBe(false)
+    expect(isOutside(circle, { x: 3.01, z: 4 })).toBe(true)
   })
 
   test('isOutside and the spring that brings the target home', () => {

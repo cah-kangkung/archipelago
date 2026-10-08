@@ -11,7 +11,6 @@ import {
   DISTRICT_ZOOM,
   FIT_MARGIN,
   fitZoom,
-  focusBounds,
   focusOutline,
   ISLAND_ZOOM,
   layerArea,
@@ -52,57 +51,6 @@ function span(outline: { x: number; z: number }[]) {
   return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
 }
 
-describe('focusBounds', () => {
-  test('archipelago is the whole world; an island is its shallows square', () => {
-    expect(focusBounds(model, { kind: 'archipelago' })).toEqual(model.bounds)
-    const s = shallowsRadius(island.radius)
-    expect(focusBounds(model, onBeta)).toEqual({
-      minX: island.origin.x - s,
-      maxX: island.origin.x + s,
-      minZ: island.origin.z - s,
-      maxZ: island.origin.z + s,
-    })
-  })
-
-  test('a district box holds its landmark and every plot of its milestone, plus the margin', () => {
-    const b = focusBounds(model, onMvp)
-    const district = island.districts.find((d) => d.milestoneId === mvp.id)
-    const spots = [
-      district?.position,
-      ...island.structures.filter((s) => s.milestoneId === mvp.id).map((s) => s.position),
-    ]
-    for (const p of spots) {
-      if (!p) throw new Error('missing spot')
-      const x = island.origin.x + p.x
-      const z = island.origin.z + p.z
-      expect(x - b.minX).toBeGreaterThanOrEqual(DISTRICT_MARGIN - 1e-9)
-      expect(b.maxX - x).toBeGreaterThanOrEqual(DISTRICT_MARGIN - 1e-9)
-      expect(z - b.minZ).toBeGreaterThanOrEqual(DISTRICT_MARGIN - 1e-9)
-      expect(b.maxZ - z).toBeGreaterThanOrEqual(DISTRICT_MARGIN - 1e-9)
-    }
-  })
-
-  test('a district with no tasks is its landmark plus the margin on every side', () => {
-    const d = island.districts.find((x) => x.milestoneId === empty.id)
-    if (!d) throw new Error('no empty district')
-    const cx = island.origin.x + d.position.x
-    const cz = island.origin.z + d.position.z
-    expect(focusBounds(model, onEmpty)).toEqual({
-      minX: cx - DISTRICT_MARGIN,
-      maxX: cx + DISTRICT_MARGIN,
-      minZ: cz - DISTRICT_MARGIN,
-      maxZ: cz + DISTRICT_MARGIN,
-    })
-  })
-
-  test('unknown ids fall back a level', () => {
-    expect(focusBounds(model, { kind: 'island', projectId: 'nope' })).toEqual(model.bounds)
-    expect(
-      focusBounds(model, { kind: 'district', projectId: beta.id, milestoneId: 'nope' }),
-    ).toEqual(focusBounds(model, onBeta))
-  })
-})
-
 describe('focusOutline and fitZoom', () => {
   test('an island outline is 12 points on its shallows circle', () => {
     const outline = focusOutline(model, onBeta)
@@ -112,6 +60,17 @@ describe('focusOutline and fitZoom', () => {
         shallowsRadius(island.radius),
       )
     }
+  })
+
+  test('a district outline is its area box grown by DISTRICT_MARGIN', () => {
+    const a = layerArea(model, onMvp)
+    if (!a) throw new Error('no mvp area')
+    const xs = focusOutline(model, onMvp).map((p) => p.x)
+    const zs = focusOutline(model, onMvp).map((p) => p.z)
+    expect(Math.min(...xs)).toBeCloseTo(a.minX - DISTRICT_MARGIN)
+    expect(Math.max(...xs)).toBeCloseTo(a.maxX + DISTRICT_MARGIN)
+    expect(Math.min(...zs)).toBeCloseTo(a.minZ - DISTRICT_MARGIN)
+    expect(Math.max(...zs)).toBeCloseTo(a.maxZ + DISTRICT_MARGIN)
   })
 
   test('fitZoom is 0 without a viewport, and otherwise fits every point with the margin', () => {
@@ -147,10 +106,11 @@ describe('cameraTarget with a viewport', () => {
   })
 
   test('a district target is the centre of its box', () => {
-    const b = focusBounds(model, onMvp)
+    const a = layerArea(model, onMvp)
+    if (!a) throw new Error('no mvp area')
     const t = cameraTarget(model, onMvp, null, { width: 1000, height: 800 })
-    expect(t.x).toBeCloseTo((b.minX + b.maxX) / 2)
-    expect(t.z).toBeCloseTo((b.minZ + b.maxZ) / 2)
+    expect(t.x).toBeCloseTo((a.minX + a.maxX) / 2)
+    expect(t.z).toBeCloseTo((a.minZ + a.maxZ) / 2)
   })
 })
 

@@ -53,16 +53,6 @@ function levelOf(model: SceneModel, focus: Focus): Level {
   }
 }
 
-function islandSquare(island: SceneIsland): Bounds {
-  const s = shallowsRadius(island.radius)
-  return {
-    minX: island.origin.x - s,
-    maxX: island.origin.x + s,
-    minZ: island.origin.z - s,
-    maxZ: island.origin.z + s,
-  }
-}
-
 const grow = (b: Bounds, by: number): Bounds => ({
   minX: b.minX - by,
   maxX: b.maxX + by,
@@ -76,14 +66,6 @@ const corners = (b: Bounds): Point[] => [
   { x: b.maxX, z: b.maxZ },
   { x: b.minX, z: b.maxZ },
 ]
-
-/** Where the pan target may go on this layer (spec 19.1). */
-export function focusBounds(model: SceneModel, focus: Focus): Bounds {
-  const level = levelOf(model, focus)
-  if (level.kind === 'archipelago') return model.bounds
-  if (level.kind === 'island') return islandSquare(level.island)
-  return grow(level.core, DISTRICT_MARGIN)
-}
 
 /** The current layer as a rounded rectangle: lit, live and pannable (spec 20.1); none on the archipelago. */
 export function layerArea(model: SceneModel, focus: Focus): Area | null {
@@ -202,13 +184,6 @@ export function openingIsland(
   }
   if (best) return best.project.id
   return known(lastViewed) ? lastViewed : null
-}
-
-export function clampToBounds(bounds: Bounds, x: number, z: number): { x: number; z: number } {
-  return {
-    x: Math.min(bounds.maxX, Math.max(bounds.minX, x)),
-    z: Math.min(bounds.maxZ, Math.max(bounds.minZ, z)),
-  }
 }
 
 /** Identifies a route; the camera snaps when this changes and never on a mere data refresh. */

@@ -6,14 +6,10 @@ import { describe, expect, test, vi } from 'vitest'
 import { fakeMilestone, fakeProject } from '../test/fake-api'
 import type { Focus } from '../world/selectors'
 import { CameraRig, ISO_DISTANCE } from './camera-rig'
-import {
-  cameraTarget,
-  clampToBounds,
-  focusBounds,
-  ISLAND_ZOOM,
-  MAX_ZOOM_FACTOR,
-} from './model/camera'
+import { type Area, clampToArea } from './model/area'
+import { cameraTarget, ISLAND_ZOOM, MAX_ZOOM_FACTOR, panArea } from './model/camera'
 import { flyDuration, flyFrame, hopZoom } from './model/camera-motion'
+import { islandExtent, shallowsRadius } from './model/hex-space'
 import { buildSceneModel, type SceneModel } from './model/scene-model'
 import type { View } from './model/screen'
 
@@ -48,6 +44,12 @@ const tall = buildSceneModel(worldOf([beta, delta]), today)
 const onBeta: Focus = { kind: 'island', projectId: beta.id }
 const onDelta: Focus = { kind: 'island', projectId: delta.id }
 const canvas = { width: 400, height: 800, covered: 0, framed: 0 }
+
+/** The box an area reaches: on an axis through its middle, the pan edge is this box's side. */
+const outer = (a: Area) => {
+  const r = a.round ?? 0
+  return { minX: a.minX - r, maxX: a.maxX + r, minZ: a.minZ - r, maxZ: a.maxZ + r }
+}
 
 const grab: { camera?: THREE.Camera & { zoom: number }; controls?: Controls } = {}
 function Grab() {
@@ -146,7 +148,7 @@ describe('CameraRig', () => {
     // Released, the camera is still outside the island it is flying to: it springs in to the edge.
     controls().dispatchEvent({ type: 'end' })
     await r.advanceFrames(20, 0.1)
-    const edge = clampToBounds(focusBounds(both, onGamma), held.x, held.z)
+    const edge = clampToArea(panArea(both, onGamma), held)
     expectView(view(), { ...edge, zoom: mid.zoom })
   })
 
@@ -179,7 +181,7 @@ describe('CameraRig', () => {
 
   test('a drag past the edge stretches with resistance, then springs back on release', async () => {
     const r = await mount({ model: both, focus: onGamma })
-    const { maxX } = focusBounds(both, onGamma)
+    const { maxX } = outer(panArea(both, onGamma))
     const c = controls()
     c.dispatchEvent({ type: 'start' })
     const push = maxX + 50 - c.target.x
@@ -203,7 +205,7 @@ describe('CameraRig', () => {
     const r = await mount({ model: both, focus: onGamma })
     const c = controls()
     c.dispatchEvent({ type: 'start' })
-    const push = focusBounds(both, onGamma).maxX + 50 - c.target.x
+    const push = outer(panArea(both, onGamma)).maxX + 50 - c.target.x
     c.target.x += push
     camera().position.x += push
     c.dispatchEvent({ type: 'change' })
@@ -231,7 +233,7 @@ describe('CameraRig', () => {
 
   test('a spring that lands on the edge settles: float drift past it starts no new spring', async () => {
     const r = await mount({ model: both, focus: onGamma })
-    const { maxX } = focusBounds(both, onGamma)
+    const { maxX } = outer(panArea(both, onGamma))
     const c = controls()
     c.dispatchEvent({ type: 'start' })
     const push = maxX + 50 - c.target.x
@@ -251,7 +253,7 @@ describe('CameraRig', () => {
 
   test('reduced motion: a release past the edge snaps straight to the edge', async () => {
     const r = await mount({ model: both, focus: onGamma, animate: false })
-    const { maxX } = focusBounds(both, onGamma)
+    const { maxX } = outer(panArea(both, onGamma))
     const c = controls()
     c.dispatchEvent({ type: 'start' })
     const push = maxX + 50 - c.target.x
@@ -308,7 +310,7 @@ describe('CameraRig', () => {
 
   test('momentum that carries the camera past the edge after release springs back', async () => {
     const r = await mount({ model: both, focus: onGamma })
-    const { maxX } = focusBounds(both, onGamma)
+    const { maxX } = outer(panArea(both, onGamma))
     const c = controls()
     c.dispatchEvent({ type: 'start' })
     const push = maxX - 1 - c.target.x
@@ -340,7 +342,7 @@ describe('CameraRig', () => {
 
   test('on an island, a pan toward the neighbour stops at this island, not the world edge', async () => {
     const r = await mount({ model: both, focus: onGamma })
-    const island = focusBounds(both, onGamma)
+    const island = outer(panArea(both, onGamma))
     expect(island.minX).toBeGreaterThan(both.bounds.minX)
     const c = controls()
     c.dispatchEvent({ type: 'start' })
@@ -358,7 +360,7 @@ describe('CameraRig', () => {
     const withDistrict = buildSceneModel({ ...worldOf([beta, gamma]), milestones: [m] }, today)
     const onDistrict: Focus = { kind: 'district', projectId: beta.id, milestoneId: m.id }
     const r = await mount({ model: withDistrict, focus: onDistrict })
-    const box = focusBounds(withDistrict, onDistrict)
+    const box = outer(panArea(withDistrict, onDistrict))
     const c = controls()
     c.dispatchEvent({ type: 'start' })
     const push = box.maxX + 50 - c.target.x
@@ -408,5 +410,24 @@ describe('CameraRig', () => {
     await r.advanceFrames(60, 0.1)
     expect(controls().minZoom).toBeCloseTo(roomy.zoom)
     expect(camera().zoom).toBeCloseTo(roomy.zoom)
+  })
+  test('on an island a diagonal pan stops at the coastline, inside the old shallows square', async () => {
+    const r = await mount({ model: both, focus: onGamma })
+    const island = both.islands.find((i) => i.projectId === gamma.id)
+    if (!island) throw new Error('no gamma')
+    const c = controls()
+    c.dispatchEvent({ type: 'start' })
+    c.target.x += 50
+    c.target.z += 50
+    camera().position.x += 50
+    camera().position.z += 50
+    c.dispatchEvent({ type: 'change' })
+    c.dispatchEvent({ type: 'end' })
+    await r.advanceFrames(8, 0.1)
+    const v = view()
+    const reach = Math.hypot(v.x - island.origin.x, v.z - island.origin.z)
+    expect(reach).toBeCloseTo(islandExtent(island.radius))
+    // 19.1's square let the centre reach √2 × the shallows radius on a diagonal.
+    expect(reach).toBeLessThan(shallowsRadius(island.radius))
   })
 })

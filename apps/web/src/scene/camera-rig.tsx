@@ -2,7 +2,8 @@ import { MapControls } from '@react-three/drei'
 import { type Camera, useFrame, useThree } from '@react-three/fiber'
 import { type ComponentRef, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import type { Focus } from '../world/selectors'
-import { cameraTarget, clampToBounds, focusBounds, focusKey, MAX_ZOOM_FACTOR } from './model/camera'
+import { clampToArea } from './model/area'
+import { cameraTarget, focusKey, MAX_ZOOM_FACTOR, panArea } from './model/camera'
 import {
   bandedTarget,
   bandLimit,
@@ -90,10 +91,10 @@ export function CameraRig({
     width: room.width,
     height: Math.max(0, room.height - hudInset),
   })
-  // Pans stay inside the current layer: the whole world, one island or one district.
-  const bounds = focusBounds(model, focus)
-  const latest = useRef({ target, bounds, frame, animate })
-  latest.current = { target, bounds, frame, animate }
+  // The pan target stays on the current layer: the whole world, an island's land or a district.
+  const area = panArea(model, focus)
+  const latest = useRef({ target, area, frame, animate })
+  latest.current = { target, area, frame, animate }
   const motion = useRef<Motion>(IDLE)
   const onMotionRef = useRef(onMotion)
   onMotionRef.current = onMotion
@@ -163,10 +164,10 @@ export function CameraRig({
   }, [key, camera, invalidate])
 
   // A refetch can shrink the area under a resting camera; one frame lets the spring check run.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the bounds are the trigger
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the area is the trigger
   useEffect(() => {
     invalidate()
-  }, [bounds.minX, bounds.maxX, bounds.minZ, bounds.maxZ, invalidate])
+  }, [area.minX, area.maxX, area.minZ, area.maxZ, area.round, invalidate])
 
   // At rest, a new fit (window resize, sheet detent) moves the zoom-out limit with it, and a camera
   // left zoomed out past it comes in to the limit.
@@ -214,10 +215,10 @@ export function CameraRig({
     // At rest past the edge (released there, flung there, or the world shrank): spring home.
     if (dragging.current) return
     const here = viewOf(camera)
-    const { bounds, animate: smooth } = latest.current
-    if (!isOutside(bounds, here)) return
+    const { area, animate: smooth } = latest.current
+    if (!isOutside(area, here)) return
     cancelMomentum()
-    const to = clampToBounds(bounds, here.x, here.z)
+    const to = clampToArea(area, here)
     if (!smooth) {
       show({ ...to, zoom: here.zoom })
       return
@@ -236,11 +237,11 @@ export function CameraRig({
   const onChange = useCallback(() => {
     const c = controls.current
     if (!c || quiet.current || motion.current.kind !== 'idle') return
-    const { bounds, frame: f } = latest.current
+    const { area, frame: f } = latest.current
     const { raw, shown } = pan.current
     const base = raw ?? shown
     const want = { x: base.x + c.target.x - shown.x, z: base.z + c.target.z - shown.z }
-    const next = bandedTarget(bounds, want, bandLimit(f, camera.zoom))
+    const next = bandedTarget(area, want, bandLimit(f, camera.zoom))
     camera.position.x += next.x - c.target.x
     camera.position.z += next.z - c.target.z
     c.target.x = next.x
@@ -256,10 +257,10 @@ export function CameraRig({
     setMotion(IDLE)
     const here = viewOf(camera)
     // Keep the stretch: the shown point may be banded, so the raw drag is its inverse.
-    const { bounds, frame: f } = latest.current
+    const { area, frame: f } = latest.current
     const shown = { x: here.x, z: here.z }
     pan.current = {
-      raw: unbandedTarget(bounds, shown, bandLimit(f, camera.zoom)),
+      raw: unbandedTarget(area, shown, bandLimit(f, camera.zoom)),
       shown,
     }
     if (m.kind === 'fly') {

@@ -8,9 +8,8 @@ import {
   PX_PER_DOUBLING,
   SPRING_MS,
 } from '../tuning'
-import { clampToBounds } from './camera'
+import { type Area, areaDistance, clampToArea } from './area'
 import type { Point } from './hex-space'
-import type { Bounds } from './scene-model'
 import { type Frame, toScreen, type View, visibleSize } from './screen'
 
 export { FLY_MAX_MS, FLY_MIN_MS, FRAMING_MS, SPRING_MS }
@@ -77,18 +76,20 @@ export function bandLimit(frame: Frame, zoom: number): number {
   return (Math.min(width, height) * BAND_SHARE) / zoom
 }
 
-function bandAxis(value: number, min: number, max: number, limit: number): number {
-  if (value < min) return min - band(min - value, limit)
-  if (value > max) return max + band(value - max, limit)
-  return value
+/** `p`'s nearest edge point and the offset from it; zero offset inside. */
+function overshoot(area: Area, p: Point) {
+  const edge = clampToArea(area, p)
+  const dx = p.x - edge.x
+  const dz = p.z - edge.z
+  return { edge, dx, dz, over: Math.hypot(dx, dz) }
 }
 
-/** Where a drag that would reach `p` is shown: past the bounds it stretches with resistance. */
-export function bandedTarget(bounds: Bounds, p: Point, limit: number): Point {
-  return {
-    x: bandAxis(p.x, bounds.minX, bounds.maxX, limit),
-    z: bandAxis(p.z, bounds.minZ, bounds.maxZ, limit),
-  }
+/** Where a drag that would reach `p` is shown: past the edge it stretches outward with resistance. */
+export function bandedTarget(area: Area, p: Point, limit: number): Point {
+  const { edge, dx, dz, over } = overshoot(area, p)
+  if (over === 0) return { x: p.x, z: p.z }
+  const s = band(over, limit) / over
+  return { x: edge.x + dx * s, z: edge.z + dz * s }
 }
 
 /** The raw overshoot that `band` shows as `shown`: the inverse of `band`. */
@@ -98,26 +99,19 @@ export function unband(shown: number, limit: number): number {
   return (limit * b) / (limit - b)
 }
 
-function unbandAxis(value: number, min: number, max: number, limit: number): number {
-  if (value < min) return min - unband(min - value, limit)
-  if (value > max) return max + unband(value - max, limit)
-  return value
-}
-
 /** The inverse of `bandedTarget`: where a drag must have been to be shown at `p`. */
-export function unbandedTarget(bounds: Bounds, p: Point, limit: number): Point {
-  return {
-    x: unbandAxis(p.x, bounds.minX, bounds.maxX, limit),
-    z: unbandAxis(p.z, bounds.minZ, bounds.maxZ, limit),
-  }
+export function unbandedTarget(area: Area, p: Point, limit: number): Point {
+  const { edge, dx, dz, over } = overshoot(area, p)
+  if (over === 0) return { x: p.x, z: p.z }
+  const s = unband(over, limit) / over
+  return { x: edge.x + dx * s, z: edge.z + dz * s }
 }
 
 /** World units past an edge that still count as on it: the controls' float drift is ~1e-13. */
 export const EDGE_TOLERANCE = 1e-6
 
-export function isOutside(bounds: Bounds, p: Point): boolean {
-  const inside = clampToBounds(bounds, p.x, p.z)
-  return Math.abs(inside.x - p.x) > EDGE_TOLERANCE || Math.abs(inside.z - p.z) > EDGE_TOLERANCE
+export function isOutside(area: Area, p: Point): boolean {
+  return areaDistance(area, p) > EDGE_TOLERANCE
 }
 
 /** The target `t` (0–1) of the way through a spring back to the bounds. */

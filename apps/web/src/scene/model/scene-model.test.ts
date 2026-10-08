@@ -12,7 +12,6 @@ import { addDays } from '../../world/selectors'
 import {
   ARCHIPELAGO_ZOOM,
   cameraTarget,
-  clampToBounds,
   DISTRICT_ZOOM,
   focusKey,
   ISLAND_ZOOM,
@@ -257,12 +256,6 @@ describe('camera', () => {
     expect(cameraTarget(model, { kind: 'island', projectId: 'missing' }).zoom).toBe(
       ARCHIPELAGO_ZOOM,
     )
-  })
-
-  test('clampToBounds keeps the pan target inside the world', () => {
-    const b = { minX: -5, maxX: 5, minZ: -2, maxZ: 2 }
-    expect(clampToBounds(b, 9, -9)).toEqual({ x: 5, z: -2 })
-    expect(clampToBounds(b, 1, 1)).toEqual({ x: 1, z: 1 })
   })
 
   test('focusKey changes with the route, not with the world', () => {
