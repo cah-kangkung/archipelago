@@ -1,7 +1,14 @@
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import type { WorldSceneProps } from '../scene/world-scene'
-import { createFakeApi, fakeBuilding, fakeEntry, fakeProject, fakeTask } from '../test/fake-api'
+import {
+  createFakeApi,
+  fakeBuilding,
+  fakeEntry,
+  fakeMilestone,
+  fakeProject,
+  fakeTask,
+} from '../test/fake-api'
 import { renderApp } from '../test/render-app'
 
 // jsdom lacks pointer capture; vaul's phone drawer captures the pointer on every press inside the
@@ -97,6 +104,27 @@ describe('shop on the world screen', () => {
     expect(screen.queryByRole('button', { name: 'Shop' })).not.toBeInTheDocument()
     await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: beta.id } }))
     expect(await screen.findByRole('button', { name: 'Shop' })).toBeInTheDocument()
+  })
+
+  test('in a district with no free land in its area the shop offers nothing; the island still does', async () => {
+    const beta = fakeProject({ name: 'Beta' })
+    const mvp = fakeMilestone({ projectId: beta.id, districtQ: 2, districtR: 0 })
+    const api = createFakeApi({
+      world: { projects: [beta], milestones: [mvp], tasks: [], buildings: [] },
+      ledger: [fakeEntry({ kind: 'daily_bonus', amount: 100 })],
+    }).api
+    const { user, router } = renderApp({ api, path: `/p/${beta.id}/m/${mvp.id}` })
+    await user.click(await screen.findByRole('button', { name: 'Shop' }))
+    let dialog = await screen.findByRole('dialog', { name: 'Shop' })
+    expect(within(dialog).getByText('No free land. Islands grow as you add tasks.')).toBeVisible()
+    expect(within(dialog).getByRole('button', { name: /Pine tree/ })).toBeDisabled()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Shop' })).toBeNull())
+    await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: beta.id } }))
+    await user.click(await screen.findByRole('button', { name: 'Shop' }))
+    dialog = await screen.findByRole('dialog', { name: 'Shop' })
+    expect(within(dialog).queryByText('No free land. Islands grow as you add tasks.')).toBeNull()
+    expect(within(dialog).getByRole('button', { name: /Pine tree/ })).toBeEnabled()
   })
 
   test('pick, place and pay', async () => {

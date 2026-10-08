@@ -13,6 +13,7 @@ import { MilestoneForm } from '../editors/milestone-form'
 import { ProjectForm } from '../editors/project-form'
 import { TaskForm } from '../editors/task-form'
 import { openingIsland } from '../scene/model/camera'
+import { plotsInLayer } from '../scene/model/layer-plots'
 import type { Placement } from '../scene/world-contents'
 import { BuildingBar } from '../shop/building-bar'
 import { PlacementBar } from '../shop/placement-bar'
@@ -87,12 +88,20 @@ export function WorldScreen() {
   const focus = resolved?.focus ?? { kind: 'archipelago' as const }
   const resolvedProjectId = resolved?.project?.id
 
+  const resolvedMilestoneId = resolved?.milestone?.id
+  // Only the current layer's plots (spec 20.4): the shop, the ghost and the scene share one list.
   const plots = useMemo(
     () =>
       world.data && resolvedProjectId
-        ? placeablePlots(islandOccupied(world.data, resolvedProjectId))
+        ? plotsInLayer(
+            world.data,
+            resolvedMilestoneId
+              ? { kind: 'district', projectId: resolvedProjectId, milestoneId: resolvedMilestoneId }
+              : { kind: 'island', projectId: resolvedProjectId },
+            placeablePlots(islandOccupied(world.data, resolvedProjectId)),
+          )
         : [],
-    [world.data, resolvedProjectId],
+    [world.data, resolvedProjectId, resolvedMilestoneId],
   )
   // Placement belongs to the island it started on; until the route-change reset lands, another
   // island shows none.
