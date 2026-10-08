@@ -98,8 +98,9 @@ export function islandGrowth({
   occupied: readonly Hex[]
   paths: readonly Hex[]
 }): { scenery: SceneryPiece[]; dock: Dock | null } {
-  const dockAt = stage >= DOCK_STAGE ? dockTile(seed, radius, tiles) : null
+  const dockAt = dockTile(seed, radius, tiles)
   const blocked = new Set([...occupied, ...paths, COMMONS_CENTER].map(hexKey))
+  // Blocked at every stage so the dock never takes a hex scenery already grew on.
   if (dockAt) blocked.add(hexKey(dockAt))
   const edge = radius - SHORE_RINGS
   const scenery: SceneryPiece[] = []
@@ -131,13 +132,9 @@ export function islandGrowth({
       })
     }
   }
-  const dock = dockAt
-    ? (() => {
-        const { x, z } = hexToWorld(dockAt)
-        return { position: { x, y: dockAt.height, z }, turn: Math.atan2(-z, x) }
-      })()
-    : null
-  return { scenery, dock }
+  if (!dockAt || stage < DOCK_STAGE) return { scenery, dock: null }
+  const { x, z } = hexToWorld(dockAt)
+  return { scenery, dock: { position: { x, y: dockAt.height, z }, turn: Math.atan2(-z, x) } }
 }
 
 /** Ease-out cubic over [0, 1], clamped: the grow-in's scale curve (spec 18.5). */

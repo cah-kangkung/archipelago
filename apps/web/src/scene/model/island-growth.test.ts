@@ -167,6 +167,19 @@ describe('islandGrowth', () => {
     }
   })
 
+  test('the dock hex never carries scenery at any stage', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const dock = grow(seed, DOCK_STAGE).dock
+      if (!dock) throw new Error('no dock')
+      for (const stage of STAGES) {
+        for (const p of grow(seed, stage).scenery) {
+          const c = hexToWorld(parse(hexOf(p)))
+          expect(Math.hypot(c.x - dock.position.x, c.z - dock.position.z)).toBeGreaterThan(1e-6)
+        }
+      }
+    }
+  })
+
   test('the scenery weights of each zone sum to 1', () => {
     for (const weights of Object.values(SCENERY_WEIGHTS)) {
       expect(Object.values(weights).reduce((a, b) => a + b, 0)).toBeCloseTo(1)
