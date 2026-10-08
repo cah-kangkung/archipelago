@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useLayoutEffect, useRef } from 'react'
-import type { resolveFocus } from './selectors'
+import { IslandPicker } from './island-picker'
+import type { IslandSummary, resolveFocus } from './selectors'
 
 type Resolved = ReturnType<typeof resolveFocus>
 
@@ -10,6 +11,7 @@ const chip =
 /** Floating controls over the canvas; the same actions the card view offers. */
 export function WorldHud({
   resolved,
+  summaries,
   onNewProject,
   onNewMilestone,
   onEditProject,
@@ -18,6 +20,7 @@ export function WorldHud({
   onHeight,
 }: {
   resolved: Resolved
+  summaries: IslandSummary[]
   onNewProject?: () => void
   onNewMilestone?: () => void
   onEditProject?: () => void
@@ -43,60 +46,73 @@ export function WorldHud({
     <div
       ref={root}
       data-testid="world-hud"
-      className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start gap-2 p-3"
+      className="@container pointer-events-none absolute inset-x-0 top-0 z-20 p-3"
     >
-      {focus.kind === 'archipelago' && onNewProject && (
-        <button type="button" onClick={onNewProject} className={`${chip} text-brand`}>
-          New island
-        </button>
-      )}
-      {focus.kind === 'island' && (
-        <>
-          <Link to="/" className={`${chip} text-brand`}>
-            ← Archipelago
-          </Link>
-          {onEditProject && (
-            <button type="button" onClick={onEditProject} className={`${chip} text-text-secondary`}>
-              Edit island
+      <div className="flex flex-col gap-2 @3xl:grid @3xl:grid-cols-[1fr_auto_1fr] @3xl:items-start">
+        {summaries.length > 0 && (
+          <div className="flex justify-center @3xl:col-start-2 @3xl:row-start-1">
+            <IslandPicker summaries={summaries} currentProjectId={project?.id ?? null} />
+          </div>
+        )}
+        <div className="flex flex-wrap items-start gap-2 @3xl:col-start-1 @3xl:row-start-1">
+          {focus.kind === 'archipelago' && onNewProject && (
+            <button type="button" onClick={onNewProject} className={`${chip} text-brand`}>
+              New island
             </button>
           )}
-          {onNewMilestone && (
-            <button type="button" onClick={onNewMilestone} className={`${chip} text-brand`}>
-              New milestone
-            </button>
+          {focus.kind === 'island' && (
+            <>
+              <Link to="/" className={`${chip} text-brand`}>
+                ← Archipelago
+              </Link>
+              {onEditProject && (
+                <button
+                  type="button"
+                  onClick={onEditProject}
+                  className={`${chip} text-text-secondary`}
+                >
+                  Edit island
+                </button>
+              )}
+              {onNewMilestone && (
+                <button type="button" onClick={onNewMilestone} className={`${chip} text-brand`}>
+                  New milestone
+                </button>
+              )}
+              {onOpenShop && (
+                <button type="button" onClick={onOpenShop} className={`${chip} text-brand`}>
+                  Shop
+                </button>
+              )}
+            </>
           )}
-          {onOpenShop && (
-            <button type="button" onClick={onOpenShop} className={`${chip} text-brand`}>
-              Shop
-            </button>
+          {focus.kind === 'district' && project && milestone && (
+            <>
+              <Link
+                to="/p/$projectId"
+                params={{ projectId: project.id }}
+                className={`${chip} text-brand`}
+              >
+                ← {project.name}
+              </Link>
+              {onEditMilestone && (
+                <button
+                  type="button"
+                  onClick={onEditMilestone}
+                  className={`${chip} text-text-secondary`}
+                >
+                  Edit milestone
+                </button>
+              )}
+              {onOpenShop && (
+                <button type="button" onClick={onOpenShop} className={`${chip} text-brand`}>
+                  Shop
+                </button>
+              )}
+            </>
           )}
-        </>
-      )}
-      {focus.kind === 'district' && project && milestone && (
-        <>
-          <Link
-            to="/p/$projectId"
-            params={{ projectId: project.id }}
-            className={`${chip} text-brand`}
-          >
-            ← {project.name}
-          </Link>
-          {onEditMilestone && (
-            <button
-              type="button"
-              onClick={onEditMilestone}
-              className={`${chip} text-text-secondary`}
-            >
-              Edit milestone
-            </button>
-          )}
-          {onOpenShop && (
-            <button type="button" onClick={onOpenShop} className={`${chip} text-brand`}>
-              Shop
-            </button>
-          )}
-        </>
-      )}
+        </div>
+      </div>
     </div>
   )
 }

@@ -19,7 +19,6 @@ import { PlacementBar } from '../shop/placement-bar'
 import { ShopPanel } from '../shop/shop-panel'
 import { usePlaceBuilding, useRemoveBuilding } from '../shop/use-shop-actions'
 import { TaskPanel } from '../tasks/task-panel'
-import { IslandSwitcher } from '../world/island-switcher'
 import { readLastIsland, writeLastIsland } from '../world/last-island'
 import {
   islandOccupied,
@@ -355,13 +354,7 @@ export function WorldScreen() {
                 })
               }}
             />
-          ) : (
-            <IslandSwitcher
-              summaries={summaries}
-              currentProjectId={project?.id ?? null}
-              variant={isDesktop ? 'panel' : 'floating'}
-            />
-          )
+          ) : undefined
         }
         onCoverChange={setCover}
       >

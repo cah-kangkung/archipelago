@@ -1,9 +1,15 @@
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import type { WorldSceneProps } from '../scene/world-scene'
 import { createFakeApi, fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
 import { renderApp } from '../test/render-app'
 import { resetPerfFlag } from '../world/perf-flag'
+import { addDays, todayIn } from '../world/selectors'
+
+const renderAppWithUnmount = (...args: Parameters<typeof renderApp>) => ({
+  ...renderApp(...args),
+  unmount: cleanup,
+})
 
 // Every anchor the stub scene was ever rendered with, in order.
 const seenAnchors = vi.hoisted((): string[] => [])
@@ -235,15 +241,12 @@ describe('World screen with the 3D scene', () => {
     await waitFor(() => expect(scene).toHaveAttribute('data-covered', '120'))
   })
 
-  test('desktop: nothing covers the scene, and the switcher sits in the side panel', async () => {
+  test('desktop: nothing covers the scene, and the side panel has no island chips', async () => {
     const { api, beta } = seeded()
     renderApp({ api, path: `/p/${beta.id}`, desktop: true })
     expect(await screen.findByTestId('scene')).toHaveAttribute('data-covered', '0')
     const panel = screen.getByTestId('task-side-panel')
-    expect(within(panel).getByRole('link', { name: 'Beta' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
+    expect(within(panel).queryByRole('navigation', { name: 'Islands' })).not.toBeInTheDocument()
   })
 
   test('an off-screen urgent island shows a labelled edge marker that opens it', async () => {
@@ -254,6 +257,89 @@ describe('World screen with the 3D scene', () => {
     expect(marker).toHaveStyle({ left: '10px', top: '20px' })
     await user.click(marker)
     expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
+  })
+
+  describe('island picker', () => {
+    function urgentWorld() {
+      const today = todayIn('Asia/Jakarta')
+      const beta = fakeProject({ name: 'Beta' })
+      const gamma = fakeProject({ name: 'Gamma' })
+      const calm = fakeProject({ name: 'Calm' })
+      const mvp = fakeMilestone({ projectId: beta.id, name: 'MVP' })
+      const tasks = [
+        fakeTask({ projectId: beta.id, dueDate: addDays(today, -2), plotX: 1, plotY: 0 }),
+        fakeTask({ projectId: beta.id, dueDate: addDays(today, -1), plotX: 2, plotY: 0 }),
+        fakeTask({ projectId: gamma.id, dueDate: today, plotX: 1, plotY: 0 }),
+      ]
+      const fake = createFakeApi({
+        world: { projects: [beta, gamma, calm], milestones: [mvp], tasks, buildings: [] },
+      })
+      return { ...fake, beta, gamma, calm, mvp }
+    }
+    const picker = () => screen.getByRole('combobox', { name: 'Island' })
+
+    test('lists every island with its urgency, after "All islands"', async () => {
+      const { api } = urgentWorld()
+      renderApp({ api, path: '/' })
+      await screen.findByTestId('scene')
+      const labels = within(picker())
+        .getAllByRole('option')
+        .map((o) => o.textContent)
+      expect(labels).toEqual(['All islands', 'Beta · 2 overdue', 'Gamma · due soon', 'Calm'])
+    })
+
+    test('shows where you are on every layer, on phone and desktop', async () => {
+      for (const desktop of [false, true]) {
+        const { api, beta, mvp } = urgentWorld()
+        const { router, unmount } = renderAppWithUnmount({ api, path: '/', desktop })
+        await screen.findByTestId('scene')
+        expect(picker()).toHaveDisplayValue('All islands')
+        await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: beta.id } }))
+        expect(picker()).toHaveDisplayValue('Beta · 2 overdue')
+        await act(() =>
+          router.navigate({
+            to: '/p/$projectId/m/$milestoneId',
+            params: { projectId: beta.id, milestoneId: mvp.id },
+          }),
+        )
+        expect(picker()).toHaveDisplayValue('Beta · 2 overdue')
+        unmount()
+      }
+    })
+
+    test('picking an island flies there; "All islands" goes back out', async () => {
+      const { api, gamma } = urgentWorld()
+      const { user, router } = renderApp({ api, path: '/', desktop: true })
+      await screen.findByTestId('scene')
+      await user.selectOptions(picker(), 'Gamma · due soon')
+      expect(router.state.location.pathname).toBe(`/p/${gamma.id}`)
+      await user.selectOptions(picker(), 'All islands')
+      expect(router.state.location.pathname).toBe('/')
+    })
+
+    test('a lone calm island is listed plainly', async () => {
+      const calm = fakeProject({ name: 'Calm' })
+      const { api } = createFakeApi({
+        world: { projects: [calm], milestones: [], tasks: [], buildings: [] },
+      })
+      renderApp({ api, path: '/' })
+      await screen.findByTestId('scene')
+      expect(
+        within(picker())
+          .getAllByRole('option')
+          .map((o) => o.textContent),
+      ).toEqual(['All islands', 'Calm'])
+    })
+
+    test('no island chips remain in the drawer or above the sheet', async () => {
+      for (const desktop of [false, true]) {
+        const { api, beta } = urgentWorld()
+        const { unmount } = renderAppWithUnmount({ api, path: `/p/${beta.id}`, desktop })
+        await screen.findByTestId('scene')
+        expect(screen.queryByRole('navigation', { name: 'Islands' })).not.toBeInTheDocument()
+        unmount()
+      }
+    })
   })
 
   describe('opening focus', () => {

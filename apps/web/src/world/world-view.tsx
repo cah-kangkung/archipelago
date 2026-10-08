@@ -147,6 +147,7 @@ export function WorldView({
         {perf && <PerfOverlay store={perf} />}
         <WorldHud
           resolved={resolved}
+          summaries={summaries}
           onOpenShop={sceneReady ? onOpenShop : undefined}
           onHeight={setHudHeight}
           {...actions}

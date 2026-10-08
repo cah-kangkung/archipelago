@@ -24,19 +24,14 @@ function seeded() {
 }
 
 describe('WorldScreen', () => {
-  test('phone: island cards scroll horizontally, switcher shows urgency, panel is a bottom sheet', async () => {
+  test('phone: island cards scroll horizontally and the panel is a bottom sheet', async () => {
     const { api } = seeded()
     renderApp({ api, path: '/' })
     const cards = await screen.findByTestId('island-cards')
     expect(cards).toHaveClass('overflow-x-auto')
     expect(within(cards).getByRole('link', { name: /Beta/ })).toHaveTextContent('2 open')
 
-    const switcher = within(screen.getByTestId('task-sheet')).getByRole('navigation', {
-      name: 'Islands',
-    })
-    expect(screen.getAllByRole('navigation', { name: 'Islands' })).toHaveLength(1)
-    expect(within(switcher).getByRole('link', { name: /Beta/ })).toHaveTextContent('overdue')
-    expect(within(switcher).getByRole('link', { name: /Gamma/ })).toHaveTextContent('due soon')
+    expect(screen.queryByRole('navigation', { name: 'Islands' })).not.toBeInTheDocument()
 
     expect(screen.getByTestId('task-sheet')).toBeInTheDocument()
     expect(screen.queryByTestId('task-side-panel')).not.toBeInTheDocument()
@@ -46,8 +41,8 @@ describe('WorldScreen', () => {
     const { api } = seeded()
     renderApp({ api, path: '/', desktop: true })
     const panel = await screen.findByTestId('task-side-panel')
-    expect(within(panel).getByRole('navigation', { name: 'Islands' })).toBeInTheDocument()
-    expect(screen.getAllByRole('navigation', { name: 'Islands' })).toHaveLength(1)
+    expect(within(panel).queryByRole('navigation', { name: 'Islands' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Islands' })).not.toBeInTheDocument()
     expect(panel).toHaveStyle({ width: '400px' })
     const handle = screen.getByRole('separator', { name: 'Resize task panel' })
     fireEvent.keyDown(handle, { key: 'ArrowLeft' })
@@ -163,29 +158,17 @@ describe('WorldScreen', () => {
       expect(handle).toHaveAttribute('aria-valuenow', '416')
     })
 
-    test('on a short phone the tallest detent leaves the strip above it on screen', async () => {
+    test('on a short phone the tallest detent stays within the window with no strip above it', async () => {
       setHeight(700)
-      const measured = vi
-        .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
-        .mockImplementation(function (this: HTMLElement) {
-          return this.dataset.testid === 'sheet-accessory' ? 72 : 0
-        })
-      try {
-        const { api } = seeded()
-        renderApp({ api, path: '/' })
-        const sheet = await screen.findByTestId('task-sheet')
-        fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize task sheet' }), {
-          key: 'ArrowUp',
-        })
-        expect(sheet).toHaveAttribute('data-detent', '2')
-        // 92% of 700 is 644px; with a 72px strip on top that would leave the strip 16px off screen.
-        expect(sheet.style.height).toBe('628px')
-        setHeight(1000)
-        fireEvent(window, new Event('resize'))
-        await waitFor(() => expect(sheet.style.height).toBe('92dvh'))
-      } finally {
-        measured.mockRestore()
-      }
+      const { api } = seeded()
+      renderApp({ api, path: '/' })
+      const sheet = await screen.findByTestId('task-sheet')
+      expect(screen.queryByTestId('sheet-accessory')).not.toBeInTheDocument()
+      fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize task sheet' }), {
+        key: 'ArrowUp',
+      })
+      expect(sheet).toHaveAttribute('data-detent', '2')
+      expect(sheet.style.height).toBe('92dvh')
     })
 
     test('dragging up and releasing snaps to the nearest detent', async () => {
