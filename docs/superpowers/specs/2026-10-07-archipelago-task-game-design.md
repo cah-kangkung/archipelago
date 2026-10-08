@@ -892,17 +892,18 @@ Phase 5e makes each layer (archipelago, island, district) feel like its own room
   - **Island:** the island's shallows square: origin ± `shallowsRadius(radius)` on x and z.
   - **District:** the axis-aligned box around the district's landmark and every task plot of that milestone, grown by `DISTRICT_MARGIN` (2 hexes, `2 × SQRT3` world units) on each side, in world space.
   - An unknown island or milestone falls back a level, as `cameraTarget` does.
-- `fitZoom(bounds, viewport): number`: the largest zoom at which all four corners of `bounds` (projected through the isometric camera's screen basis) fit inside `viewport` (canvas px minus the HUD inset at the top and the sheet cover at the bottom), times `FIT_MARGIN` (0.9).
+- `focusOutline(model, focus): Point[]`: what the opening zoom must show. **Island:** 12 points on the circle of radius `shallowsRadius(radius)` around the origin (it encloses the shallows hexagon without the square's empty corners). **District:** the four corners of the district box. **Archipelago:** the four corners of `model.bounds`.
+- `fitZoom(outline, viewport): number`: the largest zoom at which every outline point, projected through the isometric screen basis (`toScreen`), fits inside `viewport` (canvas px minus the HUD inset at the top and the sheet cover at the bottom), times `FIT_MARGIN` (0.9). With no viewport it is 0, so the floors below apply.
 - `cameraTarget(model, focus, anchor, viewport)`:
   - **Archipelago:** unchanged.
-  - **Island:** the island origin at `max(fitZoom(focusBounds), ISLAND_ZOOM)`.
-  - **District:** the centre of the district box at `max(fitZoom(focusBounds), DISTRICT_ZOOM)`.
+  - **Island:** the island origin at `max(fitZoom(focusOutline), ISLAND_ZOOM)`.
+  - **District:** the centre of the district box at `max(fitZoom(focusOutline), DISTRICT_ZOOM)`.
   - `ISLAND_ZOOM` (48) and `DISTRICT_ZOOM` (72) stay the readability floors of 13.4: a large island opens at the floor and is panned within its bounds rather than shrunk below the 44px tap target.
 - **Camera rig:** the pan target is clamped (and rubber-banded, 14.3) to `focusBounds` of the current focus instead of `model.bounds`. Zoom is clamped between the target's zoom and `MAX_ZOOM_FACTOR` × it, so zooming out never shows more than the current layer's area. Flights (14.1) keep their timing; only their end point and zoom change. The fit is recomputed when the viewport or the sheet cover changes, never on a data refetch alone (14.3's focus-key rule).
 
 ### 19.2 Spacing and a lighter sea
 
-- `ISLAND_GAP` (`scene/model/scene-model.ts`) goes from 3 to 8 hex rings of open sea between neighbouring islands' land. Island origins stay `slot × (2 × largest radius + ISLAND_GAP)` (section 9); shallows of neighbouring islands now sit about 5.8 world units apart, so the sea-route rule of 17.5 finds lanes between neighbours.
+- `ISLAND_GAP` (`scene/model/scene-model.ts`) goes from 3 to 8 hex rings of open sea between neighbouring islands' land. Island origins stay `slot × (2 × largest radius + ISLAND_GAP)` (section 9); shallows of neighbouring radius-4 islands now sit about 9.4 world units apart (0.8 before), so the sea-route rule of 17.5 finds lanes between neighbours.
 - **Palette** (`scene/model/palette.ts`), all blends of A'raf tokens, lightest at the coast:
 
 | Key | Was | Becomes | Hex |
@@ -941,7 +942,7 @@ Phase 5e makes each layer (archipelago, island, district) feel like its own room
 
 ### 19.5 Testing
 
-- **Pure:** `focusBounds` per layer and its fallbacks (the district box contains the landmark and every plot of the milestone, plus the margin); `fitZoom` fits all four projected corners inside the viewport and grows when the viewport grows; `cameraTarget` never goes below `ISLAND_ZOOM`/`DISTRICT_ZOOM`; islands keep at least `ISLAND_GAP` rings of sea between their land; every palette colour is still a token or a blend of tokens.
+- **Pure:** `focusBounds` per layer and its fallbacks (the district box contains the landmark and every plot of the milestone, plus the margin); `fitZoom` fits every projected outline point inside the viewport and grows when the viewport grows; `cameraTarget` never goes below `ISLAND_ZOOM`/`DISTRICT_ZOOM`; islands keep at least `ISLAND_GAP` rings of sea between their land; every palette colour is still a token or a blend of tokens.
 - **Scene graph:** on an island route, a pan past the island is pulled back inside its shallows square and the zoom-out stops at the target zoom; the same for a district.
 - **App (RTL):** the picker renders on all three layers on desktop and phone with the right value and urgency labels, and changing it routes; no island chips remain in the drawer or above the sheet; the archipelago drawer still reads "Due today & overdue"; the milestone select routes into and out of districts, "No milestone" filters and resets on leaving the island, and New task defaults to the filter's milestone.
 - **Manual:** the owner's visual pass on desktop and phone (colours, spacing, how big islands open), and `?perf` with no regression from 5d.
