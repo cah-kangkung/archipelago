@@ -139,7 +139,7 @@ export const GROW_IN_MS = 600
 /** The fade or slide between layers, in ms. */
 export const SPOTLIGHT_MS = 300
 /** How far colours outside the layer blend toward the haze colour (the sea's mid blue). */
-export const SPOTLIGHT_HAZE = 0.6
+export const SPOTLIGHT_HAZE = 0.2
 /** The soft edge, in world units: two hexes. */
 export const SPOTLIGHT_FEATHER = 2 * Math.sqrt(3)
 /** Labels whose anchor is outside the layer. */
