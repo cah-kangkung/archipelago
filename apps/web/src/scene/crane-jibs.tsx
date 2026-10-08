@@ -5,6 +5,7 @@ import { solidMaterial } from './materials'
 import { LAND_HEIGHT, type Point } from './model/hex-space'
 import { JIB_PIVOT, modelGeometry } from './models/structures'
 import { onTap } from './tap'
+import { clampDelta, JIB_TURN_SPEED } from './tuning'
 
 const matrix = new THREE.Matrix4()
 
@@ -27,7 +28,7 @@ export function CraneJibs({
     const mesh = ref.current
     if (!mesh) return
     points.forEach((p, i) => {
-      matrix.makeRotationY(time * 0.6 + i * 1.7)
+      matrix.makeRotationY(time * JIB_TURN_SPEED + i * 1.7)
       matrix.setPosition(p.x + JIB_PIVOT[0], LAND_HEIGHT + JIB_PIVOT[1], p.z + JIB_PIVOT[2])
       mesh.setMatrixAt(i, matrix)
     })
@@ -37,8 +38,11 @@ export function CraneJibs({
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: place reads the latest points
   useLayoutEffect(() => place(0), [points])
-  useFrame(({ clock }) => {
-    if (animate) place(clock.elapsedTime)
+  const time = useRef(0)
+  useFrame((_, delta) => {
+    if (!animate) return
+    time.current += clampDelta(delta)
+    place(time.current)
   })
 
   if (points.length === 0) return null

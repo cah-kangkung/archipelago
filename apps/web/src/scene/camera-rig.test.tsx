@@ -7,7 +7,7 @@ import { fakeProject } from '../test/fake-api'
 import type { Focus } from '../world/selectors'
 import { CameraRig, ISO_DISTANCE } from './camera-rig'
 import { cameraTarget, ISLAND_ZOOM, MAX_ZOOM_FACTOR } from './model/camera'
-import { flyDuration } from './model/camera-motion'
+import { flyDuration, flyFrame, hopZoom } from './model/camera-motion'
 import { buildSceneModel, type SceneModel } from './model/scene-model'
 import type { View } from './model/screen'
 
@@ -37,6 +37,11 @@ const worldOf = (projects: WorldDto['projects']): WorldDto => ({
 const both = buildSceneModel(worldOf([beta, gamma]), today)
 const archipelago: Focus = { kind: 'archipelago' }
 const onGamma: Focus = { kind: 'island', projectId: gamma.id }
+const delta = fakeProject({ name: 'Delta', archipelagoX: 0, archipelagoY: 3 })
+const tall = buildSceneModel(worldOf([beta, delta]), today)
+const onBeta: Focus = { kind: 'island', projectId: beta.id }
+const onDelta: Focus = { kind: 'island', projectId: delta.id }
+const canvas = { width: 400, height: 800, covered: 0, framed: 0 }
 
 const grab: { camera?: THREE.Camera & { zoom: number }; controls?: Controls } = {}
 function Grab() {
@@ -45,10 +50,10 @@ function Grab() {
   return null
 }
 
-type RigProps = { model: SceneModel; focus: Focus; animate?: boolean }
-const scene = ({ model, focus, animate = true }: RigProps) => (
+type RigProps = { model: SceneModel; focus: Focus; animate?: boolean; covered?: number }
+const scene = ({ model, focus, animate = true, covered = 0 }: RigProps) => (
   <>
-    <CameraRig model={model} focus={focus} animate={animate} />
+    <CameraRig model={model} focus={focus} animate={animate} covered={covered} />
     <Grab />
   </>
 )
@@ -228,6 +233,59 @@ describe('CameraRig', () => {
     expect(view().x).toBeGreaterThan(maxX)
     c.dispatchEvent({ type: 'end' })
     await r.advanceFrames(1, 0.016)
+    expect(view().x).toBeCloseTo(maxX)
+  })
+
+  test('a long first frame (a hidden tab) moves a flight by at most 100ms', async () => {
+    const r = await mount({ model: both, focus: archipelago })
+    const start = view()
+    const goal = cameraTarget(both, onGamma)
+    await r.update(scene({ model: both, focus: onGamma }))
+    await r.advanceFrames(1, 5)
+    expectView(view(), flyFrame(start, goal, 100 / flyDuration(start, goal), canvas))
+  })
+
+  test('a cover change mid-flight leaves the hop zoom alone', async () => {
+    const from = cameraTarget(tall, onBeta)
+    const to = cameraTarget(tall, onDelta)
+    // Sanity: this hop is height-limited, so a recomputed frame would change it.
+    expect(hopZoom(from, to, canvas)).not.toBeCloseTo(
+      hopZoom(from, to, { ...canvas, covered: 600, framed: 384 }) ?? 0,
+    )
+    const fly = async (coverMidway: number) => {
+      const r = await mount({ model: tall, focus: onBeta })
+      await r.update(scene({ model: tall, focus: onDelta }))
+      await r.advanceFrames(2, 0.1)
+      await r.update(scene({ model: tall, focus: onDelta, covered: coverMidway }))
+      await r.advanceFrames(2, 0.1)
+      const v = view()
+      await r.unmount()
+      return v
+    }
+    const steady = await fly(0)
+    const covered = await fly(600)
+    expect(steady.zoom).toBeLessThan(ISLAND_ZOOM)
+    expectView(covered, steady)
+  })
+
+  test('momentum that carries the camera past the edge after release springs back', async () => {
+    const r = await mount({ model: both, focus: onGamma })
+    const { maxX } = both.bounds
+    const c = controls()
+    c.dispatchEvent({ type: 'start' })
+    const push = maxX - 1 - c.target.x
+    c.target.x += push
+    camera().position.x += push
+    c.dispatchEvent({ type: 'change' })
+    c.dispatchEvent({ type: 'end' })
+    // Damping keeps moving the target after the finger lifts.
+    for (const step of [2, 2, 2]) {
+      c.target.x += step
+      camera().position.x += step
+      c.dispatchEvent({ type: 'change' })
+    }
+    expect(view().x).toBeGreaterThan(maxX)
+    await r.advanceFrames(8, 0.1)
     expect(view().x).toBeCloseTo(maxX)
   })
 })

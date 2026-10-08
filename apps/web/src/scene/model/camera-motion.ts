@@ -1,18 +1,19 @@
+import {
+  BAND_SHARE,
+  FLY_MAX_MS,
+  FLY_MIN_MS,
+  FRAMING_MS,
+  HOP_FILL,
+  MS_PER_PX,
+  PX_PER_DOUBLING,
+  SPRING_MS,
+} from '../tuning'
 import { clampToBounds } from './camera'
 import type { Point } from './hex-space'
 import type { Bounds } from './scene-model'
 import { type Frame, toScreen, type View, visibleSize } from './screen'
 
-export const FLY_MIN_MS = 450
-export const FLY_MAX_MS = 900
-export const SPRING_MS = 300
-export const FRAMING_MS = 250
-
-/** At the widest point of a hop, both endpoints sit inside this share of the visible area. */
-const HOP_FILL = 0.8
-/** Flight time per pixel of on-screen travel, and the travel one zoom doubling counts as. */
-const MS_PER_PX = 0.5
-const PX_PER_DOUBLING = 200
+export { FLY_MAX_MS, FLY_MIN_MS, FRAMING_MS, SPRING_MS }
 
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t))
 
@@ -73,7 +74,7 @@ export function band(over: number, limit: number): number {
 /** The furthest the band stretches: a quarter of the visible short side, in world units. */
 export function bandLimit(frame: Frame, zoom: number): number {
   const { width, height } = visibleSize(frame)
-  return Math.min(width, height) / 4 / zoom
+  return (Math.min(width, height) * BAND_SHARE) / zoom
 }
 
 function bandAxis(value: number, min: number, max: number, limit: number): number {

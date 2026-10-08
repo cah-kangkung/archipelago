@@ -1,3 +1,4 @@
+import { INDICATOR_INSET, INDICATOR_SPACING } from '../tuning'
 import { type Frame, toScreen, type View, viewCentre, visibleSize } from './screen'
 
 export type Urgency = 'overdue' | 'due-soon'
@@ -7,8 +8,7 @@ export type UrgentIsland = IslandUrgency & { x: number; z: number; extent: numbe
 /** A marker's centre in canvas px and the direction (radians, clockwise from right) it points. */
 export type EdgeIndicator = IslandUrgency & { left: number; top: number; angle: number }
 
-export const INDICATOR_INSET = 28
-export const INDICATOR_SPACING = 48
+export { INDICATOR_INSET, INDICATOR_SPACING }
 
 type Rect = { left: number; top: number; right: number; bottom: number }
 type Placed = { island: UrgentIsland; target: { x: number; y: number }; s: number }

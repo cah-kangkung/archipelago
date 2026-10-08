@@ -2,6 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useRef } from 'react'
 import { easeOutCubic, FRAMING_MS } from './model/camera-motion'
 import { framedCover } from './model/screen'
+import { clampDelta } from './tuning'
 
 /**
  * Shifts the projection up by half the framed sheet cover, so the look-at point sits in the middle
@@ -25,7 +26,7 @@ export function Framing({ covered, animate }: { covered: number; animate: boolea
   useFrame((_, delta) => {
     const e = ease.current
     if (e.shown !== e.to) {
-      e.elapsed += delta * 1000
+      e.elapsed += clampDelta(delta) * 1000
       const t = Math.min(1, e.elapsed / FRAMING_MS)
       e.shown = t >= 1 ? e.to : e.from + (e.to - e.from) * easeOutCubic(t)
       if (t < 1) invalidate()

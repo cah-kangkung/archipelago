@@ -1,17 +1,17 @@
 import { useFrame } from '@react-three/fiber'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { seaMaterial } from './materials'
 import type { Bounds } from './model/scene-model'
 import { SEA_LEVEL } from './models/terrain-geometry'
 import { onTap } from './tap'
+import { clampDelta, SEA_WAVE_HEIGHT, SEA_WAVE_SPEED } from './tuning'
 
 /** Open water beyond the outermost island, in world units: enough to fill a desktop viewport at
  * archipelago zoom. */
 const SEA_MARGIN = 250
 /** Plane segments per side; the margin grew, so this keeps the wave's resolution. */
 const SEA_SEGMENTS = 96
-const WAVE_HEIGHT = 0.05
 
 export function Sea({
   bounds,
@@ -37,16 +37,18 @@ export function Sea({
   const rest = useMemo(() => Float32Array.from(geometry.getAttribute('position').array), [geometry])
   useEffect(() => () => geometry.dispose(), [geometry])
 
-  useFrame(({ clock }) => {
+  const time = useRef(0)
+  useFrame((_, delta) => {
     if (!animate) return
+    time.current += clampDelta(delta) * SEA_WAVE_SPEED
+    const t = time.current
     const position = geometry.getAttribute('position')
-    const t = clock.elapsedTime
     for (let i = 0; i < position.count; i++) {
       const x = rest[i * 3] ?? 0
       const z = rest[i * 3 + 2] ?? 0
       position.setY(
         i,
-        SEA_LEVEL + WAVE_HEIGHT * Math.sin(x * 0.6 + t) * Math.cos(z * 0.6 + t * 0.8),
+        SEA_LEVEL + SEA_WAVE_HEIGHT * Math.sin(x * 0.6 + t) * Math.cos(z * 0.6 + t * 0.8),
       )
     }
     position.needsUpdate = true

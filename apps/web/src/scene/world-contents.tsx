@@ -4,10 +4,7 @@ import { Island } from './island'
 import { scenePalette } from './model/palette'
 import type { SceneModel, SceneStructure } from './model/scene-model'
 import { Sea } from './sea'
-
-// Lambert divides by π; ×π lets a top face lit by both lights read near its token (§13.3).
-const HEMISPHERE_INTENSITY = Math.PI * 0.55
-const DIRECTIONAL_INTENSITY = Math.PI * 0.6
+import { DIRECTIONAL_INTENSITY, HEMISPHERE_INTENSITY } from './tuning'
 
 export type Placement = {
   /** The island being decorated; only it shows the glow and ghost. */

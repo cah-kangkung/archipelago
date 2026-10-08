@@ -15,7 +15,8 @@ import {
 } from './model/camera-motion'
 import type { Point } from './model/hex-space'
 import type { SceneModel } from './model/scene-model'
-import type { View } from './model/screen'
+import type { Frame, View } from './model/screen'
+import { clampDelta } from './tuning'
 import { useFrameSize } from './use-frame-size'
 
 /** The camera sits this far along the (1, 1, 1) diagonal from its target: true isometric. */
@@ -24,7 +25,7 @@ export const ISO_DISTANCE = 200
 type Controls = ComponentRef<typeof MapControls>
 type Motion =
   | { kind: 'idle' }
-  | { kind: 'fly'; from: View; to: View; elapsed: number; duration: number }
+  | { kind: 'fly'; from: View; to: View; elapsed: number; duration: number; frame: Frame }
   | { kind: 'spring'; from: Point; to: Point; elapsed: number; duration: number }
 
 const IDLE: Motion = { kind: 'idle' }
@@ -115,7 +116,7 @@ export function CameraRig({
   // the same key, so it never moves the camera.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the route key is the trigger
   useLayoutEffect(() => {
-    const { target: to, animate: smooth } = latest.current
+    const { target: to, animate: smooth, frame: startFrame } = latest.current
     cancelMomentum()
     const from = viewOf(camera)
     const duration = smooth && mounted.current ? flyDuration(from, to) : 0
@@ -126,7 +127,7 @@ export function CameraRig({
       setZoomLimits(to.zoom, to.zoom * MAX_ZOOM_FACTOR)
     } else {
       setZoomLimits(0, Infinity)
-      motion.current = { kind: 'fly', from, to, elapsed: 0, duration }
+      motion.current = { kind: 'fly', from, to, elapsed: 0, duration, frame: startFrame }
     }
     invalidate()
   }, [key, camera, invalidate])
@@ -138,11 +139,12 @@ export function CameraRig({
   }, [model.bounds, invalidate])
 
   useFrame((_, delta) => {
+    const step = clampDelta(delta) * 1000
     const m = motion.current
     if (m.kind === 'fly') {
-      m.elapsed += delta * 1000
+      m.elapsed += step
       const t = Math.min(1, m.elapsed / m.duration)
-      show(flyFrame(m.from, m.to, t, latest.current.frame))
+      show(flyFrame(m.from, m.to, t, m.frame))
       if (t < 1) {
         invalidate()
         return
@@ -152,7 +154,7 @@ export function CameraRig({
       return
     }
     if (m.kind === 'spring') {
-      m.elapsed += delta * 1000
+      m.elapsed += step
       const t = Math.min(1, m.elapsed / m.duration)
       show({ ...springFrame(m.from, m.to, t), zoom: camera.zoom })
       if (t < 1) invalidate()
