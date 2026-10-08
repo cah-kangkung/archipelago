@@ -1,0 +1,152 @@
+import type { WorldDto } from '@archipelago/shared'
+import { describe, expect, test } from 'vitest'
+import { fakeMilestone, fakeProject, fakeTask } from '../../test/fake-api'
+import { quietEconomy } from '../../test/sea-worlds'
+import type { Focus } from '../../world/selectors'
+import {
+  ARCHIPELAGO_ZOOM,
+  cameraTarget,
+  DISTRICT_MARGIN,
+  DISTRICT_ZOOM,
+  FIT_MARGIN,
+  fitZoom,
+  focusBounds,
+  focusOutline,
+  ISLAND_ZOOM,
+} from './camera'
+import { shallowsRadius } from './hex-space'
+import { buildSceneModel } from './scene-model'
+import { toScreen } from './screen'
+
+const today = '2026-10-08'
+const beta = fakeProject({ name: 'Beta', archipelagoX: 0, archipelagoY: 0 })
+const gamma = fakeProject({ name: 'Gamma', archipelagoX: 1, archipelagoY: 0 })
+const mvp = fakeMilestone({ projectId: beta.id, districtQ: 5, districtR: 0 })
+const empty = fakeMilestone({ projectId: beta.id, districtQ: -5, districtR: 5 })
+const inMvp = [
+  fakeTask({ projectId: beta.id, milestoneId: mvp.id, plotX: 6, plotY: 0 }),
+  fakeTask({ projectId: beta.id, milestoneId: mvp.id, plotX: 4, plotY: 1 }),
+]
+const world: WorldDto = {
+  projects: [beta, gamma],
+  milestones: [mvp, empty],
+  tasks: inMvp,
+  buildings: [],
+  economy: quietEconomy,
+}
+const model = buildSceneModel(world, today)
+const island = model.islands.find((i) => i.projectId === beta.id)
+if (!island) throw new Error('no beta')
+const onBeta: Focus = { kind: 'island', projectId: beta.id }
+const onMvp: Focus = { kind: 'district', projectId: beta.id, milestoneId: mvp.id }
+const onEmpty: Focus = { kind: 'district', projectId: beta.id, milestoneId: empty.id }
+
+/** Screen span (px per unit of zoom) of an outline. */
+function span(outline: { x: number; z: number }[]) {
+  const pts = outline.map((p) => toScreen(p.x, p.z, 1))
+  const xs = pts.map((p) => p.sx)
+  const ys = pts.map((p) => p.sy)
+  return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
+}
+
+describe('focusBounds', () => {
+  test('archipelago is the whole world; an island is its shallows square', () => {
+    expect(focusBounds(model, { kind: 'archipelago' })).toEqual(model.bounds)
+    const s = shallowsRadius(island.radius)
+    expect(focusBounds(model, onBeta)).toEqual({
+      minX: island.origin.x - s,
+      maxX: island.origin.x + s,
+      minZ: island.origin.z - s,
+      maxZ: island.origin.z + s,
+    })
+  })
+
+  test('a district box holds its landmark and every plot of its milestone, plus the margin', () => {
+    const b = focusBounds(model, onMvp)
+    const district = island.districts.find((d) => d.milestoneId === mvp.id)
+    const spots = [
+      district?.position,
+      ...island.structures.filter((s) => s.milestoneId === mvp.id).map((s) => s.position),
+    ]
+    for (const p of spots) {
+      if (!p) throw new Error('missing spot')
+      const x = island.origin.x + p.x
+      const z = island.origin.z + p.z
+      expect(x - b.minX).toBeGreaterThanOrEqual(DISTRICT_MARGIN - 1e-9)
+      expect(b.maxX - x).toBeGreaterThanOrEqual(DISTRICT_MARGIN - 1e-9)
+      expect(z - b.minZ).toBeGreaterThanOrEqual(DISTRICT_MARGIN - 1e-9)
+      expect(b.maxZ - z).toBeGreaterThanOrEqual(DISTRICT_MARGIN - 1e-9)
+    }
+  })
+
+  test('a district with no tasks is its landmark plus the margin on every side', () => {
+    const d = island.districts.find((x) => x.milestoneId === empty.id)
+    if (!d) throw new Error('no empty district')
+    const cx = island.origin.x + d.position.x
+    const cz = island.origin.z + d.position.z
+    expect(focusBounds(model, onEmpty)).toEqual({
+      minX: cx - DISTRICT_MARGIN,
+      maxX: cx + DISTRICT_MARGIN,
+      minZ: cz - DISTRICT_MARGIN,
+      maxZ: cz + DISTRICT_MARGIN,
+    })
+  })
+
+  test('unknown ids fall back a level', () => {
+    expect(focusBounds(model, { kind: 'island', projectId: 'nope' })).toEqual(model.bounds)
+    expect(
+      focusBounds(model, { kind: 'district', projectId: beta.id, milestoneId: 'nope' }),
+    ).toEqual(focusBounds(model, onBeta))
+  })
+})
+
+describe('focusOutline and fitZoom', () => {
+  test('an island outline is 12 points on its shallows circle', () => {
+    const outline = focusOutline(model, onBeta)
+    expect(outline).toHaveLength(12)
+    for (const p of outline) {
+      expect(Math.hypot(p.x - island.origin.x, p.z - island.origin.z)).toBeCloseTo(
+        shallowsRadius(island.radius),
+      )
+    }
+  })
+
+  test('fitZoom is 0 without a viewport, and otherwise fits every point with the margin', () => {
+    const outline = focusOutline(model, onBeta)
+    expect(fitZoom(outline)).toBe(0)
+    const viewport = { width: 1400, height: 800 }
+    const zoom = fitZoom(outline, viewport)
+    const { w, h } = span(outline)
+    expect(w * zoom).toBeLessThanOrEqual(viewport.width * FIT_MARGIN + 1e-6)
+    expect(h * zoom).toBeLessThanOrEqual(viewport.height * FIT_MARGIN + 1e-6)
+    // Tight on at least one axis.
+    expect(Math.max((w * zoom) / viewport.width, (h * zoom) / viewport.height)).toBeCloseTo(
+      FIT_MARGIN,
+    )
+    expect(fitZoom(outline, { width: 2800, height: 1600 })).toBeCloseTo(zoom * 2)
+  })
+})
+
+describe('cameraTarget with a viewport', () => {
+  test('without a viewport the zooms are the floors, as before', () => {
+    expect(cameraTarget(model, onBeta).zoom).toBe(ISLAND_ZOOM)
+    expect(cameraTarget(model, onMvp).zoom).toBe(DISTRICT_ZOOM)
+    expect(cameraTarget(model, { kind: 'archipelago' }).zoom).toBe(ARCHIPELAGO_ZOOM)
+  })
+
+  test('a roomy viewport fits the island; a cramped one stops at the floor', () => {
+    const roomy = { width: 4000, height: 3000 }
+    const fitted = cameraTarget(model, onBeta, null, roomy)
+    expect(fitted.zoom).toBeCloseTo(fitZoom(focusOutline(model, onBeta), roomy))
+    expect(fitted.zoom).toBeGreaterThan(ISLAND_ZOOM)
+    expect(cameraTarget(model, onBeta, null, { width: 300, height: 300 }).zoom).toBe(ISLAND_ZOOM)
+    expect(cameraTarget(model, onMvp, null, { width: 300, height: 300 }).zoom).toBe(DISTRICT_ZOOM)
+  })
+
+  test('a district target is the centre of its box', () => {
+    const b = focusBounds(model, onMvp)
+    const t = cameraTarget(model, onMvp, null, { width: 1000, height: 800 })
+    expect(t.x).toBeCloseTo((b.minX + b.maxX) / 2)
+    expect(t.z).toBeCloseTo((b.minZ + b.maxZ) / 2)
+  })
+})

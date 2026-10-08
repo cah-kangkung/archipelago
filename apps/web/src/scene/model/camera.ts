@@ -1,45 +1,143 @@
 import type { Focus } from '../../world/selectors'
-import type { Bounds, SceneModel } from './scene-model'
+import { type Point, SQRT3, shallowsRadius } from './hex-space'
+import type { Bounds, SceneIsland, SceneModel } from './scene-model'
+import { toScreen } from './screen'
 
 /** Orthographic zoom = screen pixels per world unit (spec §13.4). */
 export const ARCHIPELAGO_ZOOM = 10
 export const ISLAND_ZOOM = 48
 export const DISTRICT_ZOOM = ISLAND_ZOOM * 1.5
 export const MAX_ZOOM_FACTOR = 3
+/** The opening zoom fills at most this share of the viewport (spec 19.1). */
+export const FIT_MARGIN = 0.9
+/** Two hexes of room around a district's landmark and plots. */
+export const DISTRICT_MARGIN = 2 * SQRT3
 
 export type CameraTarget = { x: number; z: number; zoom: number }
 
+/** The CSS px the camera may fill: the canvas less the HUD on top and the sheet below. */
+export type Viewport = { width: number; height: number }
+
+type Level =
+  | { kind: 'archipelago' }
+  | { kind: 'island'; island: SceneIsland }
+  | { kind: 'district'; island: SceneIsland; box: Bounds }
+
+/** The layer a focus resolves to; unknown ids fall back a level. */
+function levelOf(model: SceneModel, focus: Focus): Level {
+  if (focus.kind === 'archipelago') return { kind: 'archipelago' }
+  const island = model.islands.find((i) => i.projectId === focus.projectId)
+  if (!island) return { kind: 'archipelago' }
+  if (focus.kind === 'island') return { kind: 'island', island }
+  const district = island.districts.find((d) => d.milestoneId === focus.milestoneId)
+  if (!district) return { kind: 'island', island }
+  const spots = [
+    district.position,
+    ...island.structures.filter((s) => s.milestoneId === focus.milestoneId).map((s) => s.position),
+  ]
+  const xs = spots.map((p) => island.origin.x + p.x)
+  const zs = spots.map((p) => island.origin.z + p.z)
+  return {
+    kind: 'district',
+    island,
+    box: {
+      minX: Math.min(...xs) - DISTRICT_MARGIN,
+      maxX: Math.max(...xs) + DISTRICT_MARGIN,
+      minZ: Math.min(...zs) - DISTRICT_MARGIN,
+      maxZ: Math.max(...zs) + DISTRICT_MARGIN,
+    },
+  }
+}
+
+function islandSquare(island: SceneIsland): Bounds {
+  const s = shallowsRadius(island.radius)
+  return {
+    minX: island.origin.x - s,
+    maxX: island.origin.x + s,
+    minZ: island.origin.z - s,
+    maxZ: island.origin.z + s,
+  }
+}
+
+const corners = (b: Bounds): Point[] => [
+  { x: b.minX, z: b.minZ },
+  { x: b.maxX, z: b.minZ },
+  { x: b.maxX, z: b.maxZ },
+  { x: b.minX, z: b.maxZ },
+]
+
+/** Where the pan target may go on this layer (spec 19.1). */
+export function focusBounds(model: SceneModel, focus: Focus): Bounds {
+  const level = levelOf(model, focus)
+  if (level.kind === 'archipelago') return model.bounds
+  if (level.kind === 'island') return islandSquare(level.island)
+  return level.box
+}
+
+/** What the opening zoom must show: the shallows circle of an island, else the bounds' corners. */
+export function focusOutline(model: SceneModel, focus: Focus): Point[] {
+  const level = levelOf(model, focus)
+  if (level.kind === 'island') {
+    const { origin, radius } = level.island
+    const s = shallowsRadius(radius)
+    return Array.from({ length: 12 }, (_, k) => ({
+      x: origin.x + s * Math.cos((k * Math.PI) / 6),
+      z: origin.z + s * Math.sin((k * Math.PI) / 6),
+    }))
+  }
+  return corners(level.kind === 'district' ? level.box : model.bounds)
+}
+
+/** The largest zoom that fits every outline point in the viewport, times FIT_MARGIN; 0 without one. */
+export function fitZoom(outline: readonly Point[], viewport?: Viewport): number {
+  if (!viewport || outline.length === 0 || viewport.width <= 0 || viewport.height <= 0) return 0
+  const pts = outline.map((p) => toScreen(p.x, p.z, 1))
+  const xs = pts.map((p) => p.sx)
+  const ys = pts.map((p) => p.sy)
+  const w = Math.max(...xs) - Math.min(...xs)
+  const h = Math.max(...ys) - Math.min(...ys)
+  const byWidth = w > 0 ? viewport.width / w : Number.POSITIVE_INFINITY
+  const byHeight = h > 0 ? viewport.height / h : Number.POSITIVE_INFINITY
+  const fit = Math.min(byWidth, byHeight)
+  return Number.isFinite(fit) ? fit * FIT_MARGIN : 0
+}
+
 /**
  * Where the camera looks for a route, in world coordinates. Unknown ids fall back a level. In
- * archipelago view a known `anchor` island is centred instead of the middle of the world.
+ * archipelago view a known `anchor` island is centred instead of the middle of the world. With a
+ * `viewport`, island and district zooms fit their area (spec 19.1), never below their floors.
  */
 export function cameraTarget(
   model: SceneModel,
   focus: Focus,
   anchor: string | null = null,
+  viewport?: Viewport,
 ): CameraTarget {
-  const { bounds } = model
-  const overview = {
-    x: (bounds.minX + bounds.maxX) / 2,
-    z: (bounds.minZ + bounds.maxZ) / 2,
-    zoom: ARCHIPELAGO_ZOOM,
-  }
-  if (focus.kind === 'archipelago') {
-    const anchored = model.islands.find((i) => i.projectId === anchor)
+  const level = levelOf(model, focus)
+  if (level.kind === 'archipelago') {
+    const { bounds } = model
+    const anchored =
+      focus.kind === 'archipelago' ? model.islands.find((i) => i.projectId === anchor) : undefined
     return anchored
       ? { x: anchored.origin.x, z: anchored.origin.z, zoom: ARCHIPELAGO_ZOOM }
-      : overview
+      : {
+          x: (bounds.minX + bounds.maxX) / 2,
+          z: (bounds.minZ + bounds.maxZ) / 2,
+          zoom: ARCHIPELAGO_ZOOM,
+        }
   }
-  const island = model.islands.find((i) => i.projectId === focus.projectId)
-  if (!island) return overview
-  const islandTarget = { x: island.origin.x, z: island.origin.z, zoom: ISLAND_ZOOM }
-  if (focus.kind === 'island') return islandTarget
-  const district = island.districts.find((d) => d.milestoneId === focus.milestoneId)
-  if (!district) return islandTarget
+  const fit = fitZoom(focusOutline(model, focus), viewport)
+  if (level.kind === 'island') {
+    return {
+      x: level.island.origin.x,
+      z: level.island.origin.z,
+      zoom: Math.max(ISLAND_ZOOM, fit),
+    }
+  }
   return {
-    x: island.origin.x + district.position.x,
-    z: island.origin.z + district.position.z,
-    zoom: DISTRICT_ZOOM,
+    x: (level.box.minX + level.box.maxX) / 2,
+    z: (level.box.minZ + level.box.maxZ) / 2,
+    zoom: Math.max(DISTRICT_ZOOM, fit),
   }
 }
 
