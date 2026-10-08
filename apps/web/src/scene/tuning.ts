@@ -65,3 +65,46 @@ export const FLOAT_ABOVE_ISLAND = 2.4
 export const QUALITY_MONITOR_BOUNDS: [lower: number, upper: number] = [22, 28]
 /** Real tier changes (high↔low) after which the tier settles on `low` for the page load. */
 export const QUALITY_FLIPFLOPS = 3
+
+// Sea dressing (spec 17).
+/** Sea plane segments per side; fewer segments make bigger facets. */
+export const SEA_SEGMENTS = 96
+/** World units from a shallows edge at which the sea reaches its deepest colour. */
+export const SEA_DEEP_DISTANCE = 18
+/** Side of one scatter cell, in world units; each cell holds at most one prop. */
+export const SCATTER_CELL = 6
+/** Chance that a cell holds a prop. */
+export const SCATTER_FILL = 0.35
+/** Share of each prop type among filled cells; sums to 1. */
+export const SCATTER_WEIGHTS = { rock: 0.4, islet: 0.15, sandbar: 0.25, buoy: 0.2 } as const
+/** Props keep at least this far from any shallows edge. */
+export const SCATTER_CLEARANCE = 2
+/** Props are scattered up to this far outside the islands' bounds. */
+export const SCATTER_EXTENT = 30
+export const SCATTER_MAX_PER_TYPE = 80
+/** Half the width of open water kept clear along a sea route. */
+export const LANE_HALF_WIDTH = 1.5
+/** The shortest open-water lane a boat will sail. */
+export const MIN_LANE = 3
+/** How far outside the shallows a boat sails. */
+export const BOAT_OFFSHORE = 0.8
+/** Fog starts this far past the islands' farthest corner and is solid FOG_DEPTH later. */
+export const FOG_MARGIN = 10
+export const FOG_DEPTH = 60
+/** Corner opacity of the CSS vignette. */
+export const VIGNETTE_ALPHA = 0.25
+/** World units per second. */
+export const BOAT_SPEED = 1.2
+export const GULL_SPEED = 2.5
+export const GULL_HEIGHT = 3.2
+/** Gull circle radius as a share of the island's extent. */
+export const GULL_ORBIT = 0.6
+/** Seconds between whale breaches, chosen per world from this range. */
+export const WHALE_INTERVAL_S: readonly [min: number, max: number] = [25, 40]
+export const WHALE_BREACH_S = 2.4
+/** The whale surfaces at least this far from every shallows edge. */
+export const WHALE_CLEARANCE = 6
+export const FOAM_WIDTH = 0.5
+export const FOAM_OPACITY = 0.45
+export const FOAM_PULSE = 0.15
+export const FOAM_PULSE_S = 4

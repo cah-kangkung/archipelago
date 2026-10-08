@@ -67,7 +67,12 @@ export function WorldContents({
     <>
       <hemisphereLight args={[scenePalette.wall, scenePalette.sea, HEMISPHERE_INTENSITY]} />
       <directionalLight position={[12, 20, 6]} intensity={DIRECTIONAL_INTENSITY} />
-      <Sea bounds={model.bounds} animate={seaWave} onTapSea={() => live.onSelect(null)} />
+      <Sea
+        bounds={model.bounds}
+        islands={model.islands}
+        animate={seaWave}
+        onTapSea={() => live.onSelect(null)}
+      />
       {model.islands.map((island) => (
         <Island
           key={island.projectId}

@@ -12,6 +12,11 @@ export function mix(a: string, b: string, t: number): string {
 export const scenePalette = {
   sea: colors.brand,
   shallows: colors.brandSecondary,
+  seaShallow: mix(colors.brand, colors.brandSecondary, 0.3),
+  seaDeep: mix(colors.brand, colors.textPrimary, 0.35),
+  foam: colors.surfacePrimary,
+  buoy: colors.error,
+  whale: mix(colors.textPrimary, colors.brand, 0.4),
   grass: colors.success,
   meadow: mix(colors.success, colors.surfacePrimary, 0.25),
   shore: mix(colors.warning, colors.surfacePrimary, 0.55),

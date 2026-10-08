@@ -2,23 +2,39 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { seaMaterial } from './materials'
+import { scenePalette } from './model/palette'
 import type { Bounds } from './model/scene-model'
+import { depthShade, type Shore, shoreDistance } from './model/sea-depth'
 import { SEA_LEVEL } from './models/terrain-geometry'
 import { onTap } from './tap'
-import { clampDelta, SEA_WAVE_HEIGHT, SEA_WAVE_SPEED } from './tuning'
+import { clampDelta, SEA_SEGMENTS, SEA_WAVE_HEIGHT, SEA_WAVE_SPEED } from './tuning'
 
 /** Open water beyond the outermost island, in world units: enough to fill a desktop viewport at
  * archipelago zoom. */
 const SEA_MARGIN = 250
-/** Plane segments per side; the margin grew, so this keeps the wave's resolution. */
-const SEA_SEGMENTS = 96
+
+const shallowColor = new THREE.Color(scenePalette.seaShallow)
+const deepColor = new THREE.Color(scenePalette.seaDeep)
+const shade = new THREE.Color()
+
+const shoreKey = (shores: readonly Shore[]) =>
+  shores.map((s) => `${s.origin.x},${s.origin.z},${s.radius}`).join(';')
+
+/** The same array while the layout is unchanged, so a refetch does not recolour the sea. */
+function useStableShores(shores: readonly Shore[]): readonly Shore[] {
+  const ref = useRef(shores)
+  if (shoreKey(ref.current) !== shoreKey(shores)) ref.current = shores
+  return ref.current
+}
 
 export function Sea({
   bounds,
+  islands,
   animate,
   onTapSea,
 }: {
   bounds: Bounds
+  islands: readonly Shore[]
   animate: boolean
   onTapSea: () => void
 }) {
@@ -37,6 +53,20 @@ export function Sea({
   const rest = useMemo(() => Float32Array.from(geometry.getAttribute('position').array), [geometry])
   useEffect(() => () => geometry.dispose(), [geometry])
   const invalidate = useThree((s) => s.invalidate)
+  const shores = useStableShores(islands)
+
+  // Depth gradient (spec 17.1): once per layout, never per frame.
+  useLayoutEffect(() => {
+    const data = new Float32Array(rest.length)
+    for (let i = 0; i < rest.length / 3; i++) {
+      const p = { x: rest[i * 3] ?? 0, z: rest[i * 3 + 2] ?? 0 }
+      shade.lerpColors(shallowColor, deepColor, depthShade(shoreDistance(p, shores)))
+      data.set([shade.r, shade.g, shade.b], i * 3)
+    }
+    geometry.setAttribute('color', new THREE.BufferAttribute(data, 3))
+    invalidate()
+  }, [geometry, rest, shores, invalidate])
+
   // Low tier (or reduced motion): the wave stops flat at sea level; the shallows ring is terrain.
   useLayoutEffect(() => {
     if (animate) return

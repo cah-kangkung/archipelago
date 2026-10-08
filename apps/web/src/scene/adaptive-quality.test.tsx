@@ -41,7 +41,9 @@ describe('adaptive quality', () => {
   })
 
   test('the sea waves on high and lies flat when the wave is turned off', async () => {
-    const sea = (animate: boolean) => <Sea bounds={bounds} animate={animate} onTapSea={() => {}} />
+    const sea = (animate: boolean) => (
+      <Sea bounds={bounds} islands={[]} animate={animate} onTapSea={() => {}} />
+    )
     const r = await ReactThreeTestRenderer.create(sea(true))
     await r.advanceFrames(3, 0.1)
     const mesh = r.scene.findAll((n) => n.props.name === 'sea')[0]?.instance as THREE.Mesh

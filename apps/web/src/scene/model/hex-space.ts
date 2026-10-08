@@ -16,3 +16,11 @@ export function hexToWorld(h: Hex): Point {
 export function islandExtent(radius: number): number {
   return radius * SQRT3 + 1
 }
+
+/** How far the shallows reach past an island's extent. */
+export const SHALLOWS_MARGIN = 1.2
+
+/** World distance from an island's origin to the corner of its shallows. */
+export function shallowsRadius(radius: number): number {
+  return islandExtent(radius) + SHALLOWS_MARGIN
+}

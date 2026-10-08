@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { scenePalette } from './model/palette'
 
 /** Shared by every mesh in the scene; never disposed. */
 export const solidMaterial = new THREE.MeshLambertMaterial({
@@ -19,8 +18,9 @@ export const shadowMaterial = new THREE.MeshBasicMaterial({
   opacity: 0.2,
   depthWrite: false,
 })
+/** White base: the sea's colour is all in its vertex colours (spec 17.1). */
 export const seaMaterial = new THREE.MeshLambertMaterial({
-  color: scenePalette.sea,
+  vertexColors: true,
   flatShading: true,
 })
 

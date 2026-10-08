@@ -77,7 +77,7 @@ export function WorldScene(props: WorldSceneProps) {
       }}
       className="touch-none"
     >
-      <color attach="background" args={[scenePalette.sea]} />
+      <color attach="background" args={[scenePalette.seaDeep]} />
       <WorldContents {...props} rewards={rewards} animate={animate} seaWave={seaWave} />
       <Labels model={props.model} focus={props.focus} />
       <CameraRig
