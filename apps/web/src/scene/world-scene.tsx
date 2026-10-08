@@ -13,6 +13,8 @@ import type { IslandUrgency } from './model/indicators'
 import { scenePalette } from './model/palette'
 import { nextQuality, qualityDpr, START_QUALITY } from './model/quality'
 import type { SceneModel } from './model/scene-model'
+import { PerfProbe } from './perf-probe'
+import type { PerfStore } from './perf-store'
 import { startTicker, tickerWanted } from './ticker'
 import { usePrefersReducedMotion } from './use-reduced-motion'
 import { type Placement, type SceneHandlers, WorldContents } from './world-contents'
@@ -28,6 +30,7 @@ export type WorldSceneProps = SceneHandlers & {
   urgent: readonly IslandUrgency[]
   indicators: IndicatorStore
   rewards: RewardStore
+  perf?: PerfStore | null
 }
 
 function AnimationTicker({ enabled }: { enabled: boolean }) {
@@ -99,6 +102,7 @@ export function WorldScene(props: WorldSceneProps) {
         onSignal={(signal) => setQuality((q) => nextQuality(q, signal))}
       />
       <AnimationTicker enabled={ticking} />
+      {props.perf && <PerfProbe store={props.perf} tier={quality.tier} />}
     </Canvas>
   )
 }

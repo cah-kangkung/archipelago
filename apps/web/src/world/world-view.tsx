@@ -6,11 +6,14 @@ import { createIndicatorStore } from '../scene/indicator-store'
 import { focusKey } from '../scene/model/camera'
 import type { IslandUrgency } from '../scene/model/indicators'
 import { buildSceneModel } from '../scene/model/scene-model'
+import { createPerfStore } from '../scene/perf-store'
 import { hasWebGL } from '../scene/webgl'
 import type { Placement } from '../scene/world-contents'
 import { CardWorld } from './card-world'
 import { EdgeIndicatorLayer } from './edge-indicators'
 import { createLazyWorldScene } from './load-world-scene'
+import { perfEnabled } from './perf-flag'
+import { PerfOverlay } from './perf-overlay'
 import { SceneBoundary } from './scene-boundary'
 import { type IslandSummary, type resolveFocus, urgencyOf } from './selectors'
 import { WorldHud } from './world-hud'
@@ -58,6 +61,8 @@ export function WorldView({
   const rewards = useRewardStore()
   const model = useMemo(() => buildSceneModel(world, today), [world, today])
   const [indicators] = useState(createIndicatorStore)
+  // Without `?perf` nothing is created, sampled or drawn.
+  const [perf] = useState(() => (perfEnabled() ? createPerfStore() : null))
   // Three.js lives in its own chunk. A failed load is cached by `lazy`, so a retry builds a new one.
   const [WorldScene, setWorldScene] = useState(createLazyWorldScene)
   const urgent = useMemo(
@@ -108,6 +113,7 @@ export function WorldView({
               onPickPlot={onPickPlot}
               urgent={urgent}
               indicators={indicators}
+              perf={perf}
               onOpenIsland={openIsland}
               onOpenDistrict={(projectId, milestoneId) =>
                 void navigate({
@@ -119,6 +125,7 @@ export function WorldView({
           </Suspense>
         </div>
         <EdgeIndicatorLayer store={indicators} onOpen={openIsland} />
+        {perf && <PerfOverlay store={perf} />}
         <WorldHud
           resolved={resolved}
           empty={world.projects.length === 0}

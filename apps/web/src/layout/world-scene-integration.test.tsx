@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from 'vitest'
 import type { WorldSceneProps } from '../scene/world-scene'
 import { createFakeApi, fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
 import { renderApp } from '../test/render-app'
+import { resetPerfFlag } from '../world/perf-flag'
 
 // Every anchor the stub scene was ever rendered with, in order.
 const seenAnchors = vi.hoisted((): string[] => [])
@@ -284,5 +285,24 @@ describe('World screen with the 3D scene', () => {
       get.mockRestore()
       set.mockRestore()
     })
+  })
+
+  test('?perf shows the performance overlay; without it there is none', async () => {
+    const { api } = seeded()
+    renderApp({ api, path: '/' })
+    await screen.findByTestId('scene')
+    expect(screen.queryByRole('complementary', { name: 'Performance' })).toBeNull()
+    cleanup()
+    window.history.replaceState(null, '', '/?perf')
+    resetPerfFlag()
+    try {
+      renderApp({ api, path: '/' })
+      const overlay = await screen.findByRole('complementary', { name: 'Performance' })
+      // The stub scene renders no frames, so the overlay is still waiting.
+      expect(overlay).toHaveTextContent('Waiting for frames')
+    } finally {
+      window.history.replaceState(null, '', '/')
+      resetPerfFlag()
+    }
   })
 })
