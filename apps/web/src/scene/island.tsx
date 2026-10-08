@@ -10,7 +10,7 @@ import type { RewardEvent } from '../rewards/reward-store'
 import { CraneJibs } from './crane-jibs'
 import { Landmark } from './landmark'
 import { placementGhostMaterial, plotMaterial, shadowMaterial, solidMaterial } from './materials'
-import { hexToWorld, type Spot } from './model/hex-space'
+import { hexToWorld, type Point, type Spot } from './model/hex-space'
 import { resolvePop } from './model/reward-motion'
 import type { SceneIsland, SceneStructure } from './model/scene-model'
 import { STRUCTURE_KINDS, type StructureKind } from './model/state'
@@ -31,6 +31,9 @@ export function Island({
   island,
   focused,
   pickable,
+  opensIsland,
+  opensDistricts,
+  inLayer,
   selectedTaskId,
   selectedBuildingId,
   placement,
@@ -46,6 +49,12 @@ export function Island({
   focused: boolean
   /** Which structures a tap may select; the rest clear the selection, like terrain. */
   pickable: (s: SceneStructure) => boolean
+  /** A tap on this (unfocused) island opens it; otherwise it only clears, like open sea. */
+  opensIsland: boolean
+  /** A landmark tap opens its district (the island layer only). */
+  opensDistricts: boolean
+  /** Whether a world-space point is inside the current layer (spec 20.4). */
+  inLayer: (p: Point) => boolean
   selectedTaskId: string | null
   selectedBuildingId: string | null
   /** Already filtered to this island by WorldContents. */
@@ -94,10 +103,15 @@ export function Island({
     [island.decorations],
   )
   const heights = useMemo(() => tileHeights(island.tiles), [island.tiles])
+  const world = (p: Point): Point => ({ x: island.origin.x + p.x, z: island.origin.z + p.z })
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `world` reads the origin listed here
+  const livePlots = useMemo(
+    () => placement?.plots.filter((h) => inLayer(world(hexToWorld(h)))) ?? [],
+    [placement?.plots, inLayer, island.origin.x, island.origin.z],
+  )
   const plotPoints = useMemo(
-    (): Spot[] =>
-      placement?.plots.map((h) => ({ ...hexToWorld(h), y: heightAt(heights, h) })) ?? [],
-    [placement?.plots, heights],
+    (): Spot[] => livePlots.map((h) => ({ ...hexToWorld(h), y: heightAt(heights, h) })),
+    [livePlots, heights],
   )
 
   const selected =
@@ -116,7 +130,11 @@ export function Island({
     <group
       name={`island:${island.projectId}`}
       position={[island.origin.x, 0, island.origin.z]}
-      onClick={focused ? undefined : onTap<MouseEvent>(() => onOpenIsland(island.projectId))}
+      onClick={
+        focused
+          ? undefined
+          : onTap<MouseEvent>(() => (opensIsland ? onOpenIsland(island.projectId) : onSelect(null)))
+      }
     >
       <mesh
         name="terrain"
@@ -170,7 +188,9 @@ export function Island({
             focused
               ? (i) => {
                   const d = decorations[i]
-                  if (d) onSelectBuilding(d.buildingId)
+                  if (!d) return
+                  if (inLayer(world(d.position))) onSelectBuilding(d.buildingId)
+                  else onSelect(null)
                 }
               : undefined
           }
@@ -182,7 +202,7 @@ export function Island({
           points={plotPoints}
           material={plotMaterial}
           onPick={(i) => {
-            const plot = placement.plots[i]
+            const plot = livePlots[i]
             if (plot) onPickPlot(plot)
           }}
         />
@@ -204,7 +224,11 @@ export function Island({
         <Landmark
           key={d.milestoneId}
           district={d}
-          onOpen={focused ? () => onOpenDistrict(island.projectId, d.milestoneId) : undefined}
+          onOpen={
+            focused && opensDistricts
+              ? () => onOpenDistrict(island.projectId, d.milestoneId)
+              : undefined
+          }
         />
       ))}
       {selected && (

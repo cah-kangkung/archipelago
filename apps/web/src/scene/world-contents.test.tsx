@@ -213,16 +213,17 @@ describe('WorldContents', () => {
     expect(onSelect.mock.calls).toEqual([[null], [null]])
   })
 
-  test('a landmark tap opens its district; another island’s tap opens that island', async () => {
+  test('a landmark tap opens its district; another island’s tap only clears (spec 20.4)', async () => {
     const { world, beta, gamma, mvp } = seeded()
-    const { renderer, onOpenDistrict, onOpenIsland } = await render(world, {
+    const { renderer, onOpenDistrict, onOpenIsland, onSelect } = await render(world, {
       kind: 'island',
       projectId: beta.id,
     })
     await renderer.fireEvent(one(renderer.scene, `landmark:${mvp.id}`), 'click', { delta: 0 })
     expect(onOpenDistrict).toHaveBeenCalledWith(beta.id, mvp.id)
     await renderer.fireEvent(one(renderer.scene, `island:${gamma.id}`), 'click', { delta: 0 })
-    expect(onOpenIsland).toHaveBeenCalledWith(gamma.id)
+    expect(onOpenIsland).not.toHaveBeenCalled()
+    expect(onSelect).toHaveBeenCalledWith(null)
   })
 
   test('in archipelago view an island tap opens it and structures do not select', async () => {
@@ -470,6 +471,46 @@ describe('decorations and placement', () => {
     expect(r.onSelectBuilding).not.toHaveBeenCalled()
     expect(r.onOpenIsland).not.toHaveBeenCalled()
     expect(r.onOpenDistrict).not.toHaveBeenCalled()
+  })
+
+  test('in a district no landmark opens, and decorations outside it do not select', async () => {
+    const s = decorated()
+    const other = fakeMilestone({
+      projectId: s.beta.id,
+      name: 'Later',
+      districtQ: -5,
+      districtR: 5,
+    })
+    const world = { ...s.world, milestones: [...s.world.milestones, other] }
+    const { renderer, onSelectBuilding, onSelect } = await render(world, {
+      kind: 'district',
+      projectId: s.beta.id,
+      milestoneId: s.mvp.id,
+    })
+    expect(one(renderer.scene, `landmark:${other.id}`).props.onClick).toBeUndefined()
+    expect(one(renderer.scene, `landmark:${s.mvp.id}`).props.onClick).toBeUndefined()
+    // The pine at (0, 1) is far from MVP's district at (5, 0).
+    await renderer.fireEvent(one(renderer.scene, 'pine'), 'click', { instanceId: 0, delta: 0 })
+    expect(onSelectBuilding).not.toHaveBeenCalled()
+    expect(onSelect).toHaveBeenCalledWith(null)
+  })
+
+  test('placing from a district offers only the plots inside it', async () => {
+    const { world, beta, mvp } = decorated()
+    const plots = [
+      { q: 4, r: 0 },
+      { q: -2, r: 1 },
+    ]
+    const { renderer, onPickPlot } = await render(
+      world,
+      { kind: 'district', projectId: beta.id, milestoneId: mvp.id },
+      null,
+      { placement: { projectId: beta.id, plots, ghost: null } },
+    )
+    const glow = one(renderer.scene, 'plot')
+    expect((glow.instance as THREE.InstancedMesh).count).toBe(1)
+    await renderer.fireEvent(glow, 'click', { instanceId: 0, delta: 0 })
+    expect(onPickPlot).toHaveBeenCalledWith({ q: 4, r: 0 })
   })
 
   test('only the island being decorated shows the glow', async () => {

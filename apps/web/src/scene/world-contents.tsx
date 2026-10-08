@@ -1,12 +1,17 @@
 import type { DecorationType, Hex } from '@archipelago/shared'
+import { useCallback } from 'react'
 import type { RewardEvent } from '../rewards/reward-store'
 import type { Focus } from '../world/selectors'
 import { AmbientLifeLayer } from './ambient-life'
 import { EmptySea } from './empty-sea'
 import { Island } from './island'
 import { type AmbientLife, NO_LIFE } from './model/ambient-life'
+import { insideArea } from './model/area'
+import { layerArea } from './model/camera'
+import type { Point } from './model/hex-space'
 import { scenePalette } from './model/palette'
 import type { SceneModel, SceneStructure } from './model/scene-model'
+import { areaKey } from './model/spotlight'
 import { RewardFloats } from './reward-floats'
 import { SceneryLayer } from './scenery'
 import { Sea } from './sea'
@@ -80,6 +85,12 @@ export function WorldContents({
   // In a district only its own structures select; the rest of the island behaves like terrain.
   const pickable = (s: SceneStructure) =>
     focus.kind !== 'district' || s.milestoneId === focus.milestoneId
+  // Outside the current layer nothing answers a tap (spec 20.4). Keyed on the area's value so a
+  // refetch with the same area keeps the same function (Island memoises its live plots on it).
+  const area = layerArea(model, focus)
+  const key = areaKey(area)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the area's value is the key
+  const inLayer = useCallback((p: Point) => !area || insideArea(area, p), [key])
   return (
     <>
       <hemisphereLight args={[scenePalette.wall, scenePalette.sea, HEMISPHERE_INTENSITY]} />
@@ -108,6 +119,9 @@ export function WorldContents({
           island={island}
           focused={island.projectId === focusedId}
           pickable={pickable}
+          opensIsland={focus.kind === 'archipelago'}
+          opensDistricts={focus.kind === 'island'}
+          inLayer={inLayer}
           selectedTaskId={selectedTaskId}
           selectedBuildingId={selectedBuildingId}
           placement={placement?.projectId === island.projectId ? placement : null}
