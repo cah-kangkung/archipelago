@@ -1,10 +1,10 @@
-import { hexDistance } from '@archipelago/shared'
+import { hexDistance, islandRadius } from '@archipelago/shared'
 import { colors } from '@archipelago/ui-tokens'
 import { describe, expect, test } from 'vitest'
 import { hexToWorld, islandExtent, LAND_HEIGHT, SQRT3 } from './hex-space'
 import { mix, scenePalette } from './palette'
 import { mulberry32 } from './random'
-import { islandRadius, islandTerrain } from './terrain'
+import { islandTerrain } from './terrain'
 
 const origin = { q: 0, r: 0 }
 

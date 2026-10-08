@@ -12,6 +12,7 @@ describe('error codes', () => {
       unauthorized: 401,
       not_found: 404,
       conflict: 409,
+      insufficient_supplies: 409,
       validation_failed: 422,
       rate_limited: 429,
       internal: 500,

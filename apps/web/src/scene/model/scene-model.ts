@@ -1,7 +1,13 @@
-import { type Hex, hexScale, type LandmarkType, type WorldDto } from '@archipelago/shared'
+import {
+  type Hex,
+  hexScale,
+  islandRadius,
+  type LandmarkType,
+  type WorldDto,
+} from '@archipelago/shared'
 import { hexToWorld, islandExtent, type Point } from './hex-space'
 import { landmarkFor, type Marker, type StructureKind, structureFor } from './state'
-import { islandRadius, islandTerrain, type TerrainTile } from './terrain'
+import { islandTerrain, type TerrainTile } from './terrain'
 
 export type SceneStructure = {
   taskId: string

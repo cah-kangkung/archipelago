@@ -1,19 +1,11 @@
-import { type Hex, hexDistance, hexRing } from '@archipelago/shared'
+import { type Hex, hexRing, SHORE_RINGS } from '@archipelago/shared'
 import { LAND_HEIGHT } from './hex-space'
 import { mulberry32 } from './random'
 
 export type TerrainTone = 'grass' | 'meadow' | 'shore' | 'rock' | 'plaza'
 export type TerrainTile = { q: number; r: number; height: number; tone: TerrainTone }
 
-export const MIN_ISLAND_RADIUS = 4
-export const SHORE_RINGS = 2
 const ORIGIN: Hex = { q: 0, r: 0 }
-
-/** Rings needed so every occupied hex is flat land with a two-ring shore beyond it. */
-export function islandRadius(occupied: readonly Hex[]): number {
-  const furthest = occupied.reduce((max, h) => Math.max(max, hexDistance(ORIGIN, h)), 0)
-  return Math.max(MIN_ISLAND_RADIUS, furthest + SHORE_RINGS)
-}
 
 /**
  * Hex tiles for an island of `radius` rings. Everything within `radius − 2` is flat land at

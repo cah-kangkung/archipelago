@@ -13,6 +13,7 @@ export const LEDGER_KINDS = [
   'streak_bonus',
   'daily_bonus',
   'purchase',
+  'refund',
   'reversal',
 ] as const
 export type LedgerKind = (typeof LEDGER_KINDS)[number]
