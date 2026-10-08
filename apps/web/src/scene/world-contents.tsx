@@ -1,8 +1,10 @@
 import type { DecorationType, Hex } from '@archipelago/shared'
+import type { RewardEvent } from '../rewards/reward-store'
 import type { Focus } from '../world/selectors'
 import { Island } from './island'
 import { scenePalette } from './model/palette'
 import type { SceneModel, SceneStructure } from './model/scene-model'
+import { RewardFloats } from './reward-floats'
 import { Sea } from './sea'
 import { DIRECTIONAL_INTENSITY, HEMISPHERE_INTENSITY } from './tuning'
 
@@ -28,6 +30,7 @@ export type WorldContentsProps = SceneHandlers & {
   selectedBuildingId: string | null
   placement: Placement | null
   animate: boolean
+  rewards: readonly RewardEvent[]
 }
 
 const ignore = () => {}
@@ -40,6 +43,7 @@ export function WorldContents({
   selectedBuildingId,
   placement,
   animate,
+  rewards,
   ...handlers
 }: WorldContentsProps) {
   // While placing, only a glowing plot answers a tap (spec 15.5).
@@ -71,9 +75,11 @@ export function WorldContents({
           selectedBuildingId={selectedBuildingId}
           placement={placement?.projectId === island.projectId ? placement : null}
           animate={animate}
+          rewards={rewards}
           {...live}
         />
       ))}
+      {animate && <RewardFloats model={model} focus={focus} events={rewards} />}
     </>
   )
 }

@@ -5,17 +5,22 @@ import {
   type Hex,
 } from '@archipelago/shared'
 import { useEffect, useMemo } from 'react'
+import type { RewardEvent } from '../rewards/reward-store'
 import { CraneJibs } from './crane-jibs'
 import { Landmark } from './landmark'
 import { placementGhostMaterial, plotMaterial, shadowMaterial, solidMaterial } from './materials'
 import { hexToWorld, LAND_HEIGHT } from './model/hex-space'
+import { resolvePop } from './model/reward-motion'
 import type { SceneIsland, SceneStructure } from './model/scene-model'
-import { STRUCTURE_KINDS } from './model/state'
+import { STRUCTURE_KINDS, type StructureKind } from './model/state'
 import { ModelInstances } from './model-instances'
 import { modelGeometry } from './models/structures'
 import { islandGeometry } from './models/terrain-geometry'
 import { onTap } from './tap'
 import type { Placement, SceneHandlers } from './world-contents'
+
+/** Only a newly finished building pops; scaffolds and cranes never do. */
+const BUILT: ReadonlySet<StructureKind> = new Set(['hut', 'house', 'workshop'])
 
 /** One rotation step is 60°. */
 const TURN = Math.PI / 3
@@ -28,6 +33,7 @@ export function Island({
   selectedBuildingId,
   placement,
   animate,
+  rewards,
   onSelect,
   onSelectBuilding,
   onPickPlot,
@@ -43,6 +49,7 @@ export function Island({
   /** Already filtered to this island by WorldContents. */
   placement: Placement | null
   animate: boolean
+  rewards: readonly RewardEvent[]
 }) {
   // A refetch builds fresh tiles with the same content; only the seed and radius change them.
   // biome-ignore lint/correctness/useExhaustiveDependencies: seed and radius determine the tiles
@@ -110,7 +117,21 @@ export function Island({
         onClick={focused ? onTap<MouseEvent>(() => onSelect(null)) : undefined}
       />
       {layers.byKind.map(({ kind, structures, points }) => (
-        <ModelInstances key={kind} kind={kind} points={points} onPick={picker(structures)} />
+        <ModelInstances
+          key={kind}
+          kind={kind}
+          points={points}
+          pop={
+            animate && BUILT.has(kind)
+              ? resolvePop(
+                  structures.map((s) => s.taskId),
+                  'task',
+                  rewards,
+                )
+              : undefined
+          }
+          onPick={picker(structures)}
+        />
       ))}
       <ModelInstances
         kind="storm"
@@ -128,6 +149,15 @@ export function Island({
           kind={type}
           points={points}
           turns={turns}
+          pop={
+            animate
+              ? resolvePop(
+                  decorations.map((d) => d.buildingId),
+                  'building',
+                  rewards,
+                )
+              : undefined
+          }
           onPick={
             focused
               ? (i) => {

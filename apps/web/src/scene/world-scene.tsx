@@ -1,5 +1,6 @@
 import { Canvas, useThree } from '@react-three/fiber'
-import { useEffect } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
+import type { RewardStore } from '../rewards/reward-store'
 import type { Focus } from '../world/selectors'
 import { CameraRig, ISO_DISTANCE } from './camera-rig'
 import { Framing } from './framing'
@@ -24,6 +25,7 @@ export type WorldSceneProps = SceneHandlers & {
   anchor: string | null
   urgent: readonly IslandUrgency[]
   indicators: IndicatorStore
+  rewards: RewardStore
 }
 
 function AnimationTicker({ enabled }: { enabled: boolean }) {
@@ -35,6 +37,7 @@ function AnimationTicker({ enabled }: { enabled: boolean }) {
 /** The 3D world. Renders on demand; the ticker adds frames only for sea and crane motion. */
 export function WorldScene(props: WorldSceneProps) {
   const animate = !usePrefersReducedMotion()
+  const rewards = useSyncExternalStore(props.rewards.subscribe, props.rewards.get)
   return (
     <Canvas
       frameloop="demand"
@@ -50,7 +53,7 @@ export function WorldScene(props: WorldSceneProps) {
       className="touch-none"
     >
       <color attach="background" args={[scenePalette.sea]} />
-      <WorldContents {...props} animate={animate} />
+      <WorldContents {...props} rewards={rewards} animate={animate} />
       <Labels model={props.model} focus={props.focus} />
       <CameraRig
         model={props.model}

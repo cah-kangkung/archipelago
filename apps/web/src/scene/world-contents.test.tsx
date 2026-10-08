@@ -2,12 +2,19 @@ import { decorationRotation, type WorldDto } from '@archipelago/shared'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import * as THREE from 'three'
 import { describe, expect, test, vi } from 'vitest'
+import type { RewardEvent } from '../rewards/reward-store'
 import { fakeBuilding, fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
 import { addDays, type Focus } from '../world/selectors'
 import { ghostMaterial, solidMaterial } from './materials'
 import { hexToWorld, LAND_HEIGHT } from './model/hex-space'
 import { buildSceneModel } from './model/scene-model'
+import { ModelInstances } from './model-instances'
 import { WorldContents, type WorldContentsProps } from './world-contents'
+
+vi.mock('@react-three/drei', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@react-three/drei')>()),
+  Html: () => null,
+}))
 
 type Renderer = Awaited<ReturnType<typeof ReactThreeTestRenderer.create>>
 type Node = Renderer['scene']
@@ -94,7 +101,9 @@ async function render(
   world: WorldDto,
   focus: Focus,
   selectedTaskId: string | null = null,
-  extra: Partial<Pick<WorldContentsProps, 'selectedBuildingId' | 'placement'>> = {},
+  extra: Partial<
+    Pick<WorldContentsProps, 'selectedBuildingId' | 'placement' | 'rewards' | 'animate'>
+  > = {},
 ) {
   const h = handlers()
   const renderer = await ReactThreeTestRenderer.create(
@@ -104,7 +113,8 @@ async function render(
       selectedTaskId={selectedTaskId}
       selectedBuildingId={extra.selectedBuildingId ?? null}
       placement={extra.placement ?? null}
-      animate={false}
+      rewards={extra.rewards ?? []}
+      animate={extra.animate ?? false}
       {...h}
     />,
   )
@@ -242,6 +252,7 @@ describe('WorldContents', () => {
       selectedTaskId: null,
       selectedBuildingId: null,
       placement: null,
+      rewards: [],
       animate: false,
       ...handlers(),
     }
@@ -262,6 +273,7 @@ describe('WorldContents', () => {
       selectedTaskId: null,
       selectedBuildingId: null,
       placement: null,
+      rewards: [],
       animate: false,
       ...handlers(),
     }
@@ -393,5 +405,126 @@ describe('decorations and placement', () => {
       placement: { projectId: gamma.id, plots: [{ q: 1, r: -1 }], ghost: null },
     })
     expect(named(one(renderer.scene, `island:${beta.id}`), 'plot')).toHaveLength(0)
+  })
+})
+
+describe('reward effects', () => {
+  const reward = (target: RewardEvent['target'], amounts: number[] = [25]): RewardEvent => ({
+    id: 1,
+    target,
+    amounts,
+    at: 5000,
+  })
+  const scaleOf = (node: Node, index: number) => {
+    const m = new THREE.Matrix4()
+    ;(node.instance as THREE.InstancedMesh).getMatrixAt(index, m)
+    return new THREE.Vector3().setFromMatrixScale(m).y
+  }
+  const shippedOf = (s: ReturnType<typeof seeded>) => {
+    const shipped = s.tasks[2]
+    if (!shipped) throw new Error('no task')
+    return shipped
+  }
+
+  test('a completed structure pops past 1 and settles at 1', async () => {
+    const s = seeded()
+    const { renderer } = await render(s.world, { kind: 'island', projectId: s.beta.id }, null, {
+      animate: true,
+      rewards: [reward({ kind: 'task', id: shippedOf(s).id })],
+    })
+    const hut = one(one(renderer.scene, `island:${s.beta.id}`), 'hut')
+    expect(scaleOf(hut, 0)).toBeCloseTo(0)
+    let peak = 0
+    for (let i = 0; i < 10; i++) {
+      await renderer.advanceFrames(1, 0.05)
+      peak = Math.max(peak, scaleOf(hut, 0))
+    }
+    expect(peak).toBeGreaterThan(1.05)
+    expect(scaleOf(hut, 0)).toBeCloseTo(1)
+  })
+
+  test('a placed decoration pops; its neighbours keep their size', async () => {
+    const s = seeded()
+    const pine = fakeBuilding({ projectId: s.beta.id, type: 'pine', plotX: 0, plotY: 1 })
+    const other = fakeBuilding({ projectId: s.beta.id, type: 'pine', plotX: -1, plotY: 1 })
+    const world = { ...s.world, buildings: [other, pine] }
+    const { renderer } = await render(world, { kind: 'island', projectId: s.beta.id }, null, {
+      animate: true,
+      rewards: [reward({ kind: 'building', id: pine.id }, [])],
+    })
+    const pines = one(one(renderer.scene, `island:${s.beta.id}`), 'pine')
+    expect(scaleOf(pines, 1)).toBeCloseTo(0)
+    expect(scaleOf(pines, 0)).toBeCloseTo(1)
+    await renderer.advanceFrames(10, 0.05)
+    expect(scaleOf(pines, 1)).toBeCloseTo(1)
+    // A pop carries no amounts, so no float.
+    expect(named(renderer.scene, 'float')).toHaveLength(0)
+  })
+
+  test('a lone popped instance is tappable once the pop ends', async () => {
+    const points = [hexToWorld({ q: 0, r: 1 })]
+    const renderer = await ReactThreeTestRenderer.create(
+      <ModelInstances kind="pine" points={points} pop={{ index: 0, startedAt: 1 }} />,
+    )
+    const mesh = one(renderer.scene, 'pine').instance as THREE.InstancedMesh
+    await renderer.advanceFrames(10, 0.05)
+    expect(mesh.boundingSphere?.radius ?? 0).toBeGreaterThan(0)
+  })
+
+  test('a pop index past the instances is ignored', async () => {
+    const points = [hexToWorld({ q: 0, r: 1 }), hexToWorld({ q: 1, r: 0 })]
+    const renderer = await ReactThreeTestRenderer.create(
+      <ModelInstances kind="pine" points={points} pop={{ index: 5, startedAt: 1 }} />,
+    )
+    await renderer.advanceFrames(3, 0.05)
+    const mesh = one(renderer.scene, 'pine')
+    expect(scaleOf(mesh, 0)).toBeCloseTo(1)
+    expect(scaleOf(mesh, 1)).toBeCloseTo(1)
+  })
+
+  test('floats rise above the focused structure, one line per amount, then disappear', async () => {
+    const s = seeded()
+    const shipped = shippedOf(s)
+    const { renderer } = await render(s.world, { kind: 'island', projectId: s.beta.id }, null, {
+      animate: true,
+      rewards: [reward({ kind: 'task', id: shipped.id }, [25, 12])],
+    })
+    const floats = named(renderer.scene, 'float').map((n) => n.instance as THREE.Group)
+    expect(floats).toHaveLength(2)
+    const [first, second] = floats
+    if (!first || !second) throw new Error('no floats')
+    const island = buildSceneModel(s.world, today).islands[0]
+    const at = hexToWorld({ q: shipped.plotX, r: shipped.plotY })
+    expect(first.position.x).toBeCloseTo((island?.origin.x ?? 0) + at.x)
+    expect(first.position.z).toBeCloseTo((island?.origin.z ?? 0) + at.z)
+    const startY = first.position.y
+    await renderer.advanceFrames(1, 0.1)
+    expect(first.visible).toBe(true)
+    expect(first.position.y).toBeGreaterThan(startY)
+    // The second line waits 150ms.
+    expect(second.visible).toBe(false)
+    await renderer.advanceFrames(20, 0.1)
+    expect(first.visible).toBe(false)
+    expect(second.visible).toBe(false)
+  })
+
+  test('a target outside the scene model shows no float', async () => {
+    const s = seeded()
+    const { renderer } = await render(s.world, { kind: 'archipelago' }, null, {
+      animate: true,
+      rewards: [reward({ kind: 'task', id: 'deleted' })],
+    })
+    expect(named(renderer.scene, 'float')).toHaveLength(0)
+  })
+
+  test('reduced motion shows neither the pop nor the float', async () => {
+    const s = seeded()
+    const { renderer } = await render(s.world, { kind: 'island', projectId: s.beta.id }, null, {
+      animate: false,
+      rewards: [reward({ kind: 'task', id: shippedOf(s).id })],
+    })
+    const hut = one(one(renderer.scene, `island:${s.beta.id}`), 'hut')
+    expect(scaleOf(hut, 0)).toBeCloseTo(1)
+    expect(named(renderer.scene, 'float')).toHaveLength(0)
   })
 })

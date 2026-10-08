@@ -1,6 +1,7 @@
 import type { Hex, WorldDto } from '@archipelago/shared'
 import { useNavigate } from '@tanstack/react-router'
 import { Suspense, useMemo, useState } from 'react'
+import { useRewardStore } from '../rewards/reward-context'
 import { createIndicatorStore } from '../scene/indicator-store'
 import { focusKey } from '../scene/model/camera'
 import type { IslandUrgency } from '../scene/model/indicators'
@@ -54,6 +55,7 @@ export function WorldView({
   onOpenShop?: () => void
 }) {
   const navigate = useNavigate()
+  const rewards = useRewardStore()
   const model = useMemo(() => buildSceneModel(world, today), [world, today])
   const [indicators] = useState(createIndicatorStore)
   // Three.js lives in its own chunk. A failed load is cached by `lazy`, so a retry builds a new one.
@@ -93,6 +95,7 @@ export function WorldView({
         <div className="absolute inset-0">
           <Suspense fallback={<p className="p-4 text-text-on-brand">Loading the world…</p>}>
             <WorldScene
+              rewards={rewards}
               model={model}
               focus={resolved.focus}
               selectedTaskId={selectedTaskId}

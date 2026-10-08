@@ -44,3 +44,15 @@ export const MARKER_LOOK = {
 /** The longest step any animation takes in one frame, in seconds (spec 16.4). */
 export const MAX_FRAME_DELTA = 0.1
 export const clampDelta = (delta: number): number => Math.min(delta, MAX_FRAME_DELTA)
+
+// Reward effects (spec 16.2).
+export const POP_MS = 400
+/** Ease-out-back overshoot constant that peaks the pop at 1.15. */
+export const POP_BACK = 2.1645
+export const FLOAT_RISE = 1.2
+export const FLOAT_MS = 1400
+export const FLOAT_STAGGER_MS = 150
+/** Where a float starts, in world units above the land: over a structure, or over an island. */
+export const FLOAT_ABOVE_STRUCTURE = 1.4
+/** Clear of the island name label (drawn at 1.6). */
+export const FLOAT_ABOVE_ISLAND = 2.4
