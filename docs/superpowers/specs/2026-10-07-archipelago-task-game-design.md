@@ -766,7 +766,7 @@ Phase 5c makes the open sea read as a place rather than an empty plane, before P
 ### 17.3 Soft horizon
 
 - **Fog:** a linear `THREE.Fog` in `seaDeep`, which also becomes the scene background, so the sea's far edge dissolves into the background instead of ending at a hard line.
-- The camera's distance changes by an order of magnitude between island and archipelago views, so fixed fog distances cannot work: a `FogRig` sets `near = d × FOG_NEAR` and `far = d × FOG_FAR` from the camera's distance to its target `d` whenever the camera moves (it rides the existing frame loop; it adds no ticker demand).
+- The camera is orthographic at a fixed `ISO_DISTANCE` along (1, 1, 1), so its distance never changes with zoom and a fog keyed on it would do nothing. Instead a `FogRig` sets `near` to the view depth of the farthest corner of the islands' bounds plus `FOG_MARGIN`, and `far = near + FOG_DEPTH`, on every rendered frame (pan moves the depths; it rides the existing frame loop and adds no ticker demand). No island is ever fogged; the sea, scatter and life beyond the archipelago's far edge (the top of the screen) fade into the background.
 - Island labels, floats and edge markers are DOM and are unaffected by fog.
 - **Vignette:** a `pointer-events-none` CSS radial gradient over the canvas (transparent centre, `seaDeep` at about 25% opacity at the corners), under the HUD and sheet. It is absent in the card fallback.
 
@@ -796,7 +796,7 @@ Phase 5c makes the open sea read as a place rather than an empty plane, before P
 
 ### 17.6 Tuning
 
-`scene/tuning.ts` gains a "Sea dressing" block: `SEA_SEGMENTS`, `SEA_DEEP_DISTANCE`, `SCATTER_CELL`, `SCATTER_CLEARANCE`, `SCATTER_EXTENT`, `SCATTER_MAX_PER_TYPE`, scatter type weights and fill probability, `LANE_HALF_WIDTH`, `FOG_NEAR`, `FOG_FAR`, vignette opacity, boat speed, gull radius and speed, whale interval range and `WHALE_CLEARANCE`, foam pulse period.
+`scene/tuning.ts` gains a "Sea dressing" block: `SEA_SEGMENTS`, `SEA_DEEP_DISTANCE`, `SCATTER_CELL`, `SCATTER_CLEARANCE`, `SCATTER_EXTENT`, `SCATTER_MAX_PER_TYPE`, scatter type weights and fill probability, `LANE_HALF_WIDTH`, `FOG_MARGIN`, `FOG_DEPTH`, vignette opacity, boat speed, gull radius and speed, whale interval range and `WHALE_CLEARANCE`, foam pulse period.
 
 ### 17.7 Testing
 
@@ -804,6 +804,6 @@ Phase 5c makes the open sea read as a place rather than an empty plane, before P
   - Sea dressing: scatter is deterministic for a world; adding an island never moves a prop in a cell it does not cover; no prop lies within the clearance of any shallows or in a lane; the depth gradient is darkest far from land and lightest at the shallows.
   - Ambient life: boats at 0, 1–3, 4–6 and >12 completions in 7 days (cap 4); a completion older than 7 days does not count; a lone island gives a loop; gulls only on islands with a completion in 24h, at most 3, most recent first; the whale only when `activeToday` and clear of every island; the same world at a later `now` in the same windows gives identical data; one extra completion leaves existing boats unchanged.
   - `tickerWanted`: cases for `life`.
-- **Scene graph** (test renderer, `advanceFrames`): the sea material is flat-shaded with vertex colours; fog is set and its distances follow the camera; one instanced mesh per scatter type with the expected count; on `high` boat and gull instance matrices change across frames; on `low` and under reduced motion they do not, and the whale and foam pulse are absent; sea and life on `high` start one ticker, not two.
+- **Scene graph** (test renderer, `advanceFrames`): the sea material is flat-shaded with vertex colours; fog is set, and its near distance clears every island's far corner after a pan; one instanced mesh per scatter type with the expected count; on `high` boat and gull instance matrices change across frames; on `low` and under reduced motion they do not, and the whale and foam pulse are absent; sea and life on `high` start one ticker, not two.
 - **App** (RTL): zero projects renders the "Uncharted waters" card and its button opens the new-island editor; creating the first island removes the ghost and frames the island; the card fallback shows the same heading and button; the vignette renders over the canvas only.
 - **Manual (exit criterion):** the owner's `?perf` reading on their phone while panning, on both tiers: draw calls at most 12 above the 5b baseline and no tier drop on `high` attributable to 5c. Constants are tuned from those readings.
