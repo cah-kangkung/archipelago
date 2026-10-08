@@ -1,9 +1,10 @@
 import { emptyEconomy, type WorldDto } from '@archipelago/shared'
 import { describe, expect, test } from 'vitest'
-import { fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
+import { fakeBuilding, fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
 import {
   addDays,
   dueStatus,
+  islandOccupied,
   islandSummaries,
   panelTasks,
   parentPath,
@@ -154,5 +155,25 @@ describe('resolveFocus and parentPath', () => {
     expect(parentPath({ kind: 'archipelago' })).toBeNull()
     expect(parentPath({ kind: 'island', projectId: 'p1' })).toBe('/')
     expect(parentPath({ kind: 'district', projectId: 'p1', milestoneId: 'm1' })).toBe('/p/p1')
+  })
+})
+
+describe('islandOccupied', () => {
+  test('collects task plots, district centres and decoration plots of one island', () => {
+    const beta = fakeProject()
+    const other = fakeProject()
+    const world = {
+      tasks: [
+        fakeTask({ projectId: beta.id, plotX: 1, plotY: 0 }),
+        fakeTask({ projectId: other.id, plotX: 2, plotY: 0 }),
+      ],
+      milestones: [fakeMilestone({ projectId: beta.id, districtQ: 5, districtR: 0 })],
+      buildings: [fakeBuilding({ projectId: beta.id, plotX: 0, plotY: 1 })],
+    }
+    expect(islandOccupied(world, beta.id)).toEqual([
+      { q: 1, r: 0 },
+      { q: 5, r: 0 },
+      { q: 0, r: 1 },
+    ])
   })
 })

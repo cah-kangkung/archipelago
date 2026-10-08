@@ -1,8 +1,11 @@
 import {
   type AuthUserDto,
+  type BuildingDto,
   type CompleteTaskResultDto,
   DAILY_BONUS,
+  decorationRotation,
   economySnapshot,
+  isPlaceable,
   type LedgerKind,
   localDate,
   type MilestoneDto,
@@ -10,11 +13,14 @@ import {
   type ProjectDto,
   type ReopenTaskResultDto,
   type RewardDto,
+  refundFor,
+  shopItem,
   type TaskDto,
   taskReward,
   type WorldDto,
 } from '@archipelago/shared'
 import { type Api, ApiError } from '../api/api'
+import { islandOccupied } from '../world/selectors'
 
 export type WorldSeed = Omit<WorldDto, 'economy'>
 export type FakeEntry = {
@@ -66,6 +72,17 @@ export const fakeMilestone = (overrides: Partial<MilestoneDto> = {}): MilestoneD
   districtR: 0,
   completedAt: null,
   createdAt: stamp,
+  ...overrides,
+})
+
+export const fakeBuilding = (overrides: Partial<BuildingDto> = {}): BuildingDto => ({
+  id: nextId(),
+  projectId: nextId(),
+  type: 'pine',
+  plotX: 0,
+  plotY: 1,
+  rotation: 0,
+  placedAt: stamp,
   ...overrides,
 })
 
@@ -222,6 +239,7 @@ export function createFakeApi(seed: Partial<FakeState> = {}) {
       state.world.projects = state.world.projects.filter((p) => p.id !== id)
       state.world.milestones = state.world.milestones.filter((m) => m.projectId !== id)
       state.world.tasks = state.world.tasks.filter((t) => t.projectId !== id)
+      state.world.buildings = state.world.buildings.filter((b) => b.projectId !== id)
     },
     createMilestone: async (projectId, input) => {
       authed('createMilestone')
@@ -324,6 +342,68 @@ export function createFakeApi(seed: Partial<FakeState> = {}) {
       const open = replaceTask({ ...task, status: 'todo', completedAt: null })
       const milestoneReopened = syncMilestone(open.milestoneId) === 'reopened'
       return { task: open, milestoneReopened, reversals: reverseTask(id), balance: balance() }
+    },
+    placeBuilding: async (input) => {
+      authed('placeBuilding')
+      const project = state.world.projects.find(
+        (p) => p.id === input.projectId && p.archivedAt === null,
+      )
+      if (!project) throw new ApiError(404, 'not_found', 'Project not found')
+      const item = shopItem(input.type)
+      if (!item) {
+        throw new ApiError(422, 'validation_failed', 'Request body is invalid', {
+          type: ['Unknown decoration'],
+        })
+      }
+      const plot = { q: input.plotX, r: input.plotY }
+      const occupied = islandOccupied(state.world, project.id)
+      if (occupied.some((h) => h.q === plot.q && h.r === plot.r)) {
+        throw new ApiError(409, 'conflict', 'That plot is taken')
+      }
+      if (!isPlaceable(occupied, plot)) {
+        throw new ApiError(422, 'validation_failed', 'Request body is invalid', {
+          plot: ['Plot is not free land on this island'],
+        })
+      }
+      if (balance() < 0) throw new ApiError(409, 'insufficient_supplies', 'Balance is negative')
+      if (balance() < item.price) {
+        throw new ApiError(409, 'insufficient_supplies', 'Not enough Supplies')
+      }
+      const building = fakeBuilding({
+        projectId: project.id,
+        type: item.type,
+        plotX: plot.q,
+        plotY: plot.r,
+        rotation: decorationRotation(plot),
+      })
+      state.world.buildings.push(building)
+      state.ledger.push({
+        kind: 'purchase',
+        amount: -item.price,
+        day: state.today,
+        taskId: null,
+        milestoneId: null,
+        live: true,
+      })
+      return { building: { ...building }, balance: balance() }
+    },
+    removeBuilding: async (id) => {
+      authed('removeBuilding')
+      const building = state.world.buildings.find((b) => b.id === id)
+      if (!building) throw new ApiError(404, 'not_found', 'Building not found')
+      state.world.buildings = state.world.buildings.filter((b) => b.id !== id)
+      const refund = refundFor(shopItem(building.type)?.price ?? 0)
+      if (refund > 0) {
+        state.ledger.push({
+          kind: 'refund',
+          amount: refund,
+          day: state.today,
+          taskId: null,
+          milestoneId: null,
+          live: true,
+        })
+      }
+      return { refund, balance: balance() }
     },
     economy: async () => {
       authed('economy')

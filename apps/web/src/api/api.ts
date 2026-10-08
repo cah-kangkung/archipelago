@@ -9,7 +9,10 @@ import type {
   ErrorCode,
   LoginInput,
   MilestoneDto,
+  PlaceBuildingInput,
+  PlaceBuildingResultDto,
   ProjectDto,
+  RemoveBuildingResultDto,
   ReopenTaskResultDto,
   RewardDto,
   TaskDto,
@@ -91,6 +94,11 @@ export function createApi(client: Client) {
       unwrap<CompleteTaskResultDto>(await v1.tasks[':id'].complete.$post({ param: { id } })),
     reopenTask: async (id: string) =>
       unwrap<ReopenTaskResultDto>(await v1.tasks[':id'].reopen.$post({ param: { id } })),
+
+    placeBuilding: async (input: PlaceBuildingInput) =>
+      unwrap<PlaceBuildingResultDto>(await v1.buildings.$post({ json: input })),
+    removeBuilding: async (id: string) =>
+      unwrap<RemoveBuildingResultDto>(await v1.buildings[':id'].$delete({ param: { id } })),
   }
 }
 

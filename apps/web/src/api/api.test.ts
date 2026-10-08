@@ -107,4 +107,36 @@ describe('createApi', () => {
     expect(requests[0]?.method).toBe('POST')
     expect(requests[0]?.url).toBe('http://test/api/v1/economy/daily-claim')
   })
+
+  test('placeBuilding() POSTs JSON to /api/v1/buildings', async () => {
+    const { api, requests } = harness(() => json({ building: { id: 'b1' }, balance: 10 }, 201))
+    const input = {
+      projectId: '7f9c2e1a-3b4d-4c5e-8f6a-1b2c3d4e5f60',
+      type: 'pine' as const,
+      plotX: 1,
+      plotY: 0,
+    }
+    expect(await api.placeBuilding(input)).toEqual({ building: { id: 'b1' }, balance: 10 })
+    expect(requests[0]?.method).toBe('POST')
+    expect(requests[0]?.url).toBe('http://test/api/v1/buildings')
+    expect(await requests[0]?.json()).toEqual(input)
+  })
+
+  test('removeBuilding() DELETEs /api/v1/buildings/:id', async () => {
+    const { api, requests } = harness(() => json({ refund: 15, balance: 25 }))
+    expect(await api.removeBuilding('b1')).toEqual({ refund: 15, balance: 25 })
+    expect(requests[0]?.method).toBe('DELETE')
+    expect(requests[0]?.url).toBe('http://test/api/v1/buildings/b1')
+  })
+
+  test('an insufficient_supplies error keeps its code', async () => {
+    const { api } = harness(() =>
+      json({ error: { code: 'insufficient_supplies', message: 'Not enough Supplies' } }, 409),
+    )
+    await expect(api.removeBuilding('b1')).rejects.toMatchObject({
+      status: 409,
+      code: 'insufficient_supplies',
+      message: 'Not enough Supplies',
+    })
+  })
 })

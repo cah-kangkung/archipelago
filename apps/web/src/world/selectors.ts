@@ -1,4 +1,5 @@
 import {
+  type Hex,
   localDate,
   type MilestoneDto,
   type ProjectDto,
@@ -115,4 +116,22 @@ export function urgencyOf(summary: Pick<IslandSummary, 'overdue' | 'dueSoon'>): 
   if (summary.overdue > 0) return 'overdue'
   if (summary.dueSoon > 0) return 'due-soon'
   return 'none'
+}
+
+/** Everything standing on one island: task plots, district centres, then decoration plots. */
+export function islandOccupied(
+  world: Pick<WorldDto, 'tasks' | 'milestones' | 'buildings'>,
+  projectId: string,
+): Hex[] {
+  return [
+    ...world.tasks
+      .filter((t) => t.projectId === projectId)
+      .map((t) => ({ q: t.plotX, r: t.plotY })),
+    ...world.milestones
+      .filter((m) => m.projectId === projectId)
+      .map((m) => ({ q: m.districtQ, r: m.districtR })),
+    ...world.buildings
+      .filter((b) => b.projectId === projectId)
+      .map((b) => ({ q: b.plotX, r: b.plotY })),
+  ]
 }
