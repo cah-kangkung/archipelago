@@ -97,6 +97,9 @@ export function WorldContents({
         lowTier={lowTier}
         animate={seaWave}
         onGrowth={onGrowth}
+        hidden={
+          placement?.ghost ? { projectId: placement.projectId, hex: placement.ghost.plot } : null
+        }
       />
       {model.islands.length === 0 && <EmptySea onCreate={onNewProject} />}
       {model.islands.map((island) => (

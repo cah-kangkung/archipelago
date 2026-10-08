@@ -826,11 +826,11 @@ Thresholds live in `scene/tuning.ts` (`GROWTH_THRESHOLDS = [3, 8, 15, 30]`). Gro
 
 ### 18.2 Growth model (`scene/model/island-growth.ts`, pure)
 
-`islandGrowth({ seed, radius, stage, occupied, paths })` returns plain data, no three.js:
+`islandGrowth({ seed, radius, stage, tiles, occupied, paths })` returns plain data, no three.js:
 
-- **Growth order:** every hex of the island that is not the commons centre gets a fixed rank in [0, 1) from an integer hash of `(seed, q, r)` (`hashInts`, section 17.2's family). A hex is revealed when its rank is below its stage's fill (below), so a higher stage only adds pieces: every piece at stage N is unchanged (type, offset, turn, scale) at stage N+1.
+- **Growth order:** every hex of the island that is not the commons centre gets a fixed rank in [0, 1) from its own salted integer hash of `(seed, q, r)` (`hashInts` with `RANK_SALT`, section 17.2's family), independent of the hill noise's lattice hash. A hex is revealed when its rank is below its stage's fill (below), so a higher stage only adds pieces: every piece at stage N is unchanged (type, offset, turn, scale) at stage N+1.
 - **Fill:** at stage `s` about `GROWTH_FILL[s]` of the free interior hexes are revealed (`[0.05, 0.2, 0.4, 0.6, 0.75]`). Shore hexes (the outer `SHORE_RINGS`, never plots) fill at half that share. Each hex decides alone, so the share is statistical, not exact.
-- **Exclusions:** no scenery on an occupied hex (a task's plot or a decoration's plot), a path hex or the dock hex (18.4), or the commons centre. Occupying a hex hides only that hex's scenery; the rank of every other hex is unchanged.
+- **Exclusions:** no scenery on an occupied hex (a task's plot or a decoration's plot), a path hex or the dock hex (18.4), or the commons centre. The dock hex is kept free of scenery at every stage, although the dock itself appears only from stage 2, so the dock never lands on a hex scenery already grew on. Occupying a hex hides only that hex's scenery; the rank of every other hex is unchanged.
 - **Clusters:** a revealed hex holds 1–3 pieces at seeded offsets within `0.55` of the hex centre, each with a seeded turn at any angle and a scale in `[0.8, 1.2]`.
 - **Types by place:** interior hexes draw from `tree`, `flowers`, `grass`; interior hexes adjacent to the shore draw from `bush`, `rock`; shore hexes draw from `rock`, `reeds`, `driftwood`. Weights in tuning.
 - **Shop distinction:** scenery is smaller than decorations (tree canopy at most 0.6 of the shop pine's height), muted (`scenePalette` scenery tokens, darker and less saturated than the decoration colours) and clustered, so the shop's single-standing pine and palm still read as purchases.
@@ -852,7 +852,8 @@ Thresholds live in `scene/tuning.ts` (`GROWTH_THRESHOLDS = [3, 8, 15, 30]`). Gro
 
 ### 18.5 Scene model and rendering
 
-- `SceneIsland` gains `stage: number`, `scenery: SceneryPiece[]` (`{ type, position: Spot, turn, scale, rank }`) and `dock: { position: Spot, turn } | null`.
+- `SceneIsland` gains `stage: number`, `paths: Hex[]`, `scenery: SceneryPiece[]` (`{ id, type, position: Spot, turn, scale, low }`, `id` being `q,r:k` for the hex and the piece's index in its cluster) and `dock: { position: Spot, turn } | null`.
+- **Placement ghost:** while placing a decoration, the scenery on the ghost's plot is hidden (`SceneryLayer`'s `hidden` prop), since a purchase clears that plot (plots win, 18.2). Hiding is applied when items are built, not to the stable key, so it never counts as a stage change and nothing grows in when the ghost moves away.
 - **Terrain:** hills, tones and paths are baked into each island's existing terrain mesh (tile heights and vertex colours), adding no draw call. The terrain geometry memo keys on seed, radius, stage and the path set, not on the island object.
 - **Scenery layer** (`scene/scenery.tsx`): one instanced mesh per scenery type across the whole archipelago (7 types), plus one for docks: 8 draw calls however many islands exist. Positions are world-space (island origin plus local spot). The layer is not tappable (`raycast` disabled), so a tap reaches the terrain or island beneath. It rebuilds only when some island's growth inputs change (the stable-key pattern of `use-stable-shores.ts`), not on every refetch.
 - **Grow-in:** when an island's stage rises while the scene is mounted, the newly revealed pieces scale from 0 to their scale over `GROW_IN_MS` (600) with an ease-out. Only on `high` with motion allowed; `TickerDemand` gains `growth`, true only while a grow-in runs. Otherwise new pieces simply appear. A first mount never grows in.

@@ -1,3 +1,4 @@
+import { type Hex, hexKey } from '@archipelago/shared'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
@@ -26,7 +27,12 @@ const sceneryKey = (islands: readonly SceneIsland[]) =>
     })
     .join(';')
 
-function itemsOf(islands: readonly SceneIsland[], kind: SceneryKind, lowTier: boolean): Item[] {
+function itemsOf(
+  islands: readonly SceneIsland[],
+  kind: SceneryKind,
+  lowTier: boolean,
+  hidden: { projectId: string; hex: string } | null,
+): Item[] {
   return islands.flatMap((island): Item[] => {
     const at = (p: Spot): Spot => ({
       x: island.origin.x + p.x,
@@ -47,6 +53,7 @@ function itemsOf(islands: readonly SceneIsland[], kind: SceneryKind, lowTier: bo
     }
     return island.scenery
       .filter((p) => p.type === kind && (!lowTier || p.low))
+      .filter((p) => !(hidden?.projectId === island.projectId && p.id.split(':')[0] === hidden.hex))
       .map((p) => ({
         id: `${island.projectId}:${p.id}`,
         position: at(p.position),
@@ -66,6 +73,7 @@ export function SceneryLayer({
   lowTier,
   animate,
   onGrowth,
+  hidden = null,
 }: {
   islands: readonly SceneIsland[]
   lowTier: boolean
@@ -73,12 +81,16 @@ export function SceneryLayer({
   animate: boolean
   /** Reports a grow-in starting and ending, for the ticker. */
   onGrowth?: (running: boolean) => void
+  /** A plot whose pieces are left out (under the placement ghost); not a stage change. */
+  hidden?: { projectId: string; hex: Hex } | null
 }) {
   const stable = useStableShores(islands, sceneryKey)
-  const byKind = useMemo(
-    () => SCENERY_KINDS.map((kind) => ({ kind, items: itemsOf(stable, kind, lowTier) })),
-    [stable, lowTier],
-  )
+  const hiddenProject = hidden?.projectId
+  const hiddenHex = hidden ? hexKey(hidden.hex) : null
+  const byKind = useMemo(() => {
+    const skip = hiddenProject && hiddenHex ? { projectId: hiddenProject, hex: hiddenHex } : null
+    return SCENERY_KINDS.map((kind) => ({ kind, items: itemsOf(stable, kind, lowTier, skip) }))
+  }, [stable, lowTier, hiddenProject, hiddenHex])
   const meshes = useRef(new Map<SceneryKind, THREE.InstancedMesh>())
   const invalidate = useThree((s) => s.invalidate)
 

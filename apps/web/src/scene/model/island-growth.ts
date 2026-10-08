@@ -43,6 +43,7 @@ const UNIT = 4294967296
 const CLUSTER_SALT = 1
 const LOW_SALT = 2
 const DOCK_SALT = 3
+const RANK_SALT = 4
 
 /** Path hexes: the hex line from the commons centre to each district, ends excluded. */
 export function pathHexes(districts: readonly Hex[]): Hex[] {
@@ -109,7 +110,7 @@ export function islandGrowth({
     const ring = hexDistance(COMMONS_CENTER, tile)
     const zone = ring > edge ? 'shore' : ring === edge ? 'edge' : 'inland'
     const fill = GROWTH_FILL[stage] * (zone === 'shore' ? SHORE_FILL : 1)
-    if (hashInts(seed, tile.q, tile.r) / UNIT >= fill) continue
+    if (hashInts(seed, tile.q, tile.r, RANK_SALT) / UNIT >= fill) continue
     const random = mulberry32(hashInts(seed, tile.q, tile.r, CLUSTER_SALT))
     const type = pick<SceneryType>(SCENERY_WEIGHTS[zone], random())
     const count = 1 + Math.floor(random() * 3)

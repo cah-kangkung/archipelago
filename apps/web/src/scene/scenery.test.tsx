@@ -111,8 +111,13 @@ describe('SceneryLayer', () => {
   test('a refetch with the same content leaves the matrices alone; a new stage rewrites them', async () => {
     const r = await make(modelWith(8))
     const before = versions(r)
+    const instances = meshes(r).map((n) => n.instance)
     await r.update(<SceneryLayer islands={modelWith(8).islands} lowTier={false} animate={false} />)
     expect(versions(r)).toEqual(before)
+    // A remount would also land on version 1, so the very same objects must survive.
+    const after = meshes(r).map((n) => n.instance)
+    expect(after).toHaveLength(instances.length)
+    for (const [i, instance] of after.entries()) expect(instance).toBe(instances[i])
     await r.update(<SceneryLayer islands={modelWith(15).islands} lowTier={false} animate={false} />)
     expect(versions(r)).not.toEqual(before)
   })
@@ -139,6 +144,25 @@ describe('SceneryLayer grow-in', () => {
   /** Every non-dock piece; with few tasks finished the plots leave few free inland hexes. */
   const pieces = (r: Renderer) =>
     SCENERY_KINDS.filter((k) => k !== 'dock').reduce((sum, k) => sum + countOf(r, k), 0)
+  /** Instance scale per piece id (`project:q,r:k`), non-dock kinds, in the layer's draw order. */
+  function scaleById(r: Renderer, model: SceneModel): Map<string, number> {
+    const out = new Map<string, number>()
+    const m = new THREE.Matrix4()
+    const s = new THREE.Vector3()
+    for (const kind of SCENERY_KINDS.filter((k) => k !== 'dock')) {
+      const mesh = meshes(r).find((n) => n.props.name === `scenery:${kind}`)?.instance as
+        | THREE.InstancedMesh
+        | undefined
+      const ids = model.islands.flatMap((i) =>
+        i.scenery.filter((p) => p.type === kind).map((p) => `${i.projectId}:${p.id}`),
+      )
+      ids.forEach((id, i) => {
+        mesh?.getMatrixAt(i, m)
+        out.set(id, s.setFromMatrixScale(m).x)
+      })
+    }
+    return out
+  }
   const FULL = 0.79 // just under the smallest piece scale (0.8)
   const frames = Math.ceil(GROW_IN_MS / 100) + 2
 
@@ -155,6 +179,18 @@ describe('SceneryLayer grow-in', () => {
     await r.update(layer(modelWith(15), true, onGrowth))
     expect(onGrowth).toHaveBeenLastCalledWith(true)
     expect(smallest(r)).toBeLessThan(0.01)
+    // Only the newly revealed pieces grow; what was already standing is not regrown.
+    const small = modelWith(8)
+    const old = new Set(
+      small.islands.flatMap((i) => i.scenery.map((p) => `${i.projectId}:${p.id}`)),
+    )
+    const scales = scaleById(r, modelWith(15))
+    const kept = [...scales].filter(([id]) => old.has(id))
+    const added = [...scales].filter(([id]) => !old.has(id))
+    expect(kept.length).toBeGreaterThan(0)
+    expect(added.length).toBeGreaterThan(0)
+    for (const [, scale] of kept) expect(scale).toBeGreaterThan(FULL)
+    for (const [, scale] of added) expect(scale).toBeLessThan(0.01)
     await r.advanceFrames(1, 0.1) // the first frame only starts the clock
     await r.advanceFrames(2, 0.1)
     const mid = smallest(r)
@@ -203,5 +239,38 @@ describe('SceneryLayer grow-in', () => {
     await r.update(layer(modelWith(15), true, onGrowth))
     await r.unmount()
     expect(onGrowth).toHaveBeenLastCalledWith(false)
+  })
+})
+
+describe('SceneryLayer hidden plot', () => {
+  const hexOf = (id: string) => id.split(':')[0] ?? ''
+  const total = (r: Renderer) => SCENERY_KINDS.reduce((sum, k) => sum + countOf(r, k), 0)
+
+  test('hides the pieces on that plot only, and clearing it brings them back without a grow-in', async () => {
+    const model = modelWith(15)
+    const island = model.islands[0]
+    const piece = island?.scenery[0]
+    if (!island || !piece) throw new Error('no scenery')
+    const key = hexOf(piece.id)
+    const gone = island.scenery.filter((p) => hexOf(p.id) === key).length
+    expect(gone).toBeGreaterThan(0)
+    const onGrowth = vi.fn()
+    const layer = (hidden: { projectId: string; hex: { q: number; r: number } } | null) => (
+      <SceneryLayer
+        islands={model.islands}
+        lowTier={false}
+        animate={true}
+        onGrowth={onGrowth}
+        hidden={hidden}
+      />
+    )
+    const [q = 0, rr = 0] = key.split(',').map(Number)
+    const r = await ReactThreeTestRenderer.create(layer(null))
+    const all = total(r)
+    await r.update(layer({ projectId: island.projectId, hex: { q, r: rr } }))
+    expect(total(r)).toBe(all - gone)
+    await r.update(layer(null))
+    expect(total(r)).toBe(all)
+    expect(onGrowth).not.toHaveBeenCalled()
   })
 })
