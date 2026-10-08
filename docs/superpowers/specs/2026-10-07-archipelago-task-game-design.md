@@ -973,9 +973,11 @@ Phase 5f finishes the "each layer is a room" idea of section 19. Entering an isl
 
 ### 20.3 Spotlight
 
-- Shared spotlight uniforms: the area's box (`vec4`), its `round`, a feather width and a strength 0..1. The shared scene materials (`solidMaterial`, `seaMaterial`, `shadowMaterial`, `foamMaterial`, `splashMaterial`, `plotMaterial`, the ghost materials) are patched once (`onBeforeCompile`) to pass the world x/z to the fragment shader and, after the fog (so fogged sea dims too) and outside the area, mix the colour toward its own grey (`SPOTLIGHT_DESATURATE` 0.8) and darken it (`SPOTLIGHT_DIM` to 0.55 brightness), with a smoothstep edge `SPOTLIGHT_FEATHER` wide (one hex, `SQRT3`), all scaled by the strength. Instanced meshes use their instance matrix. No new draw calls, no per-object work.
-- The clear colour (seen past the sea mesh) dims with the sea: `dimHex(seaDeep, strength)`, the shader's maths in sRGB, so no bright seam shows at the world's edge.
-- District labels whose anchor is outside the area fade to `SPOTLIGHT_LABEL_OPACITY` (0.4). Edge markers (the HUD's shortcut to other urgent islands) and reward floats are unchanged.
+Amended 2026-10-09: the grey-and-darken look was too strong; the haze replaced it.
+
+- Shared spotlight uniforms: the area's box (`vec4`), its `round`, a feather width and a strength 0..1. The shared scene materials (`solidMaterial`, `seaMaterial`, `shadowMaterial`, `foamMaterial`, `splashMaterial`, `plotMaterial`, the ghost materials) are patched once (`onBeforeCompile`) to pass the world x/z to the fragment shader and, after the fog (so fogged sea hazes too) and outside the area, blend the colour toward `scenePalette.sea` by `SPOTLIGHT_HAZE` (0.6), with a smoothstep edge `SPOTLIGHT_FEATHER` wide (two hexes, `2 × SQRT3`), all scaled by the strength. Instanced meshes use their instance matrix. No new draw calls, no per-object work.
+- The clear colour (seen past the sea mesh) hazes with the sea: `hazeHex(seaDeep, strength)`, the shader's maths in sRGB, so no bright seam shows at the world's edge.
+- District labels whose anchor is outside the area fade to `SPOTLIGHT_LABEL_OPACITY` (0.6). Edge markers (the HUD's shortcut to other urgent islands) and reward floats are unchanged.
 - Transitions over `SPOTLIGHT_MS` (300), eased:
   - Archipelago → island or district: the area is set, the strength goes 0 → 1.
   - Island ↔ island, island ↔ district: the strength stays 1 and the area's box and `round` interpolate from the old shape to the new.
