@@ -8,9 +8,17 @@ import {
   type WorldDto,
 } from '@archipelago/shared'
 import { islandOccupied } from '../../world/selectors'
-import { hexToWorld, islandExtent, type Point } from './hex-space'
+import { hexToWorld, islandExtent, type Point, type Spot } from './hex-space'
+import { type Dock, islandGrowth, pathHexes, type SceneryPiece } from './island-growth'
 import { landmarkFor, type Marker, type StructureKind, structureFor } from './state'
-import { islandTerrain, type TerrainTile } from './terrain'
+import {
+  heightAt,
+  islandTerrain,
+  type Stage,
+  stageFor,
+  type TerrainTile,
+  tileHeights,
+} from './terrain'
 
 export type SceneStructure = {
   taskId: string
@@ -18,19 +26,19 @@ export type SceneStructure = {
   milestoneId: string | null
   kind: StructureKind
   marker: Marker
-  position: Point
+  position: Spot
 }
 export type SceneDistrict = {
   milestoneId: string
   name: string
   type: LandmarkType
   progress: number
-  position: Point
+  position: Spot
 }
 export type SceneDecoration = {
   buildingId: string
   type: DecorationType
-  position: Point
+  position: Spot
   /** 60° steps, 0…5. */
   rotation: number
 }
@@ -44,6 +52,12 @@ export type SceneIsland = {
   origin: Point
   radius: number
   tiles: TerrainTile[]
+  /** Growth stage from the island's finished tasks (spec 18.1). */
+  stage: Stage
+  /** Hexes of the paths to districts with a finished task (spec 18.4). */
+  paths: Hex[]
+  scenery: SceneryPiece[]
+  dock: Dock | null
   districts: SceneDistrict[]
   structures: SceneStructure[]
   decorations: SceneDecoration[]
@@ -63,50 +77,77 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
       .sort((a, b) => a.sortOrder - b.sortOrder)
     const tasks = world.tasks.filter((t) => t.projectId === project.id)
     const buildings = world.buildings.filter((b) => b.projectId === project.id)
-    const radius = islandRadius(islandOccupied(world, project.id))
-    return { project, milestones, tasks, buildings, radius }
+    const occupied = islandOccupied(world, project.id)
+    const radius = islandRadius(occupied)
+    const stage = stageFor(tasks.filter((t) => t.status === 'done').length)
+    const paths = pathHexes(
+      milestones
+        .filter((m) => tasks.some((t) => t.milestoneId === m.id && t.status === 'done'))
+        .map((m) => ({ q: m.districtQ, r: m.districtR })),
+    )
+    const tiles = islandTerrain(project.islandSeed, radius, stage, paths)
+    return { project, milestones, tasks, buildings, occupied, radius, stage, paths, tiles }
   })
   // Slots are one hex apart; scaling them by the largest island's diameter plus a gap means no
   // two islands can touch, however big one grows.
   const largest = prepared.reduce((max, p) => Math.max(max, p.radius), 0)
   const spacing = 2 * largest + ISLAND_GAP
 
-  const islands = prepared.map(({ project, milestones, tasks, buildings, radius }) => ({
-    projectId: project.id,
-    name: project.name,
-    slot: { q: project.archipelagoX, r: project.archipelagoY },
-    seed: project.islandSeed,
-    origin: hexToWorld(hexScale({ q: project.archipelagoX, r: project.archipelagoY }, spacing)),
-    radius,
-    tiles: islandTerrain(project.islandSeed, radius),
-    districts: milestones.map((m) => ({
-      milestoneId: m.id,
-      name: m.name,
-      ...landmarkFor(
-        m,
-        tasks.filter((t) => t.milestoneId === m.id),
-      ),
-      position: hexToWorld({ q: m.districtQ, r: m.districtR }),
-    })),
-    structures: tasks.map((t) => ({
-      taskId: t.id,
-      milestoneId: t.milestoneId,
-      ...structureFor(t, today),
-      position: hexToWorld({ q: t.plotX, r: t.plotY }),
-    })),
-    decorations: buildings.flatMap((b): SceneDecoration[] =>
-      isDecorationType(b.type)
-        ? [
-            {
-              buildingId: b.id,
-              type: b.type,
-              position: hexToWorld({ q: b.plotX, r: b.plotY }),
-              rotation: b.rotation,
-            },
-          ]
-        : [],
-    ),
-  }))
+  const islands = prepared.map(
+    ({ project, milestones, tasks, buildings, occupied, radius, stage, paths, tiles }) => {
+      const heights = tileHeights(tiles)
+      const spot = (h: Hex): Spot => ({ ...hexToWorld(h), y: heightAt(heights, h) })
+      const growth = islandGrowth({
+        seed: project.islandSeed,
+        radius,
+        stage,
+        tiles,
+        occupied,
+        paths,
+      })
+      const island: SceneIsland = {
+        projectId: project.id,
+        name: project.name,
+        slot: { q: project.archipelagoX, r: project.archipelagoY },
+        seed: project.islandSeed,
+        origin: hexToWorld(hexScale({ q: project.archipelagoX, r: project.archipelagoY }, spacing)),
+        radius,
+        tiles,
+        stage,
+        paths,
+        scenery: growth.scenery,
+        dock: growth.dock,
+        districts: milestones.map((m) => ({
+          milestoneId: m.id,
+          name: m.name,
+          ...landmarkFor(
+            m,
+            tasks.filter((t) => t.milestoneId === m.id),
+          ),
+          position: spot({ q: m.districtQ, r: m.districtR }),
+        })),
+        structures: tasks.map((t) => ({
+          taskId: t.id,
+          milestoneId: t.milestoneId,
+          ...structureFor(t, today),
+          position: spot({ q: t.plotX, r: t.plotY }),
+        })),
+        decorations: buildings.flatMap((b): SceneDecoration[] =>
+          isDecorationType(b.type)
+            ? [
+                {
+                  buildingId: b.id,
+                  type: b.type,
+                  position: spot({ q: b.plotX, r: b.plotY }),
+                  rotation: b.rotation,
+                },
+              ]
+            : [],
+        ),
+      }
+      return island
+    },
+  )
   return { islands, bounds: boundsOf(islands) }
 }
 

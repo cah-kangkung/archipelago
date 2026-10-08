@@ -35,6 +35,7 @@ vi.mock('../scene/world-scene', () => ({
         data-covered={coveredBottom}
         data-anchor={anchor ?? ''}
         data-hud-inset={hudInset}
+        data-stages={model.islands.map((i) => i.stage).join(',')}
         data-boats={life.boats.length}
         data-flocks={life.flocks.length}
       >
@@ -370,5 +371,21 @@ describe('World screen with the 3D scene', () => {
     } finally {
       measured.mockRestore()
     }
+  })
+
+  test('finishing the task that crosses a growth threshold reaches the scene as a new stage', async () => {
+    const beta = fakeProject({ name: 'Beta' })
+    const tasks = [
+      fakeTask({ projectId: beta.id, status: 'done', plotX: 1, plotY: 0 }),
+      fakeTask({ projectId: beta.id, status: 'done', plotX: 2, plotY: 0 }),
+      fakeTask({ projectId: beta.id, title: 'Third', status: 'doing', plotX: 3, plotY: 0 }),
+    ]
+    const { api } = createFakeApi({
+      world: { projects: [beta], milestones: [], tasks, buildings: [] },
+    })
+    const { user } = renderApp({ api, path: `/p/${beta.id}` })
+    expect(await screen.findByTestId('scene')).toHaveAttribute('data-stages', '0')
+    await user.click(await screen.findByRole('button', { name: 'Mark "Third" as done' }))
+    await waitFor(() => expect(screen.getByTestId('scene')).toHaveAttribute('data-stages', '1'))
   })
 })

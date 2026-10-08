@@ -2,6 +2,7 @@ import {
   type Hex,
   hexDistance,
   hexKey,
+  hexRing,
   nextArchipelagoSlot,
   type WorldDto,
 } from '@archipelago/shared'
@@ -18,9 +19,11 @@ import {
   openingIsland,
 } from './camera'
 import { hexToWorld, islandExtent, LAND_HEIGHT, SQRT3 } from './hex-space'
+import { pathHexes } from './island-growth'
 import { mulberry32 } from './random'
 import { buildSceneModel } from './scene-model'
 import { landmarkFor, solidSegments, structureFor } from './state'
+import { heightAt, tileHeights } from './terrain'
 
 const today = '2026-10-07'
 const world = (w: Partial<WorldDto>): WorldDto => ({
@@ -35,6 +38,13 @@ const world = (w: Partial<WorldDto>): WorldDto => ({
   },
   ...w,
 })
+
+type Island = ReturnType<typeof buildSceneModel>['islands'][number]
+/** Where something on `h` stands: its hex centre at its tile's height. */
+const spotOf = (island: Island | undefined, h: Hex) => {
+  if (!island) throw new Error('no island')
+  return { ...hexToWorld(h), y: heightAt(tileHeights(island.tiles), h) }
+}
 
 describe('structureFor', () => {
   test('maps status and size to a structure kind', () => {
@@ -127,7 +137,7 @@ describe('buildSceneModel', () => {
         name: 'MVP',
         type: 'market',
         progress: 1,
-        position: hexToWorld({ q: 5, r: 0 }),
+        position: spotOf(island, { q: 5, r: 0 }),
       },
     ])
     expect(island?.structures).toEqual([
@@ -136,12 +146,12 @@ describe('buildSceneModel', () => {
         milestoneId: m.id,
         kind: 'workshop',
         marker: null,
-        position: hexToWorld({ q: 4, r: 1 }),
+        position: spotOf(island, { q: 4, r: 1 }),
       },
     ])
   })
 
-  test('far districts and negative plots sit on flat interior land', () => {
+  test('far districts and negative plots stand on interior land at their tile height', () => {
     const p = fakeProject()
     const m = fakeMilestone({ projectId: p.id, districtQ: -10, districtR: 5 })
     const tasks = [
@@ -161,6 +171,11 @@ describe('buildSceneModel', () => {
       const tile = island?.tiles.find((t) => t.q === h.q && t.r === h.r)
       expect(tile?.height).toBeGreaterThanOrEqual(LAND_HEIGHT)
     }
+    expect(island?.districts[0]?.position).toEqual(spotOf(island, { q: -10, r: 5 }))
+    expect(island?.structures.map((s) => s.position)).toEqual([
+      spotOf(island, { q: -11, r: 5 }),
+      spotOf(island, { q: -1, r: -2 }),
+    ])
   })
 
   test('islands never overlap, however large one grows', () => {
@@ -302,7 +317,12 @@ describe('decorations', () => {
     const legacy = fakeBuilding({ projectId: beta.id, type: 'tree', plotX: 1, plotY: 1 })
     const model = buildSceneModel(world({ projects: [beta], buildings: [pine, legacy] }), today)
     expect(model.islands[0]?.decorations).toEqual([
-      { buildingId: pine.id, type: 'pine', position: hexToWorld({ q: 0, r: 1 }), rotation: 3 },
+      {
+        buildingId: pine.id,
+        type: 'pine',
+        position: spotOf(model.islands[0], { q: 0, r: 1 }),
+        rotation: 3,
+      },
     ])
   })
 
@@ -311,5 +331,74 @@ describe('decorations', () => {
     const edge = fakeBuilding({ projectId: beta.id, type: 'tree', plotX: 5, plotY: -1 })
     const model = buildSceneModel(world({ projects: [beta], buildings: [edge] }), today)
     expect(model.islands[0]?.radius).toBe(7)
+  })
+})
+
+describe('island growth', () => {
+  const ringHexes = [1, 2, 3].flatMap((r) => hexRing({ q: 0, r: 0 }, r))
+
+  test('the stage counts finished tasks only', () => {
+    const p = fakeProject()
+    const at = (i: number) => ringHexes[i] ?? { q: 0, r: 1 }
+    const tasks = [
+      ...[0, 1].map((i) =>
+        fakeTask({ projectId: p.id, status: 'done', plotX: at(i).q, plotY: at(i).r }),
+      ),
+      ...[2, 3, 4].map((i) =>
+        fakeTask({ projectId: p.id, status: 'doing', plotX: at(i).q, plotY: at(i).r }),
+      ),
+      ...[5, 6].map((i) =>
+        fakeTask({ projectId: p.id, status: 'todo', plotX: at(i).q, plotY: at(i).r }),
+      ),
+    ]
+    const stage = (ts: typeof tasks) =>
+      buildSceneModel(world({ projects: [p], tasks: ts }), today).islands[0]?.stage
+    expect(stage(tasks)).toBe(0)
+    const third = tasks.map((t, i) => (i === 2 ? { ...t, status: 'done' as const } : t))
+    expect(stage(third)).toBe(1)
+  })
+
+  test('a path leads to a district once it has a finished task; reopening removes it', () => {
+    const p = fakeProject()
+    const m = fakeMilestone({ projectId: p.id, districtQ: 5, districtR: 0 })
+    const done = fakeTask({
+      projectId: p.id,
+      milestoneId: m.id,
+      status: 'done',
+      plotX: 0,
+      plotY: 1,
+    })
+    const build = (t: typeof done) =>
+      buildSceneModel(world({ projects: [p], milestones: [m], tasks: [t] }), today).islands[0]
+    const island = build(done)
+    expect(island?.paths).toEqual(pathHexes([{ q: 5, r: 0 }]))
+    for (const h of island?.paths ?? []) {
+      expect(island?.tiles.find((t) => t.q === h.q && t.r === h.r)?.tone).toBe('path')
+    }
+    const reopened = build({ ...done, status: 'todo', completedAt: null })
+    expect(reopened?.paths).toEqual([])
+    expect(reopened?.tiles.some((t) => t.tone === 'path')).toBe(false)
+  })
+
+  test('scenery never sits on a task, district or decoration plot; a dock from 8 finished tasks', () => {
+    const p = fakeProject({ islandSeed: 21 })
+    const m = fakeMilestone({ projectId: p.id, districtQ: 5, districtR: 0 })
+    const plots = ringHexes.slice(0, 30)
+    const tasks = plots.map((h, i) =>
+      fakeTask({ projectId: p.id, status: i < 8 ? 'done' : 'todo', plotX: h.q, plotY: h.r }),
+    )
+    const pine = fakeBuilding({ projectId: p.id, type: 'pine', plotX: -4, plotY: 0 })
+    const build = (ts: typeof tasks) =>
+      buildSceneModel(
+        world({ projects: [p], milestones: [m], tasks: ts, buildings: [pine] }),
+        today,
+      ).islands[0]
+    const island = build(tasks)
+    const banned = new Set([...plots, { q: 5, r: 0 }, { q: -4, r: 0 }].map(hexKey))
+    for (const s of island?.scenery ?? []) expect(banned.has(s.id.split(':')[0] ?? '')).toBe(false)
+    expect(island?.stage).toBe(2)
+    expect(island?.dock).not.toBeNull()
+    const seven = tasks.map((t, i) => (i === 7 ? { ...t, status: 'todo' as const } : t))
+    expect(build(seven)?.dock).toBeNull()
   })
 })

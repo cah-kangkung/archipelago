@@ -1,4 +1,4 @@
-import { decorationRotation, type WorldDto } from '@archipelago/shared'
+import { decorationRotation, hexRing, type WorldDto } from '@archipelago/shared'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import * as THREE from 'three'
 import { describe, expect, test, vi } from 'vitest'
@@ -9,6 +9,7 @@ import { ghostMaterial, solidMaterial } from './materials'
 import { hexToWorld, LAND_HEIGHT } from './model/hex-space'
 import { buildSceneModel } from './model/scene-model'
 import { SCATTER_TYPES, seaScatter } from './model/sea-scatter'
+import { heightAt, tileHeights } from './model/terrain'
 import { ModelInstances } from './model-instances'
 import { WorldContents, type WorldContentsProps } from './world-contents'
 
@@ -130,6 +131,13 @@ const one = (root: Node, name: string) => {
 }
 const instanceCount = (root: Node, name: string) =>
   named(root, name).reduce((sum, n) => sum + (n.instance as THREE.InstancedMesh).count, 0)
+
+/** The height of `plot`'s tile on `projectId`'s island in `world`. */
+function landAt(world: WorldDto, projectId: string, plot: { q: number; r: number }): number {
+  const island = buildSceneModel(world, today).islands.find((i) => i.projectId === projectId)
+  if (!island) throw new Error('no island')
+  return heightAt(tileHeights(island.tiles), plot)
+}
 
 describe('WorldContents', () => {
   test('draws each scatter type as one instanced mesh that ignores taps', async () => {
@@ -327,7 +335,7 @@ describe('decorations and placement', () => {
       const at = hexToWorld(plot)
       const expected = new THREE.Matrix4()
         .makeRotationY((rotation * Math.PI) / 3)
-        .setPosition(at.x, LAND_HEIGHT, at.z)
+        .setPosition(at.x, landAt(world, beta.id, plot), at.z)
       actual.elements.forEach((v, i) => {
         expect(v).toBeCloseTo(expected.elements[i] ?? Number.NaN)
       })
@@ -360,8 +368,56 @@ describe('decorations and placement', () => {
     const at = hexToWorld({ q: 0, r: 1 })
     const [x, y, z] = ring.props.position as [number, number, number]
     expect(x).toBeCloseTo(at.x)
-    expect(y).toBe(LAND_HEIGHT)
+    expect(y).toBeCloseTo(landAt(world, beta.id, { q: 0, r: 1 }))
     expect(z).toBeCloseTo(at.z)
+  })
+
+  test('on a hilly island, structures, the ring, plot glow and ghost stand on their own tiles', async () => {
+    const hill = fakeProject({ name: 'Hill', islandSeed: 11, archipelagoX: 0, archipelagoY: 0 })
+    const plots = [1, 2].flatMap((r) => hexRing({ q: 0, r: 0 }, r))
+    const tasks = plots
+      .slice(0, 12)
+      .map((h) =>
+        fakeTask({ projectId: hill.id, status: 'done', size: 'M', plotX: h.q, plotY: h.r }),
+      )
+    const hilly: WorldDto = { projects: [hill], milestones: [], tasks, buildings: [], economy }
+    const free = plots.slice(12)
+    const ys = tasks.map((t) => landAt(hilly, hill.id, { q: t.plotX, r: t.plotY }))
+    // Stage 2 hills: some of these tiles must be raised, or the test proves nothing.
+    expect(ys.some((y) => y > LAND_HEIGHT)).toBe(true)
+
+    const { renderer } = await render(hilly, { kind: 'island', projectId: hill.id }, null, {
+      placement: {
+        projectId: hill.id,
+        plots: free,
+        ghost: { type: 'well', plot: free[0] ?? { q: 1, r: 1 } },
+      },
+    })
+    const island = one(renderer.scene, `island:${hill.id}`)
+    const yAt = (name: string, i: number) => {
+      const m = new THREE.Matrix4()
+      ;(one(island, name).instance as THREE.InstancedMesh).getMatrixAt(i, m)
+      return new THREE.Vector3().setFromMatrixPosition(m).y
+    }
+    ys.forEach((y, i) => {
+      expect(yAt('house', i)).toBeCloseTo(y)
+      expect(yAt('shadow', i)).toBeCloseTo(y)
+    })
+    free.forEach((h, i) => {
+      expect(yAt('plot', i)).toBeCloseTo(landAt(hilly, hill.id, h))
+    })
+    const ghost = one(renderer.scene, 'ghost')
+    expect((ghost.props.position as number[])[1]).toBeCloseTo(
+      landAt(hilly, hill.id, free[0] ?? { q: 1, r: 1 }),
+    )
+
+    const selected = await render(
+      hilly,
+      { kind: 'island', projectId: hill.id },
+      tasks[0]?.id ?? null,
+    )
+    const ring = one(selected.renderer.scene, 'selection')
+    expect((ring.props.position as number[])[1]).toBeCloseTo(ys[0] ?? Number.NaN)
   })
 
   test('placement glows each plot; a tap picks it, a pan does not', async () => {
@@ -394,7 +450,7 @@ describe('decorations and placement', () => {
     })
     const ghost = one(renderer.scene, 'ghost')
     const at = hexToWorld(plot)
-    expect(ghost.props.position).toEqual([at.x, LAND_HEIGHT, at.z])
+    expect(ghost.props.position).toEqual([at.x, landAt(world, beta.id, plot), at.z])
     expect(ghost.props.rotation).toEqual([0, (decorationRotation(plot) * Math.PI) / 3, 0])
   })
 
@@ -479,7 +535,7 @@ describe('reward effects', () => {
   })
 
   test('a lone popped instance is tappable once the pop ends', async () => {
-    const points = [hexToWorld({ q: 0, r: 1 })]
+    const points = [{ ...hexToWorld({ q: 0, r: 1 }), y: LAND_HEIGHT }]
     const renderer = await ReactThreeTestRenderer.create(
       <ModelInstances kind="pine" points={points} pop={{ index: 0, startedAt: 1 }} />,
     )
@@ -489,7 +545,7 @@ describe('reward effects', () => {
   })
 
   test('a pop that starts after an idle gap begins from nothing', async () => {
-    const points = [hexToWorld({ q: 0, r: 1 })]
+    const points = [{ ...hexToWorld({ q: 0, r: 1 }), y: LAND_HEIGHT }]
     const renderer = await ReactThreeTestRenderer.create(
       <ModelInstances kind="pine" points={points} />,
     )
@@ -502,7 +558,10 @@ describe('reward effects', () => {
   })
 
   test('a pop index past the instances is ignored', async () => {
-    const points = [hexToWorld({ q: 0, r: 1 }), hexToWorld({ q: 1, r: 0 })]
+    const points = [
+      { q: 0, r: 1 },
+      { q: 1, r: 0 },
+    ].map((h) => ({ ...hexToWorld(h), y: LAND_HEIGHT }))
     const renderer = await ReactThreeTestRenderer.create(
       <ModelInstances kind="pine" points={points} pop={{ index: 5, startedAt: 1 }} />,
     )

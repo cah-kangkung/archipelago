@@ -68,7 +68,7 @@ export function floatAnchor(
     return focused
       ? {
           x: island.origin.x + spot.x,
-          y: LAND_HEIGHT + FLOAT_ABOVE_STRUCTURE,
+          y: spot.y + FLOAT_ABOVE_STRUCTURE,
           z: island.origin.z + spot.z,
         }
       : { x: island.origin.x, y: LAND_HEIGHT + FLOAT_ABOVE_ISLAND, z: island.origin.z }

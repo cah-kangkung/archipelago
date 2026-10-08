@@ -3,16 +3,18 @@ import {
   type DecorationType,
   decorationRotation,
   type Hex,
+  hexKey,
 } from '@archipelago/shared'
 import { useEffect, useMemo } from 'react'
 import type { RewardEvent } from '../rewards/reward-store'
 import { CraneJibs } from './crane-jibs'
 import { Landmark } from './landmark'
 import { placementGhostMaterial, plotMaterial, shadowMaterial, solidMaterial } from './materials'
-import { hexToWorld, LAND_HEIGHT } from './model/hex-space'
+import { hexToWorld, type Spot } from './model/hex-space'
 import { resolvePop } from './model/reward-motion'
 import type { SceneIsland, SceneStructure } from './model/scene-model'
 import { STRUCTURE_KINDS, type StructureKind } from './model/state'
+import { heightAt, tileHeights } from './model/terrain'
 import { ModelInstances } from './model-instances'
 import { modelGeometry } from './models/structures'
 import { islandGeometry } from './models/terrain-geometry'
@@ -51,11 +53,12 @@ export function Island({
   animate: boolean
   rewards: readonly RewardEvent[]
 }) {
-  // A refetch builds fresh tiles with the same content; only the seed and radius change them.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: seed and radius determine the tiles
+  const pathKey = island.paths.map(hexKey).join(';')
+  // A refetch builds fresh tiles with the same content; seed, radius, stage and paths decide them.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: these four determine the tiles
   const terrain = useMemo(
     () => islandGeometry(island.tiles, island.radius),
-    [island.seed, island.radius],
+    [island.seed, island.radius, island.stage, pathKey],
   )
   useEffect(() => () => terrain.dispose(), [terrain])
 
@@ -90,7 +93,12 @@ export function Island({
       }),
     [island.decorations],
   )
-  const plotPoints = useMemo(() => placement?.plots.map(hexToWorld) ?? [], [placement?.plots])
+  const heights = useMemo(() => tileHeights(island.tiles), [island.tiles])
+  const plotPoints = useMemo(
+    (): Spot[] =>
+      placement?.plots.map((h) => ({ ...hexToWorld(h), y: heightAt(heights, h) })) ?? [],
+    [placement?.plots, heights],
+  )
 
   const selected =
     island.structures.find((s) => s.taskId === selectedTaskId) ??
@@ -179,7 +187,13 @@ export function Island({
           }}
         />
       )}
-      {placement?.ghost && <Ghost type={placement.ghost.type} plot={placement.ghost.plot} />}
+      {placement?.ghost && (
+        <Ghost
+          type={placement.ghost.type}
+          plot={placement.ghost.plot}
+          y={heightAt(heights, placement.ghost.plot)}
+        />
+      )}
       <ModelInstances kind="shadow" points={layers.shadows} material={shadowMaterial} />
       <CraneJibs
         points={layers.cranes.points}
@@ -198,7 +212,7 @@ export function Island({
           name="selection"
           geometry={modelGeometry('selection')}
           material={solidMaterial}
-          position={[selected.position.x, LAND_HEIGHT, selected.position.z]}
+          position={[selected.position.x, selected.position.y, selected.position.z]}
         />
       )}
     </group>
@@ -206,14 +220,14 @@ export function Island({
 }
 
 /** The decoration about to be bought; no handlers, so taps fall through to the glow beneath. */
-function Ghost({ type, plot }: { type: DecorationType; plot: Hex }) {
+function Ghost({ type, plot, y }: { type: DecorationType; plot: Hex; y: number }) {
   const at = hexToWorld(plot)
   return (
     <mesh
       name="ghost"
       geometry={modelGeometry(type)}
       material={placementGhostMaterial}
-      position={[at.x, LAND_HEIGHT, at.z]}
+      position={[at.x, y, at.z]}
       rotation={[0, decorationRotation(plot) * TURN, 0]}
     />
   )

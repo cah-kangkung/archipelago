@@ -31,7 +31,11 @@ export function Labels({ model, focus }: { model: SceneModel; focus: Focus }) {
       key={d.milestoneId}
       center
       zIndexRange={LABEL_Z}
-      position={[island.origin.x + d.position.x, LAND_HEIGHT + 2.2, island.origin.z + d.position.z]}
+      position={[
+        island.origin.x + d.position.x,
+        d.position.y + 2.2,
+        island.origin.z + d.position.z,
+      ]}
       className={tag}
     >
       {d.name}

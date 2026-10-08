@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { solidMaterial } from './materials'
-import { LAND_HEIGHT, type Point } from './model/hex-space'
+import type { Spot } from './model/hex-space'
 import { type Pop, popScale } from './model/reward-motion'
 import { type ModelKind, modelGeometry } from './models/structures'
 import { onTap } from './tap'
@@ -11,10 +11,10 @@ import { clampDelta, POP_MS } from './tuning'
 const matrix = new THREE.Matrix4()
 const scale = new THREE.Vector3()
 
-function compose(p: Point, turn: number, size: number) {
+function compose(p: Spot, turn: number, size: number) {
   matrix.makeRotationY(turn)
   if (size !== 1) matrix.scale(scale.setScalar(size))
-  return matrix.setPosition(p.x, LAND_HEIGHT, p.z)
+  return matrix.setPosition(p.x, p.y, p.z)
 }
 
 /**
@@ -30,7 +30,7 @@ export function ModelInstances({
   onPick,
 }: {
   kind: ModelKind
-  points: readonly Point[]
+  points: readonly Spot[]
   /** Radians about y, one per point. */
   turns?: readonly number[]
   material?: THREE.Material

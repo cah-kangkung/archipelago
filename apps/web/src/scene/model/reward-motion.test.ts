@@ -76,7 +76,7 @@ describe('floatAnchor', () => {
     const at = hexToWorld({ q: 2, r: -1 })
     const above = {
       x: betaIsland.origin.x + at.x,
-      y: LAND_HEIGHT + FLOAT_ABOVE_STRUCTURE,
+      y: (betaIsland.structures[0]?.position.y ?? Number.NaN) + FLOAT_ABOVE_STRUCTURE,
       z: betaIsland.origin.z + at.z,
     }
     const target = { kind: 'task', id: task.id } as const
@@ -89,7 +89,7 @@ describe('floatAnchor', () => {
       floatAnchor(model, { kind: 'island', projectId: beta.id }, { kind: 'building', id: pine.id }),
     ).toEqual({
       x: betaIsland.origin.x + p.x,
-      y: LAND_HEIGHT + FLOAT_ABOVE_STRUCTURE,
+      y: (betaIsland.decorations[0]?.position.y ?? Number.NaN) + FLOAT_ABOVE_STRUCTURE,
       z: betaIsland.origin.z + p.z,
     })
   })
