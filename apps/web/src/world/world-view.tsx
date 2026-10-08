@@ -6,6 +6,7 @@ import { createIndicatorStore } from '../scene/indicator-store'
 import { buildAmbientLife } from '../scene/model/ambient-life'
 import { focusKey } from '../scene/model/camera'
 import type { IslandUrgency } from '../scene/model/indicators'
+import { scenePalette } from '../scene/model/palette'
 import { buildSceneModel } from '../scene/model/scene-model'
 import { createPerfStore } from '../scene/perf-store'
 import { hasWebGL } from '../scene/webgl'
@@ -107,7 +108,8 @@ export function WorldView({
     >
       <section
         aria-label={label}
-        className="relative isolate min-h-0 flex-1 overflow-hidden bg-brand"
+        className="relative isolate min-h-0 flex-1 overflow-hidden"
+        style={{ backgroundColor: scenePalette.seaDeep }}
       >
         <div className="absolute inset-0">
           <Suspense fallback={<p className="p-4 text-text-on-brand">Loading the world…</p>}>

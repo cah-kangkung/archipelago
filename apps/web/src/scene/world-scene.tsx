@@ -85,7 +85,6 @@ export function WorldScene(props: WorldSceneProps) {
       className="touch-none"
     >
       <color attach="background" args={[scenePalette.seaDeep]} />
-      <FogRig bounds={props.model.bounds} />
       <WorldContents {...props} rewards={rewards} animate={animate} seaWave={seaWave} />
       <Labels model={props.model} focus={props.focus} />
       <CameraRig
@@ -97,6 +96,9 @@ export function WorldScene(props: WorldSceneProps) {
         onMotion={setCameraMoving}
       />
       <Framing covered={props.coveredBottom} animate={animate} />
+      {/* After the camera rigs: same-priority frames run in mount order, so the fog must read the
+          camera position they have just set, not last frame's. */}
+      <FogRig bounds={props.model.bounds} />
       <IndicatorProbe
         model={props.model}
         urgent={props.urgent}

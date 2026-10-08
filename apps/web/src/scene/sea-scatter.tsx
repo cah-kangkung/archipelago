@@ -7,6 +7,7 @@ import type { SceneModel } from './model/scene-model'
 import { SCATTER_TYPES, seaScatter } from './model/sea-scatter'
 import { seaGeometry } from './models/sea-props'
 import { SEA_LEVEL } from './models/terrain-geometry'
+import { useStableShores } from './use-stable-shores'
 
 const matrix = new THREE.Matrix4()
 
@@ -45,15 +46,28 @@ export function StaticInstances({
   )
 }
 
+type Layout = Pick<SceneModel, 'islands' | 'bounds'>
+
+const layoutKey = (islands: readonly Layout['islands'][number][]) =>
+  islands
+    .map((i) => `${i.projectId},${i.slot.q},${i.slot.r},${i.origin.x},${i.origin.z},${i.radius}`)
+    .join(';')
+
 /** Rocks, islets, sandbars and buoys in the open water (spec 17.2). */
-export function SeaScatter({ model }: { model: Pick<SceneModel, 'islands' | 'bounds'> }) {
-  const props = useMemo(() => seaScatter(model), [model])
-  return SCATTER_TYPES.map((type) => (
+export function SeaScatter({ model }: { model: Layout }) {
+  // Keyed on the layout, not the model: a refetch builds a new model and must not move the props.
+  const islands = useStableShores(model.islands, layoutKey)
+  const { minX, maxX, minZ, maxZ } = model.bounds
+  const byType = useMemo(() => {
+    const props = seaScatter({ islands: [...islands], bounds: { minX, maxX, minZ, maxZ } })
+    return SCATTER_TYPES.map((type) => ({ type, items: props.filter((p) => p.type === type) }))
+  }, [islands, minX, maxX, minZ, maxZ])
+  return byType.map(({ type, items }) => (
     <StaticInstances
       key={type}
       name={`scatter:${type}`}
       geometry={seaGeometry(type)}
-      items={props.filter((p) => p.type === type)}
+      items={items}
     />
   ))
 }

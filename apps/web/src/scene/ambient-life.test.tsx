@@ -34,6 +34,12 @@ const count = (r: Renderer, name: string) =>
 const make = (animate: boolean, l: AmbientLife = life) =>
   ReactThreeTestRenderer.create(<AmbientLifeLayer life={l} islands={[shore]} animate={animate} />)
 
+function foamGeometryOf(r: Renderer) {
+  const [node] = named(r, 'foam')
+  if (!node) throw new Error('no foam')
+  return (node.instance as THREE.Mesh).geometry
+}
+
 describe('AmbientLifeLayer', () => {
   test('one instanced mesh per kind, sized to the life, none of it tappable', async () => {
     const r = await make(true)
@@ -93,5 +99,16 @@ describe('AmbientLifeLayer', () => {
       <AmbientLifeLayer life={none} islands={[]} animate />,
     )
     expect(empty.scene.findAll((n) => n.props.name === 'foam')).toHaveLength(0)
+  })
+
+  test('a rerender with fresh but equal islands keeps the same foam geometry', async () => {
+    const r = await ReactThreeTestRenderer.create(
+      <AmbientLifeLayer life={life} islands={[{ ...shore }]} animate />,
+    )
+    const geometry = foamGeometryOf(r)
+    await r.update(<AmbientLifeLayer life={life} islands={[{ ...shore }]} animate />)
+    expect(foamGeometryOf(r)).toBe(geometry)
+    await r.update(<AmbientLifeLayer life={life} islands={[{ ...shore, radius: 5 }]} animate />)
+    expect(foamGeometryOf(r)).not.toBe(geometry)
   })
 })

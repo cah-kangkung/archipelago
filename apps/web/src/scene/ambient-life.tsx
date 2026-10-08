@@ -15,6 +15,7 @@ import type { Shore } from './model/sea-depth'
 import { foamGeometry, seaGeometry } from './models/sea-props'
 import { SEA_LEVEL } from './models/terrain-geometry'
 import { clampDelta, FOAM_OPACITY, GULL_HEIGHT } from './tuning'
+import { useStableShores } from './use-stable-shores'
 
 const matrix = new THREE.Matrix4()
 
@@ -43,7 +44,9 @@ export function AmbientLifeLayer({
   const splash = useRef<THREE.Mesh>(null)
   const time = useRef(0)
   const invalidate = useThree((s) => s.invalidate)
-  const foam = useMemo(() => (islands.length > 0 ? foamGeometry(islands) : null), [islands])
+  // A refetch hands over equal but fresh islands; the foam only rebuilds when the layout changes.
+  const shores = useStableShores(islands)
+  const foam = useMemo(() => (shores.length > 0 ? foamGeometry(shores) : null), [shores])
   useEffect(() => () => foam?.dispose(), [foam])
 
   const pose = useCallback(
