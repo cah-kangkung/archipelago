@@ -390,4 +390,23 @@ describe('CameraRig', () => {
     expect(controls().minZoom).toBeCloseTo(roomy.zoom)
     expect(camera().zoom).toBeCloseTo(roomy.zoom)
   })
+
+  test('a fit that changes mid-flight sets the zoom-out limit when the flight lands', async () => {
+    const big = (props: RigProps) =>
+      ReactThreeTestRenderer.create(scene(props), {
+        orthographic: true,
+        width: 2000,
+        height: 1600,
+        camera: { position: [ISO_DISTANCE, ISO_DISTANCE, ISO_DISTANCE], zoom: 10 },
+      })
+    const r = await big({ model: both, focus: archipelago, covered: 1200 })
+    await r.update(scene({ model: both, focus: onGamma, covered: 1200 }))
+    // The HUD/sheet changes while the camera is in the air: the island now fits bigger.
+    await r.update(scene({ model: both, focus: onGamma, covered: 0 }))
+    const roomy = cameraTarget(both, onGamma, null, { width: 2000, height: 1600 })
+    expect(roomy.zoom).toBeGreaterThan(ISLAND_ZOOM)
+    await r.advanceFrames(60, 0.1)
+    expect(controls().minZoom).toBeCloseTo(roomy.zoom)
+    expect(camera().zoom).toBeCloseTo(roomy.zoom)
+  })
 })

@@ -193,7 +193,13 @@ export function CameraRig({
         return
       }
       setMotion(IDLE)
-      setZoomLimits(m.to.zoom, m.to.zoom * MAX_ZOOM_FACTOR)
+      // The fit may have changed in the air (the HUD wraps): land on the latest one.
+      const fitted = latest.current.target.zoom
+      setZoomLimits(fitted, fitted * MAX_ZOOM_FACTOR)
+      if (camera.zoom < fitted) {
+        show({ ...viewOf(camera), zoom: fitted })
+        invalidate()
+      }
       return
     }
     // A spring starts inside a frame, so its first step already gets a fresh delta.
