@@ -646,9 +646,9 @@ DELETE /buildings/:id       → { refund: number, balance }
 ### 15.5 Placement mode (web)
 
 - `WorldScreen` holds `placing: { type, plot: Hex | null } | null`.
-- **Enter:** picking an item closes the shop, collapses the sheet to its lowest detent, and outlines every placeable plot of the current island with a soft `brand` hex ring (one instanced mesh). A bar replaces the switcher strip: "Tap a glowing plot" and `Cancel`.
+- **Enter:** picking an item closes the shop, collapses the sheet to its lowest detent, and outlines every placeable plot of the current island with a soft `brand` hex glow (one instanced mesh). A bar replaces the switcher strip: "Tap a glowing plot" and `Cancel`.
 - **Pick:** tapping a glowing plot puts a ghost there (the decoration's model at 50% opacity), and the bar becomes `Place · <price>` / `Cancel`. Tapping another glowing plot moves the ghost. Taps on structures, landmarks, sea or non-glowing terrain do nothing. Panning works as usual; the 6px tap rule (section 13.5) applies.
-- **Tap to plot:** a pure `worldToHex(point)` in `scene/model/hex-space.ts` (inverse of `hexToWorld`, with cube rounding) turns a terrain hit, in island-local space, into a hex.
+- **Tap to plot:** the glowing outlines are one pickable instanced mesh (a flat hex disc per placeable plot, just above the land); its instance id is the tapped plot. The ghost has no handlers, so taps pass through it to the glow below.
 - **Cancel:** the `Cancel` button, `Esc`, back, and any route change.
 - **Confirm:** `POST /buildings`; the button is disabled with a spinner while in flight. On success: patch the cached balance from the response, refetch `/world`, leave placement mode, toast "<Name> placed · −<price>". On `409`/`422`: an error toast with the server message, and placement stays open on the same item with the ghost cleared.
 - Placement is not optimistic: the server decides validity.
@@ -669,7 +669,7 @@ DELETE /buildings/:id       → { refund: number, balance }
 
 - **Shared:** `islandRadius` with decorations; `placeablePlots` excludes occupied hexes, the commons centre and the shore; `refundFor`; catalogue prices are positive integers with unique types.
 - **API:** every route's success path; 401, 404 (another user's project or building, an archived project), 422 (unknown type, shore plot, commons centre, off-island plot) and 409 (occupied plot, negative balance, balance below price); two concurrent placements on one plot → one 201, one 409; the purchase and refund ledger entries and the returned balance; deleting tasks after placing an edge decoration keeps the island radius; project delete leaves the ledger untouched.
-- **Model:** `worldToHex` round-trips with `hexToWorld` and rounds points near hex edges to the nearest hex; decorations appear in the scene model; the web placeable set equals the shared one.
+- **Model:** decorations appear in the scene model with their rotation; decoration plots count toward the island radius; the web placeable set for an island equals `placeablePlots` over that island's occupied hexes.
 - **Scene graph:** decoration instance counts per type; in placement mode, a tap on a glowing plot reports that plot and a tap on a structure or landmark reports nothing; a decoration tap selects it.
 - **App** (RTL, stub-scene seam): the `Shop` chip shows only in island and district views on the scene; affordability states (enough, short, negative, no free land); picking enters placement and collapses the sheet; every cancel path; confirm success patches the balance and toasts; a 409 keeps placement open; remove confirm and refund toast.
 - **Manual:** buy, place and remove on a phone over the LAN and on desktop.
