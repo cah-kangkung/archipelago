@@ -65,10 +65,16 @@ export function WorldScreen() {
   const [sheetDetent, setSheetDetent] = useState(SHEET_MIDDLE)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [cover, setCover] = useState(0)
-  const [placing, setPlacing] = useState<{ type: DecorationType; plot: Hex | null } | null>(null)
+  const [placing, setPlacing] = useState<{
+    projectId: string
+    type: DecorationType
+    plot: Hex | null
+  } | null>(null)
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null)
   // Set synchronously on confirm: the mutation's pending flag flips too late to stop a double tap.
   const [submitting, setSubmitting] = useState(false)
+  // Numbers each purchase, so one that settles after a route change leaves the next island alone.
+  const attempt = useRef(0)
   const place = usePlaceBuilding()
   const remove = useRemoveBuilding()
 
@@ -85,12 +91,16 @@ export function WorldScreen() {
         : [],
     [world.data, resolvedProjectId],
   )
+  // Placement belongs to the island it started on; until the route-change reset lands, another
+  // island shows none.
+  const activePlacing = placing && placing.projectId === resolvedProjectId ? placing : null
   // A refetch that takes the chosen plot drops the ghost.
   const ghostPlot =
-    placing?.plot && plots.some((p) => p.q === placing.plot?.q && p.r === placing.plot?.r)
-      ? placing.plot
+    activePlacing?.plot &&
+    plots.some((p) => p.q === activePlacing.plot?.q && p.r === activePlacing.plot?.r)
+      ? activePlacing.plot
       : null
-  const placingType = placing?.type
+  const placingType = activePlacing?.type
   const placement = useMemo<Placement | null>(
     () =>
       placingType && resolvedProjectId
@@ -103,12 +113,18 @@ export function WorldScreen() {
     [placingType, resolvedProjectId, plots, ghostPlot],
   )
 
+  // Every editor ends placement: Esc would otherwise end placement and leave the dialog open.
+  const openEditor = (next: Editor) => {
+    setPlacing(null)
+    setEditor(next)
+  }
+
   const openNewTask = () => {
     if (editor !== null) return
     if (focus.kind === 'island')
-      setEditor({ kind: 'new-task', projectId: focus.projectId, milestoneId: null })
+      openEditor({ kind: 'new-task', projectId: focus.projectId, milestoneId: null })
     if (focus.kind === 'district') {
-      setEditor({ kind: 'new-task', projectId: focus.projectId, milestoneId: focus.milestoneId })
+      openEditor({ kind: 'new-task', projectId: focus.projectId, milestoneId: focus.milestoneId })
     }
   }
 
@@ -139,6 +155,8 @@ export function WorldScreen() {
     setSelectedTaskId(null)
     setSelectedBuildingId(null)
     setPlacing(null)
+    attempt.current += 1
+    setSubmitting(false)
   }, [params.projectId, params.milestoneId])
 
   // The island of the latest island or district route: where the archipelago opens on step-out.
@@ -204,20 +222,24 @@ export function WorldScreen() {
   const selectedTask = world.data.tasks.find((t) => t.id === selectedTaskId)
   const selectedBuilding = world.data.buildings.find((b) => b.id === selectedBuildingId)
   const selectedBuildingItem = selectedBuilding ? shopItem(selectedBuilding.type) : undefined
-  const placingItem = placing ? shopItem(placing.type) : undefined
+  const placingItem = activePlacing ? shopItem(activePlacing.type) : undefined
   const panelTitle = resolved.milestone?.name ?? resolved.project?.name ?? 'Due today & overdue'
   const { project, milestone } = resolved
 
   const closeEditor = () => setEditor(null)
   const confirmPlacement = () => {
-    if (submitting || !placing || !ghostPlot || !project) return
+    if (submitting || !activePlacing || !ghostPlot) return
+    const { projectId, type } = activePlacing
+    const id = ++attempt.current
     setSubmitting(true)
     place.mutate(
-      { projectId: project.id, type: placing.type, plotX: ghostPlot.q, plotY: ghostPlot.r },
+      { projectId, type, plotX: ghostPlot.q, plotY: ghostPlot.r },
       {
-        onSuccess: () => setPlacing(null),
-        onError: () => setPlacing((p) => (p ? { ...p, plot: null } : p)),
-        onSettled: () => setSubmitting(false),
+        onSuccess: () => setPlacing((p) => (p?.projectId === projectId ? null : p)),
+        onError: () => setPlacing((p) => (p?.projectId === projectId ? { ...p, plot: null } : p)),
+        onSettled: () => {
+          if (attempt.current === id) setSubmitting(false)
+        },
       },
     )
   }
@@ -265,19 +287,19 @@ export function WorldScreen() {
             // Show the selected row: a collapsed sheet rises; a taller one stays where it is.
             if (taskId) setSheetDetent((d) => Math.max(d, SHEET_MIDDLE))
           }}
-          onNewProject={() => setEditor({ kind: 'new-project' })}
+          onNewProject={() => openEditor({ kind: 'new-project' })}
           onNewMilestone={
-            project ? () => setEditor({ kind: 'new-milestone', projectId: project.id }) : undefined
+            project ? () => openEditor({ kind: 'new-milestone', projectId: project.id }) : undefined
           }
           onEditProject={
-            project ? () => setEditor({ kind: 'edit-project', projectId: project.id }) : undefined
+            project ? () => openEditor({ kind: 'edit-project', projectId: project.id }) : undefined
           }
           onEditMilestone={
             milestone
-              ? () => setEditor({ kind: 'edit-milestone', milestoneId: milestone.id })
+              ? () => openEditor({ kind: 'edit-milestone', milestoneId: milestone.id })
               : undefined
           }
-          onOpenShop={project ? () => setEditor({ kind: 'shop' }) : undefined}
+          onOpenShop={project ? () => openEditor({ kind: 'shop' }) : undefined}
         />
       </div>
       <PanelFrame
@@ -320,7 +342,7 @@ export function WorldScreen() {
           searchRef={searchRef}
           selectedTaskId={selectedTask ? selectedTaskId : null}
           onNewTask={openNewTask}
-          onEditTask={(task) => setEditor({ kind: 'edit-task', taskId: task.id })}
+          onEditTask={(task) => openEditor({ kind: 'edit-task', taskId: task.id })}
         />
       </PanelFrame>
 
@@ -356,7 +378,7 @@ export function WorldScreen() {
                 setEditor(null)
                 setSelectedTaskId(null)
                 setSelectedBuildingId(null)
-                setPlacing({ type, plot: null })
+                if (project) setPlacing({ projectId: project.id, type, plot: null })
                 setSheetDetent(0)
               }}
             />

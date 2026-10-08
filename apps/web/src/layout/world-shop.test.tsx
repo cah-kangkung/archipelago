@@ -155,6 +155,53 @@ describe('shop on the world screen', () => {
     expect(calls).not.toContain('placeBuilding')
   })
 
+  test('a slow purchase on one island leaves placement on the next alone', async () => {
+    const { api, beta, state } = seeded()
+    const gamma = fakeProject({ name: 'Gamma' })
+    state.world.projects.push(gamma)
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const placeBuilding = api.placeBuilding
+    api.placeBuilding = async (input) => {
+      await gate
+      return placeBuilding(input)
+    }
+    const { user, router } = renderApp({ api, path: `/p/${beta.id}` })
+    await startPlacing(user)
+    await user.click(screen.getByRole('button', { name: 'plot 0,1' }))
+    await user.click(screen.getByRole('button', { name: 'Place · 30' }))
+    expect(screen.getByRole('button', { name: 'Placing…' })).toBeDisabled()
+
+    await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: gamma.id } }))
+    await startPlacing(user)
+    await user.click(screen.getByRole('button', { name: 'plot 0,1' }))
+    expect(screen.getByRole('button', { name: 'Place · 30' })).toBeEnabled()
+
+    await act(async () => release())
+    expect(await screen.findByText('Pine tree placed · −30')).toBeInTheDocument()
+    expect(screen.getByRole('toolbar', { name: 'Placing Pine tree' })).toBeInTheDocument()
+    expect(scene().dataset.ghost).toBe('0,1')
+    expect(screen.getByRole('button', { name: 'Place · 30' })).toBeEnabled()
+    expect(state.world.buildings.map((b) => [b.projectId, b.plotX, b.plotY])).toContainEqual([
+      beta.id,
+      0,
+      1,
+    ])
+  })
+
+  test('opening an editor ends placement', async () => {
+    const { api, beta } = seeded()
+    const { user } = renderApp({ api, path: `/p/${beta.id}` })
+    await startPlacing(user)
+    await user.click(screen.getByRole('button', { name: 'plot 0,1' }))
+    await user.click(screen.getByRole('button', { name: 'Edit island' }))
+    expect(await screen.findByRole('dialog', { name: 'Edit island' })).toBeInTheDocument()
+    expect(screen.queryByRole('toolbar', { name: 'Placing Pine tree' })).not.toBeInTheDocument()
+    expect(scene().dataset.plots).toBe('0')
+  })
+
   test('select a decoration, remove it for half back', async () => {
     const { api, beta, task, pine, state } = seeded()
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
