@@ -1,15 +1,27 @@
+import { DECORATION_TYPES, type DecorationType } from '@archipelago/shared'
 import * as THREE from 'three'
 import { STRUCTURE_KINDS, type StructureKind } from '../model/state'
 import { box, cone, merge, part, prism } from './build'
+import { decorationBuilders } from './decorations'
 
-export type ModelKind = StructureKind | 'jib' | 'storm' | 'lantern' | 'shadow' | 'selection'
+export type ModelKind =
+  | StructureKind
+  | DecorationType
+  | 'jib'
+  | 'storm'
+  | 'lantern'
+  | 'shadow'
+  | 'selection'
+  | 'plot'
 export const MODEL_KINDS: readonly ModelKind[] = [
   ...STRUCTURE_KINDS,
+  ...DECORATION_TYPES,
   'jib',
   'storm',
   'lantern',
   'shadow',
   'selection',
+  'plot',
 ]
 
 /** The crane mast's top, relative to the plot centre's ground: the jib turns about this point. */
@@ -31,6 +43,7 @@ const scaffold = () => [
 ]
 
 const builders: Record<ModelKind, () => THREE.BufferGeometry[]> = {
+  ...decorationBuilders,
   scaffold,
   crane: () => [
     ...scaffold(),
@@ -75,6 +88,15 @@ const builders: Record<ModelKind, () => THREE.BufferGeometry[]> = {
       new THREE.RingGeometry(0.62, 0.72, 6).rotateX(-Math.PI / 2),
       'selection',
       [0, 0.02, 0],
+      Math.PI / 6,
+    ),
+  ],
+  // A flat hex just above the land; turned 30° so its corners meet the hex's corners.
+  plot: () => [
+    part(
+      new THREE.CircleGeometry(0.8, 6).rotateX(-Math.PI / 2),
+      'selection',
+      [0, 0.03, 0],
       Math.PI / 6,
     ),
   ],

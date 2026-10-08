@@ -1,4 +1,4 @@
-import { LANDMARK_TYPES } from '@archipelago/shared'
+import { DECORATION_TYPES, LANDMARK_TYPES } from '@archipelago/shared'
 import * as THREE from 'three'
 import { describe, expect, test } from 'vitest'
 import { islandExtent } from '../model/hex-space'
@@ -81,4 +81,19 @@ describe('islandGeometry', () => {
     expect(g.boundingBox?.min.z).toBeGreaterThanOrEqual(-limit)
     g.dispose()
   })
+})
+
+describe('decoration models', () => {
+  test.each(DECORATION_TYPES)(
+    '%s stays within 0.6 of the plot centre, so any turn fits the hex',
+    (type) => {
+      const g = modelGeometry(type)
+      g.computeBoundingBox()
+      const box = g.boundingBox ?? new THREE.Box3()
+      for (const v of [box.min.x, box.max.x, box.min.z, box.max.z]) {
+        expect(Math.abs(v)).toBeLessThanOrEqual(0.6)
+      }
+      expect(box.min.y).toBeGreaterThanOrEqual(-1e-6)
+    },
+  )
 })

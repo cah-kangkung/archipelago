@@ -1,10 +1,12 @@
 import {
-  type Hex,
+  type DecorationType,
   hexScale,
+  isDecorationType,
   islandRadius,
   type LandmarkType,
   type WorldDto,
 } from '@archipelago/shared'
+import { islandOccupied } from '../../world/selectors'
 import { hexToWorld, islandExtent, type Point } from './hex-space'
 import { landmarkFor, type Marker, type StructureKind, structureFor } from './state'
 import { islandTerrain, type TerrainTile } from './terrain'
@@ -24,6 +26,13 @@ export type SceneDistrict = {
   progress: number
   position: Point
 }
+export type SceneDecoration = {
+  buildingId: string
+  type: DecorationType
+  position: Point
+  /** 60° steps, 0…5. */
+  rotation: number
+}
 export type SceneIsland = {
   projectId: string
   name: string
@@ -34,6 +43,7 @@ export type SceneIsland = {
   tiles: TerrainTile[]
   districts: SceneDistrict[]
   structures: SceneStructure[]
+  decorations: SceneDecoration[]
 }
 export type Bounds = { minX: number; maxX: number; minZ: number; maxZ: number }
 export type SceneModel = { islands: SceneIsland[]; bounds: Bounds }
@@ -49,18 +59,16 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
       .filter((m) => m.projectId === project.id)
       .sort((a, b) => a.sortOrder - b.sortOrder)
     const tasks = world.tasks.filter((t) => t.projectId === project.id)
-    const occupied: Hex[] = [
-      ...tasks.map((t) => ({ q: t.plotX, r: t.plotY })),
-      ...milestones.map((m) => ({ q: m.districtQ, r: m.districtR })),
-    ]
-    return { project, milestones, tasks, radius: islandRadius(occupied) }
+    const buildings = world.buildings.filter((b) => b.projectId === project.id)
+    const radius = islandRadius(islandOccupied(world, project.id))
+    return { project, milestones, tasks, buildings, radius }
   })
   // Slots are one hex apart; scaling them by the largest island's diameter plus a gap means no
   // two islands can touch, however big one grows.
   const largest = prepared.reduce((max, p) => Math.max(max, p.radius), 0)
   const spacing = 2 * largest + ISLAND_GAP
 
-  const islands = prepared.map(({ project, milestones, tasks, radius }) => ({
+  const islands = prepared.map(({ project, milestones, tasks, buildings, radius }) => ({
     projectId: project.id,
     name: project.name,
     seed: project.islandSeed,
@@ -82,6 +90,18 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
       ...structureFor(t, today),
       position: hexToWorld({ q: t.plotX, r: t.plotY }),
     })),
+    decorations: buildings.flatMap((b): SceneDecoration[] =>
+      isDecorationType(b.type)
+        ? [
+            {
+              buildingId: b.id,
+              type: b.type,
+              position: hexToWorld({ q: b.plotX, r: b.plotY }),
+              rotation: b.rotation,
+            },
+          ]
+        : [],
+    ),
   }))
   return { islands, bounds: boundsOf(islands) }
 }

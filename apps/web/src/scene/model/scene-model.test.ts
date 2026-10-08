@@ -6,7 +6,7 @@ import {
   type WorldDto,
 } from '@archipelago/shared'
 import { describe, expect, test } from 'vitest'
-import { fakeMilestone, fakeProject, fakeTask } from '../../test/fake-api'
+import { fakeBuilding, fakeMilestone, fakeProject, fakeTask } from '../../test/fake-api'
 import { addDays } from '../../world/selectors'
 import {
   ARCHIPELAGO_ZOOM,
@@ -292,5 +292,24 @@ describe('camera', () => {
     expect(openingIsland([s('a', 0), s('b', 2)], 'deleted', null)).toBe('b')
     expect(openingIsland([s('a', 0)], 'deleted', 'also-deleted')).toBeNull()
     expect(openingIsland([s('a', 0)], 'deleted', 'a')).toBe('a')
+  })
+})
+
+describe('decorations', () => {
+  test('appear per island with position and rotation; unknown types are skipped', () => {
+    const beta = fakeProject()
+    const pine = fakeBuilding({ projectId: beta.id, type: 'pine', plotX: 0, plotY: 1, rotation: 3 })
+    const legacy = fakeBuilding({ projectId: beta.id, type: 'tree', plotX: 1, plotY: 1 })
+    const model = buildSceneModel(world({ projects: [beta], buildings: [pine, legacy] }), today)
+    expect(model.islands[0]?.decorations).toEqual([
+      { buildingId: pine.id, type: 'pine', position: hexToWorld({ q: 0, r: 1 }), rotation: 3 },
+    ])
+  })
+
+  test('decoration plots, known or not, count toward the island radius', () => {
+    const beta = fakeProject()
+    const edge = fakeBuilding({ projectId: beta.id, type: 'tree', plotX: 5, plotY: -1 })
+    const model = buildSceneModel(world({ projects: [beta], buildings: [edge] }), today)
+    expect(model.islands[0]?.radius).toBe(7)
   })
 })
