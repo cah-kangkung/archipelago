@@ -28,12 +28,21 @@ export type TickerDemand = {
   growth: boolean
   /** The spotlight is fading or sliding between layers (spec 20.3). */
   spotlight: boolean
+  /** A cloud ring is gathering or parting (spec 21.3). */
+  clouds: boolean
 }
 
 /** The ticker runs only while something moves (spec 16.4); otherwise frames come on change. */
 export function tickerWanted(d: TickerDemand): boolean {
   return (
     d.animate &&
-    (d.seaWave || d.cranes || d.effects || d.camera || d.life || d.growth || d.spotlight)
+    (d.seaWave ||
+      d.cranes ||
+      d.effects ||
+      d.camera ||
+      d.life ||
+      d.growth ||
+      d.spotlight ||
+      d.clouds)
   )
 }

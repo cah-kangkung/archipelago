@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { describe, expect, test } from 'vitest'
 import {
+  cloudMaterial,
   foamMaterial,
   ghostMaterial,
   placementGhostMaterial,
@@ -71,5 +72,9 @@ describe('spotlight material', () => {
     expect(spotlightUniforms.uSpotStrength.value).toBe(0.7)
     writeSpotlight({ area: null, strength: 1 })
     expect(spotlightUniforms.uSpotStrength.value).toBe(0)
+  })
+
+  test('the cloud material is not hazed (spec 21.2)', () => {
+    expect(cloudMaterial.onBeforeCompile).not.toBe(patchSpotlight)
   })
 })
