@@ -5,6 +5,7 @@ import { islandExtent } from '../model/hex-space'
 import { scenePalette } from '../model/palette'
 import { islandTerrain } from '../model/terrain'
 import { landmarkSegments } from './landmarks'
+import { foamGeometry, SEA_KINDS, seaGeometry } from './sea-props'
 import { MODEL_KINDS, modelGeometry } from './structures'
 import { islandGeometry } from './terrain-geometry'
 
@@ -96,4 +97,20 @@ describe('decoration models', () => {
       expect(box.min.y).toBeGreaterThanOrEqual(-1e-6)
     },
   )
+})
+
+describe('sea props', () => {
+  test.each(SEA_KINDS)('%s is non-empty and palette-coloured', (kind) => {
+    expectPaletteColoured(seaGeometry(kind))
+  })
+
+  test('foam rings are palette-coloured, one ring per shore', () => {
+    const one = foamGeometry([{ origin: { x: 0, z: 0 }, radius: 4 }])
+    const two = foamGeometry([
+      { origin: { x: 0, z: 0 }, radius: 4 },
+      { origin: { x: 30, z: 0 }, radius: 4 },
+    ])
+    expectPaletteColoured(two)
+    expect(two.getAttribute('position').count).toBe(one.getAttribute('position').count * 2)
+  })
 })

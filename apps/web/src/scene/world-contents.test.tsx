@@ -8,6 +8,7 @@ import { addDays, type Focus } from '../world/selectors'
 import { ghostMaterial, solidMaterial } from './materials'
 import { hexToWorld, LAND_HEIGHT } from './model/hex-space'
 import { buildSceneModel } from './model/scene-model'
+import { SCATTER_TYPES, seaScatter } from './model/sea-scatter'
 import { ModelInstances } from './model-instances'
 import { WorldContents, type WorldContentsProps } from './world-contents'
 
@@ -131,6 +132,22 @@ const instanceCount = (root: Node, name: string) =>
   named(root, name).reduce((sum, n) => sum + (n.instance as THREE.InstancedMesh).count, 0)
 
 describe('WorldContents', () => {
+  test('draws each scatter type as one instanced mesh that ignores taps', async () => {
+    const { world, beta } = seeded()
+    const { renderer, onSelect } = await render(world, { kind: 'island', projectId: beta.id })
+    const props = seaScatter(buildSceneModel(world, today))
+    for (const type of SCATTER_TYPES) {
+      const expected = props.filter((p) => p.type === type).length
+      const meshes = named(renderer.scene, `scatter:${type}`)
+      expect(meshes).toHaveLength(expected > 0 ? 1 : 0)
+      expect(instanceCount(renderer.scene, `scatter:${type}`)).toBe(expected)
+      for (const m of meshes) expect(m.props.onClick).toBeUndefined()
+    }
+    // The sea under them still clears the selection.
+    await renderer.fireEvent(one(renderer.scene, 'sea'), 'click', { delta: 0 })
+    expect(onSelect).toHaveBeenCalledWith(null)
+  })
+
   test('renders one instance per structure and marker, per kind', async () => {
     const { world, beta } = seeded()
     const { renderer } = await render(world, { kind: 'island', projectId: beta.id })

@@ -6,6 +6,7 @@ import { scenePalette } from './model/palette'
 import type { SceneModel, SceneStructure } from './model/scene-model'
 import { RewardFloats } from './reward-floats'
 import { Sea } from './sea'
+import { SeaScatter } from './sea-scatter'
 import { DIRECTIONAL_INTENSITY, HEMISPHERE_INTENSITY } from './tuning'
 
 export type Placement = {
@@ -73,6 +74,7 @@ export function WorldContents({
         animate={seaWave}
         onTapSea={() => live.onSelect(null)}
       />
+      <SeaScatter model={model} />
       {model.islands.map((island) => (
         <Island
           key={island.projectId}

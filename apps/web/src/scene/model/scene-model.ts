@@ -1,5 +1,6 @@
 import {
   type DecorationType,
+  type Hex,
   hexScale,
   isDecorationType,
   islandRadius,
@@ -36,6 +37,8 @@ export type SceneDecoration = {
 export type SceneIsland = {
   projectId: string
   name: string
+  /** The project's slot in the archipelago grid; sea routes join near slots (spec 17.5). */
+  slot: Hex
   /** The project's terrain seed; with `radius` it fully determines `tiles`. */
   seed: number
   origin: Point
@@ -71,6 +74,7 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
   const islands = prepared.map(({ project, milestones, tasks, buildings, radius }) => ({
     projectId: project.id,
     name: project.name,
+    slot: { q: project.archipelagoX, r: project.archipelagoY },
     seed: project.islandSeed,
     origin: hexToWorld(hexScale({ q: project.archipelagoX, r: project.archipelagoY }, spacing)),
     radius,
