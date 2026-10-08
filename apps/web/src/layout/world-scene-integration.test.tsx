@@ -229,18 +229,6 @@ describe('World screen with the 3D scene', () => {
     confirm.mockRestore()
   })
 
-  test('a task picked in the scene is shown even under the No milestone filter', async () => {
-    const { api, beta, inMvp } = seeded()
-    const { user } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
-    await screen.findByRole('heading', { level: 2, name: 'Beta' })
-    const select = screen.getByRole('combobox', { name: 'Milestone' })
-    await user.selectOptions(select, 'No milestone')
-    expect(screen.queryByText('MVP task')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: `select ${inMvp.id}` }))
-    expect(await screen.findByText('MVP task')).toBeInTheDocument()
-    expect(select).toHaveDisplayValue('All tasks')
-  })
-
   test('the scene learns how much of it the phone sheet covers; none on desktop', async () => {
     const { api, beta } = seeded()
     renderApp({ api, path: `/p/${beta.id}` })
@@ -271,76 +259,101 @@ describe('World screen with the 3D scene', () => {
     expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
   })
 
-  describe('island picker', () => {
+  describe('layer picker', () => {
     function urgentWorld() {
       const today = todayIn('Asia/Jakarta')
       const beta = fakeProject({ name: 'Beta' })
       const gamma = fakeProject({ name: 'Gamma' })
       const calm = fakeProject({ name: 'Calm' })
-      const mvp = fakeMilestone({ projectId: beta.id, name: 'MVP' })
+      const mvp = fakeMilestone({ projectId: beta.id, name: 'MVP', sortOrder: 0 })
+      const later = fakeMilestone({ projectId: beta.id, name: 'Later', sortOrder: 1 })
       const tasks = [
         fakeTask({ projectId: beta.id, dueDate: addDays(today, -2), plotX: 1, plotY: 0 }),
         fakeTask({ projectId: beta.id, dueDate: addDays(today, -1), plotX: 2, plotY: 0 }),
+        fakeTask({ projectId: beta.id, milestoneId: mvp.id, dueDate: today, plotX: 3, plotY: 0 }),
         fakeTask({ projectId: gamma.id, dueDate: today, plotX: 1, plotY: 0 }),
       ]
       const fake = createFakeApi({
-        world: { projects: [beta, gamma, calm], milestones: [mvp], tasks, buildings: [] },
+        world: { projects: [beta, gamma, calm], milestones: [mvp, later], tasks, buildings: [] },
       })
-      return { ...fake, beta, gamma, calm, mvp }
+      return { ...fake, beta, gamma, calm, mvp, later }
     }
-    const picker = () => screen.getByRole('combobox', { name: 'Island' })
+    const islandPicker = () => screen.getByRole('combobox', { name: 'Island' })
+    const milestonePicker = () => screen.getByRole('combobox', { name: 'Milestone' })
+    const labels = (el: HTMLElement) =>
+      within(el)
+        .getAllByRole('option')
+        .map((o) => o.textContent)
 
-    test('lists every island with its urgency, after "All islands"', async () => {
+    test('on the archipelago it lists every island with its urgency, after "All islands"', async () => {
       const { api } = urgentWorld()
       renderApp({ api, path: '/' })
       await screen.findByTestId('scene')
-      const labels = within(picker())
-        .getAllByRole('option')
-        .map((o) => o.textContent)
-      expect(labels).toEqual(['All islands', 'Beta · 2 overdue', 'Gamma · due soon', 'Calm'])
+      expect(labels(islandPicker())).toEqual([
+        'All islands',
+        'Beta · 2 overdue',
+        'Gamma · due soon',
+        'Calm',
+      ])
+      expect(screen.queryByRole('combobox', { name: 'Milestone' })).not.toBeInTheDocument()
     })
 
-    test('shows where you are on every layer, on phone and desktop', async () => {
+    test('on an island and in a district it lists that island’s milestones, on phone and desktop', async () => {
       for (const desktop of [false, true]) {
         const { api, beta, mvp } = urgentWorld()
-        const { router, unmount } = renderAppWithUnmount({ api, path: '/', desktop })
+        const { router, unmount } = renderAppWithUnmount({ api, path: `/p/${beta.id}`, desktop })
         await screen.findByTestId('scene')
-        expect(picker()).toHaveDisplayValue('All islands')
-        await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: beta.id } }))
-        expect(picker()).toHaveDisplayValue('Beta · 2 overdue')
+        expect(screen.queryByRole('combobox', { name: 'Island' })).not.toBeInTheDocument()
+        expect(labels(milestonePicker())).toEqual([
+          'Beta (whole island)',
+          'MVP · due soon',
+          'Later',
+        ])
+        expect(milestonePicker()).toHaveDisplayValue('Beta (whole island)')
         await act(() =>
           router.navigate({
             to: '/p/$projectId/m/$milestoneId',
             params: { projectId: beta.id, milestoneId: mvp.id },
           }),
         )
-        expect(picker()).toHaveDisplayValue('Beta · 2 overdue')
+        expect(milestonePicker()).toHaveDisplayValue('MVP · due soon')
         unmount()
       }
     })
 
-    test('picking an island flies there; "All islands" goes back out', async () => {
+    test('picking a milestone flies into it; the first option flies back to the island', async () => {
+      const { api, beta, later } = urgentWorld()
+      const { user, router } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+      await screen.findByTestId('scene')
+      await user.selectOptions(milestonePicker(), 'Later')
+      expect(router.state.location.pathname).toBe(`/p/${beta.id}/m/${later.id}`)
+      await user.selectOptions(milestonePicker(), 'Beta (whole island)')
+      expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
+    })
+
+    test('picking an island flies there; "All islands" is the way back from the archipelago list', async () => {
       const { api, gamma } = urgentWorld()
       const { user, router } = renderApp({ api, path: '/', desktop: true })
       await screen.findByTestId('scene')
-      await user.selectOptions(picker(), 'Gamma · due soon')
+      await user.selectOptions(islandPicker(), 'Gamma · due soon')
       expect(router.state.location.pathname).toBe(`/p/${gamma.id}`)
-      await user.selectOptions(picker(), 'All islands')
-      expect(router.state.location.pathname).toBe('/')
     })
 
-    test('a lone calm island is listed plainly', async () => {
+    test('an island with no milestones lists only itself', async () => {
+      const { api, calm } = urgentWorld()
+      renderApp({ api, path: `/p/${calm.id}` })
+      await screen.findByTestId('scene')
+      expect(labels(milestonePicker())).toEqual(['Calm (whole island)'])
+    })
+
+    test('a lone calm island is listed plainly on the archipelago', async () => {
       const calm = fakeProject({ name: 'Calm' })
       const { api } = createFakeApi({
         world: { projects: [calm], milestones: [], tasks: [], buildings: [] },
       })
       renderApp({ api, path: '/' })
       await screen.findByTestId('scene')
-      expect(
-        within(picker())
-          .getAllByRole('option')
-          .map((o) => o.textContent),
-      ).toEqual(['All islands', 'Calm'])
+      expect(labels(islandPicker())).toEqual(['All islands', 'Calm'])
     })
 
     test('no island chips remain in the drawer or above the sheet', async () => {

@@ -89,6 +89,8 @@ export function panelTasks(world: WorldDto, focus: Focus, today: string): TaskDt
 export type IslandSummary = {
   project: ProjectDto
   milestones: MilestoneDto[]
+  /** Open overdue and due-soon counts per milestone id (spec 20.5). */
+  milestoneUrgency: Record<string, { overdue: number; dueSoon: number }>
   open: number
   done: number
   overdue: number
@@ -99,11 +101,20 @@ export function islandSummaries(world: WorldDto, today: string): IslandSummary[]
   return world.projects.map((project) => {
     const tasks = world.tasks.filter((t) => t.projectId === project.id)
     const statuses = tasks.map((t) => dueStatus(t, today))
+    const milestones = world.milestones
+      .filter((m) => m.projectId === project.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+    const count = (milestoneId: string, status: DueStatus) =>
+      tasks.filter((t, i) => t.milestoneId === milestoneId && statuses[i] === status).length
     return {
       project,
-      milestones: world.milestones
-        .filter((m) => m.projectId === project.id)
-        .sort((a, b) => a.sortOrder - b.sortOrder),
+      milestones,
+      milestoneUrgency: Object.fromEntries(
+        milestones.map((m) => [
+          m.id,
+          { overdue: count(m.id, 'overdue'), dueSoon: count(m.id, 'due-soon') },
+        ]),
+      ),
       open: tasks.filter((t) => t.status !== 'done').length,
       done: tasks.filter((t) => t.status === 'done').length,
       overdue: statuses.filter((s) => s === 'overdue').length,

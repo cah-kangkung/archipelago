@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useLayoutEffect, useRef } from 'react'
-import { IslandPicker } from './island-picker'
+import { LayerPicker } from './layer-picker'
 import type { IslandSummary, resolveFocus } from './selectors'
 
 type Resolved = ReturnType<typeof resolveFocus>
@@ -51,7 +51,11 @@ export function WorldHud({
       <div className="flex flex-col gap-2 @3xl:grid @3xl:grid-cols-[1fr_auto_1fr] @3xl:items-start">
         {summaries.length > 0 && (
           <div className="flex justify-center @3xl:col-start-2 @3xl:row-start-1">
-            <IslandPicker summaries={summaries} currentProjectId={project?.id ?? null} />
+            <LayerPicker
+              summaries={summaries}
+              projectId={project?.id ?? null}
+              milestoneId={milestone?.id ?? null}
+            />
           </div>
         )}
         <div className="flex flex-wrap items-start gap-2 @3xl:col-start-1 @3xl:row-start-1">

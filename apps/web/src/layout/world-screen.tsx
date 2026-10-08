@@ -18,7 +18,7 @@ import { BuildingBar } from '../shop/building-bar'
 import { PlacementBar } from '../shop/placement-bar'
 import { ShopPanel } from '../shop/shop-panel'
 import { usePlaceBuilding, useRemoveBuilding } from '../shop/use-shop-actions'
-import { ALL_TASKS, NO_MILESTONE, TaskPanel } from '../tasks/task-panel'
+import { TaskPanel } from '../tasks/task-panel'
 import { readLastIsland, writeLastIsland } from '../world/last-island'
 import {
   islandOccupied,
@@ -65,10 +65,6 @@ export function WorldScreen() {
   const [sheetDetent, setSheetDetent] = useState(SHEET_MIDDLE)
   const [panelOpen, setPanelOpen] = usePanelOpen()
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
-  // "No milestone" on an island: the project it applies to. A route change resets it, except the
-  // one hop from a district to its island that the filter itself asks for (spec 19.4).
-  const [commonsFor, setCommonsFor] = useState<string | null>(null)
-  const pendingCommons = useRef<string | null>(null)
   const [cover, setCover] = useState(0)
   const [placing, setPlacing] = useState<{
     projectId: string
@@ -162,8 +158,6 @@ export function WorldScreen() {
     setSelectedTaskId(null)
     setSelectedBuildingId(null)
     setPlacing(null)
-    setCommonsFor(pendingCommons.current)
-    pendingCommons.current = null
     attempt.current += 1
     setSubmitting(false)
   }, [params.projectId, params.milestoneId])
@@ -245,38 +239,6 @@ export function WorldScreen() {
   const placingItem = activePlacing ? shopItem(activePlacing.type) : undefined
   const panelTitle = resolved.milestone?.name ?? resolved.project?.name ?? 'Due today & overdue'
   const { project, milestone } = resolved
-  const commonsOnly = resolved.focus.kind === 'island' && commonsFor === resolved.focus.projectId
-  const islandMilestones = project
-    ? world.data.milestones
-        .filter((m) => m.projectId === project.id)
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-    : []
-  const milestoneValue =
-    resolved.focus.kind === 'district'
-      ? resolved.focus.milestoneId
-      : commonsOnly
-        ? NO_MILESTONE
-        : ALL_TASKS
-  const pickMilestone = (value: string) => {
-    if (!project) return
-    const inDistrict = resolved.focus.kind === 'district'
-    if (value === ALL_TASKS) {
-      if (inDistrict) void navigate({ to: '/p/$projectId', params: { projectId: project.id } })
-      else setCommonsFor(null)
-      return
-    }
-    if (value === NO_MILESTONE) {
-      if (inDistrict) {
-        pendingCommons.current = project.id
-        void navigate({ to: '/p/$projectId', params: { projectId: project.id } })
-      } else setCommonsFor(project.id)
-      return
-    }
-    void navigate({
-      to: '/p/$projectId/m/$milestoneId',
-      params: { projectId: project.id, milestoneId: value },
-    })
-  }
 
   const closeEditor = () => setEditor(null)
   const confirmPlacement = () => {
@@ -343,8 +305,6 @@ export function WorldScreen() {
           onSelect={(taskId) => {
             setSelectedTaskId(taskId)
             setSelectedBuildingId(null)
-            // A milestone task would be filtered out by "No milestone": show it.
-            if (world.data.tasks.find((t) => t.id === taskId)?.milestoneId) setCommonsFor(null)
             // Show the selected row: a collapsed sheet rises; a taller one stays where it is.
             if (taskId) setSheetDetent((d) => Math.max(d, SHEET_MIDDLE))
           }}
@@ -406,10 +366,6 @@ export function WorldScreen() {
           searchRef={searchRef}
           selectedTaskId={selectedTask ? selectedTaskId : null}
           onNewTask={openNewTask}
-          milestones={project ? islandMilestones : undefined}
-          milestoneValue={milestoneValue}
-          onMilestoneChange={project ? pickMilestone : undefined}
-          commonsOnly={commonsOnly}
           onEditTask={(task) => openEditor({ kind: 'edit-task', taskId: task.id })}
         />
       </PanelFrame>
