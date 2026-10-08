@@ -33,6 +33,7 @@ export function WorldView({
   onNewMilestone,
   onEditProject,
   onEditMilestone,
+  onOpenShop,
 }: {
   world: WorldDto
   resolved: Resolved
@@ -50,6 +51,7 @@ export function WorldView({
   onNewMilestone?: () => void
   onEditProject?: () => void
   onEditMilestone?: () => void
+  onOpenShop?: () => void
 }) {
   const navigate = useNavigate()
   const model = useMemo(() => buildSceneModel(world, today), [world, today])
@@ -114,7 +116,12 @@ export function WorldView({
           </Suspense>
         </div>
         <EdgeIndicatorLayer store={indicators} onOpen={openIsland} />
-        <WorldHud resolved={resolved} empty={world.projects.length === 0} {...actions} />
+        <WorldHud
+          resolved={resolved}
+          empty={world.projects.length === 0}
+          onOpenShop={onOpenShop}
+          {...actions}
+        />
       </section>
     </SceneBoundary>
   )

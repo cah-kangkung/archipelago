@@ -1,0 +1,175 @@
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { describe, expect, test, vi } from 'vitest'
+import type { WorldSceneProps } from '../scene/world-scene'
+import { createFakeApi, fakeBuilding, fakeEntry, fakeProject, fakeTask } from '../test/fake-api'
+import { renderApp } from '../test/render-app'
+
+// jsdom lacks pointer capture; vaul's phone drawer captures the pointer on every press inside the
+// Shop dialog.
+if (typeof Element.prototype.setPointerCapture !== 'function') {
+  Element.prototype.setPointerCapture = () => {}
+  Element.prototype.releasePointerCapture = () => {}
+}
+
+vi.mock('../scene/webgl', () => ({ hasWebGL: () => true, resetWebGLProbe: () => {} }))
+
+// Stands in for the canvas: exposes placement plots, decorations and structures as buttons.
+vi.mock('../scene/world-scene', () => ({
+  WorldScene: ({
+    model,
+    placement,
+    selectedBuildingId,
+    coveredBottom,
+    onPickPlot,
+    onSelectBuilding,
+    onSelect,
+  }: WorldSceneProps) => (
+    <div
+      data-testid="scene"
+      data-covered={coveredBottom}
+      data-plots={placement?.plots.length ?? 0}
+      data-ghost={placement?.ghost ? `${placement.ghost.plot.q},${placement.ghost.plot.r}` : ''}
+      data-building={selectedBuildingId ?? ''}
+    >
+      {placement?.plots.map((p) => (
+        <button key={`${p.q},${p.r}`} type="button" onClick={() => onPickPlot(p)}>
+          plot {p.q},{p.r}
+        </button>
+      ))}
+      {model.islands.flatMap((island) => [
+        ...island.decorations.map((d) => (
+          <button key={d.buildingId} type="button" onClick={() => onSelectBuilding(d.buildingId)}>
+            decoration {d.type}
+          </button>
+        )),
+        ...island.structures.map((s) => (
+          <button key={s.taskId} type="button" onClick={() => onSelect(s.taskId)}>
+            structure {s.taskId}
+          </button>
+        )),
+      ])}
+    </div>
+  ),
+}))
+
+function seeded(funds = 100) {
+  const beta = fakeProject({ name: 'Beta' })
+  const task = fakeTask({ projectId: beta.id, title: 'Ship', plotX: 1, plotY: 0 })
+  const pine = fakeBuilding({ projectId: beta.id, type: 'pine', plotX: -1, plotY: 0 })
+  const fake = createFakeApi({
+    world: { projects: [beta], milestones: [], tasks: [task], buildings: [pine] },
+    ledger: [fakeEntry({ kind: 'daily_bonus', amount: funds })],
+  })
+  return { beta, task, pine, ...fake }
+}
+
+const scene = () => screen.getByTestId('scene')
+
+async function startPlacing(user: ReturnType<typeof renderApp>['user'], name = /Pine tree/) {
+  await user.click(await screen.findByRole('button', { name: 'Shop' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Shop' })
+  await user.click(within(dialog).getByRole('button', { name }))
+}
+
+describe('shop on the world screen', () => {
+  test('the Shop chip shows on an island, not on the archipelago', async () => {
+    const { api, beta } = seeded()
+    const { router } = renderApp({ api, path: '/' })
+    await screen.findByTestId('scene')
+    expect(screen.queryByRole('button', { name: 'Shop' })).not.toBeInTheDocument()
+    await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: beta.id } }))
+    expect(await screen.findByRole('button', { name: 'Shop' })).toBeInTheDocument()
+  })
+
+  test('pick, place and pay', async () => {
+    const { api, beta, state } = seeded()
+    const { user } = renderApp({ api, path: `/p/${beta.id}` })
+    await screen.findByTestId('scene')
+    const coveredBefore = Number(scene().dataset.covered)
+    await startPlacing(user)
+    expect(screen.queryByRole('dialog', { name: 'Shop' })).not.toBeInTheDocument()
+    // The sheet drops to its lowest detent, so less of the world is covered.
+    expect(Number(scene().dataset.covered)).toBeLessThan(coveredBefore)
+    expect(screen.getByText('Tap a glowing plot')).toBeInTheDocument()
+    expect(Number(scene().dataset.plots)).toBeGreaterThan(0)
+    await user.click(screen.getByRole('button', { name: 'plot 0,1' }))
+    expect(scene().dataset.ghost).toBe('0,1')
+    await user.click(screen.getByRole('button', { name: 'Place · 30' }))
+    expect(await screen.findByText('Pine tree placed · −30')).toBeInTheDocument()
+    expect(screen.queryByRole('toolbar', { name: 'Placing Pine tree' })).not.toBeInTheDocument()
+    expect(state.world.buildings.map((b) => [b.plotX, b.plotY])).toContainEqual([0, 1])
+  })
+
+  test('a double tap on Place buys once', async () => {
+    const { api, beta, calls } = seeded()
+    const { user } = renderApp({ api, path: `/p/${beta.id}` })
+    await startPlacing(user)
+    await user.click(screen.getByRole('button', { name: 'plot 0,1' }))
+    const place = screen.getByRole('button', { name: 'Place · 30' })
+    fireEvent.click(place)
+    fireEvent.click(place)
+    await screen.findByText('Pine tree placed · −30')
+    expect(calls.filter((c) => c === 'placeBuilding')).toHaveLength(1)
+  })
+
+  test('a taken plot keeps placement open and clears the ghost', async () => {
+    const { api, beta, state } = seeded()
+    const { user } = renderApp({ api, path: `/p/${beta.id}` })
+    await startPlacing(user)
+    await user.click(screen.getByRole('button', { name: 'plot 0,1' }))
+    state.world.tasks.push(fakeTask({ projectId: beta.id, plotX: 0, plotY: 1 }))
+    await user.click(screen.getByRole('button', { name: 'Place · 30' }))
+    expect(await screen.findByText('That plot is taken')).toBeInTheDocument()
+    expect(screen.getByText('Tap a glowing plot')).toBeInTheDocument()
+    expect(scene().dataset.ghost).toBe('')
+  })
+
+  test('a refetch that takes the ghost’s plot clears the ghost', async () => {
+    const { api, beta, state } = seeded()
+    const { user, queryClient } = renderApp({ api, path: `/p/${beta.id}` })
+    await startPlacing(user)
+    await user.click(screen.getByRole('button', { name: 'plot 0,1' }))
+    state.world.tasks.push(fakeTask({ projectId: beta.id, plotX: 0, plotY: 1 }))
+    await act(() => queryClient.invalidateQueries({ queryKey: ['world'] }))
+    // The query notifies its observers on a later tick than the refetch resolves.
+    await waitFor(() => expect(scene().dataset.ghost).toBe(''))
+    expect(screen.getByText('Tap a glowing plot')).toBeInTheDocument()
+  })
+
+  test('Cancel, Escape and a route change all end placement with nothing spent', async () => {
+    const { api, beta, calls } = seeded()
+    const { user, router } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+    await startPlacing(user)
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(scene().dataset.plots).toBe('0')
+
+    await startPlacing(user)
+    await user.keyboard('{Escape}')
+    expect(scene().dataset.plots).toBe('0')
+    expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
+
+    await startPlacing(user)
+    await act(() => router.navigate({ to: '/' }))
+    await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: beta.id } }))
+    expect(scene().dataset.plots).toBe('0')
+    expect(calls).not.toContain('placeBuilding')
+  })
+
+  test('select a decoration, remove it for half back', async () => {
+    const { api, beta, task, pine, state } = seeded()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { user } = renderApp({ api, path: `/p/${beta.id}` })
+    const shipRow = () => screen.getByText('Ship').closest('li')
+    await user.click(await screen.findByRole('button', { name: `structure ${task.id}` }))
+    expect(shipRow()).toHaveAttribute('aria-current', 'true')
+    await user.click(screen.getByRole('button', { name: 'decoration pine' }))
+    expect(scene().dataset.building).toBe(pine.id)
+    // Selecting a decoration clears the selected task.
+    expect(shipRow()).not.toHaveAttribute('aria-current')
+    await user.click(screen.getByRole('button', { name: 'Remove (+15)' }))
+    expect(confirm).toHaveBeenCalledWith('Remove Pine tree for 15 Supplies back?')
+    expect(await screen.findByText('+15 Supplies')).toBeInTheDocument()
+    expect(state.world.buildings).toEqual([])
+    confirm.mockRestore()
+  })
+})

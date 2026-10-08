@@ -1,14 +1,32 @@
+import {
+  type DecorationType,
+  type Hex,
+  placeablePlots,
+  refundFor,
+  shopItem,
+} from '@archipelago/shared'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { EditorFrame } from '../editors/editor-frame'
 import { MilestoneForm } from '../editors/milestone-form'
 import { ProjectForm } from '../editors/project-form'
 import { TaskForm } from '../editors/task-form'
 import { openingIsland } from '../scene/model/camera'
+import type { Placement } from '../scene/world-contents'
+import { BuildingBar } from '../shop/building-bar'
+import { PlacementBar } from '../shop/placement-bar'
+import { ShopPanel } from '../shop/shop-panel'
+import { usePlaceBuilding, useRemoveBuilding } from '../shop/use-shop-actions'
 import { TaskPanel } from '../tasks/task-panel'
 import { IslandSwitcher } from '../world/island-switcher'
 import { readLastIsland, writeLastIsland } from '../world/last-island'
-import { islandSummaries, parentPath, resolveFocus, todayIn } from '../world/selectors'
+import {
+  islandOccupied,
+  islandSummaries,
+  parentPath,
+  resolveFocus,
+  todayIn,
+} from '../world/selectors'
 import { useMe, useWorld } from '../world/use-world'
 import { WorldView } from '../world/world-view'
 import { PanelFrame, SHEET_MIDDLE } from './panel-frame'
@@ -22,6 +40,7 @@ type Editor =
   | { kind: 'edit-milestone'; milestoneId: string }
   | { kind: 'new-task'; projectId: string; milestoneId: string | null }
   | { kind: 'edit-task'; taskId: string }
+  | { kind: 'shop' }
 
 const editorTitle: Record<Editor['kind'], string> = {
   'new-project': 'New island',
@@ -30,6 +49,7 @@ const editorTitle: Record<Editor['kind'], string> = {
   'edit-milestone': 'Edit milestone',
   'new-task': 'New task',
   'edit-task': 'Edit task',
+  shop: 'Shop',
 }
 
 const retryButton = 'inline-flex min-h-11 items-center rounded-md px-3 text-brand'
@@ -45,11 +65,43 @@ export function WorldScreen() {
   const [sheetDetent, setSheetDetent] = useState(SHEET_MIDDLE)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [cover, setCover] = useState(0)
+  const [placing, setPlacing] = useState<{ type: DecorationType; plot: Hex | null } | null>(null)
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null)
+  // Set synchronously on confirm: the mutation's pending flag flips too late to stop a double tap.
+  const [submitting, setSubmitting] = useState(false)
+  const place = usePlaceBuilding()
+  const remove = useRemoveBuilding()
 
   const resolved = world.data
     ? resolveFocus(world.data, { projectId: params.projectId, milestoneId: params.milestoneId })
     : null
   const focus = resolved?.focus ?? { kind: 'archipelago' as const }
+  const resolvedProjectId = resolved?.project?.id
+
+  const plots = useMemo(
+    () =>
+      world.data && resolvedProjectId
+        ? placeablePlots(islandOccupied(world.data, resolvedProjectId))
+        : [],
+    [world.data, resolvedProjectId],
+  )
+  // A refetch that takes the chosen plot drops the ghost.
+  const ghostPlot =
+    placing?.plot && plots.some((p) => p.q === placing.plot?.q && p.r === placing.plot?.r)
+      ? placing.plot
+      : null
+  const placingType = placing?.type
+  const placement = useMemo<Placement | null>(
+    () =>
+      placingType && resolvedProjectId
+        ? {
+            projectId: resolvedProjectId,
+            plots,
+            ghost: ghostPlot ? { type: placingType, plot: ghostPlot } : null,
+          }
+        : null,
+    [placingType, resolvedProjectId, plots, ghostPlot],
+  )
 
   const openNewTask = () => {
     if (editor !== null) return
@@ -85,6 +137,8 @@ export function WorldScreen() {
   useEffect(() => {
     setEditor(null)
     setSelectedTaskId(null)
+    setSelectedBuildingId(null)
+    setPlacing(null)
   }, [params.projectId, params.milestoneId])
 
   // The island of the latest island or district route: where the archipelago opens on step-out.
@@ -106,6 +160,7 @@ export function WorldScreen() {
       if (editor === null) searchRef.current?.focus()
     },
     onEscape: () => {
+      if (placing) return setPlacing(null)
       if (editor) return setEditor(null)
       const up = parentPath(focus)
       if (up) void navigate({ to: up })
@@ -147,10 +202,25 @@ export function WorldScreen() {
         )
       : null
   const selectedTask = world.data.tasks.find((t) => t.id === selectedTaskId)
+  const selectedBuilding = world.data.buildings.find((b) => b.id === selectedBuildingId)
+  const selectedBuildingItem = selectedBuilding ? shopItem(selectedBuilding.type) : undefined
+  const placingItem = placing ? shopItem(placing.type) : undefined
   const panelTitle = resolved.milestone?.name ?? resolved.project?.name ?? 'Due today & overdue'
   const { project, milestone } = resolved
 
   const closeEditor = () => setEditor(null)
+  const confirmPlacement = () => {
+    if (submitting || !placing || !ghostPlot || !project) return
+    setSubmitting(true)
+    place.mutate(
+      { projectId: project.id, type: placing.type, plotX: ghostPlot.q, plotY: ghostPlot.r },
+      {
+        onSuccess: () => setPlacing(null),
+        onError: () => setPlacing((p) => (p ? { ...p, plot: null } : p)),
+        onSettled: () => setSubmitting(false),
+      },
+    )
+  }
   const afterRemoval =
     (to: string, removedProjectId?: string) =>
     async ({ removed }: { removed: boolean }) => {
@@ -180,15 +250,18 @@ export function WorldScreen() {
           summaries={summaries}
           today={today}
           selectedTaskId={selectedTask ? selectedTaskId : null}
-          // Wired up with placement mode.
-          selectedBuildingId={null}
-          placement={null}
-          onSelectBuilding={() => {}}
-          onPickPlot={() => {}}
+          selectedBuildingId={selectedBuilding ? selectedBuildingId : null}
+          placement={placement}
+          onSelectBuilding={(buildingId) => {
+            setSelectedBuildingId(buildingId)
+            setSelectedTaskId(null)
+          }}
+          onPickPlot={(plot) => setPlacing((p) => (p ? { ...p, plot } : p))}
           coveredBottom={isDesktop ? 0 : cover}
           anchor={anchor}
           onSelect={(taskId) => {
             setSelectedTaskId(taskId)
+            setSelectedBuildingId(null)
             // Show the selected row: a collapsed sheet rises; a taller one stays where it is.
             if (taskId) setSheetDetent((d) => Math.max(d, SHEET_MIDDLE))
           }}
@@ -204,6 +277,7 @@ export function WorldScreen() {
               ? () => setEditor({ kind: 'edit-milestone', milestoneId: milestone.id })
               : undefined
           }
+          onOpenShop={project ? () => setEditor({ kind: 'shop' }) : undefined}
         />
       </div>
       <PanelFrame
@@ -211,11 +285,30 @@ export function WorldScreen() {
         detent={sheetDetent}
         onDetentChange={setSheetDetent}
         accessory={
-          <IslandSwitcher
-            summaries={summaries}
-            currentProjectId={project?.id ?? null}
-            variant={isDesktop ? 'panel' : 'floating'}
-          />
+          placingItem ? (
+            <PlacementBar
+              item={placingItem}
+              hasGhost={ghostPlot !== null}
+              pending={submitting}
+              onConfirm={confirmPlacement}
+              onCancel={() => setPlacing(null)}
+            />
+          ) : selectedBuildingItem && selectedBuilding ? (
+            <BuildingBar
+              name={selectedBuildingItem.name}
+              refund={refundFor(selectedBuildingItem.price)}
+              pending={remove.isPending}
+              onRemove={() =>
+                remove.mutate(selectedBuilding.id, { onSuccess: () => setSelectedBuildingId(null) })
+              }
+            />
+          ) : (
+            <IslandSwitcher
+              summaries={summaries}
+              currentProjectId={project?.id ?? null}
+              variant={isDesktop ? 'panel' : 'floating'}
+            />
+          )
         }
         onCoverChange={setCover}
       >
@@ -253,6 +346,19 @@ export function WorldScreen() {
               projectId={editor.projectId}
               defaultMilestoneId={editor.milestoneId}
               onDone={closeEditor}
+            />
+          )}
+          {editor.kind === 'shop' && (
+            <ShopPanel
+              balance={world.data.economy.balance}
+              hasFreeLand={plots.length > 0}
+              onPick={(type) => {
+                setEditor(null)
+                setSelectedTaskId(null)
+                setSelectedBuildingId(null)
+                setPlacing({ type, plot: null })
+                setSheetDetent(0)
+              }}
             />
           )}
           {editor.kind === 'edit-task' && editedTask && (
