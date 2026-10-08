@@ -1,7 +1,9 @@
 import { Html } from '@react-three/drei'
 import type { Focus } from '../world/selectors'
+import { layerArea } from './model/camera'
 import { LAND_HEIGHT } from './model/hex-space'
 import type { SceneModel } from './model/scene-model'
+import { labelOpacity } from './model/spotlight'
 
 /** drei's default range reaches millions; keep labels low so the HUD (z-20) sits above them. */
 const LABEL_Z: [number, number] = [10, 0]
@@ -26,6 +28,7 @@ export function Labels({ model, focus }: { model: SceneModel; focus: Focus }) {
   }
   const island = model.islands.find((i) => i.projectId === focus.projectId)
   if (!island) return null
+  const area = layerArea(model, focus)
   return island.districts.map((d) => (
     <Html
       key={d.milestoneId}
@@ -37,6 +40,12 @@ export function Labels({ model, focus }: { model: SceneModel; focus: Focus }) {
         island.origin.z + d.position.z,
       ]}
       className={tag}
+      style={{
+        opacity: labelOpacity(area, {
+          x: island.origin.x + d.position.x,
+          z: island.origin.z + d.position.z,
+        }),
+      }}
     >
       {d.name}
     </Html>
