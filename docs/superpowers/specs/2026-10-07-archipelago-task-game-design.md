@@ -776,7 +776,7 @@ Phase 5c makes the open sea read as a place rather than an empty plane, before P
 - A drei `<Html>` card anchored above it reads **"Uncharted waters"** with a **Create your first island** button that opens the existing new-island editor (`onNewProject`). It replaces the HUD's "No islands yet" text chip; the HUD's "New island" chip stays.
 - When the first project appears, the ghost and the card unmount and the opening focus (section 14.2) frames the new island.
 - **Card fallback (no WebGL):** "No islands yet" becomes the same heading plus a Create your first island button.
-- Under reduced motion nothing animates here; on `high` the ghost island bobs with the sea wave like the rest of the sea surface (it sits on it).
+- Nothing on the empty state animates; it sits like any island.
 
 ### 17.5 Ambient life (`scene/model/ambient-life.ts`, pure)
 
