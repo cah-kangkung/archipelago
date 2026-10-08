@@ -1015,14 +1015,14 @@ Phase 5g opens the light-and-mood phase with a cloud ring: soft low-poly clouds 
 
 ### 21.1 The ring (`scene/model/clouds.ts`, pure)
 
-- `cloudRing(area, seed): CloudPuff[]` with `CloudPuff = { x: number; z: number; scale: number; turn: number }` (world x/z on the ground the puff appears over, before the height offset of 21.2).
+- `cloudRing(c: CloudArea): CloudPuff[]` with `CloudArea = { area, inset, seed }` and `CloudPuff = { x, z, nx, nz, scale, turn, phase }`: world x/z on the ground the puff appears over (before the height offset of 21.2), its unit outward direction from the ring, and a 0–1 phase that staggers its gather and offsets its drift.
   - Puffs sit in a band outside `area` (an `Area`, 20.1): the band's inner edge is the area's edge grown by `inset`, its depth `CLOUD_BAND` (two hexes, `2 × SQRT3`).
   - Puffs are spread along the band's centre line at `CLOUD_DENSITY` puffs per world unit of its length (perimeter of the rounded rectangle grown to the band's middle), each jittered across the band and along it by a seeded hash of `(seed, index)`. Scale 0.8–1.4, turn 0–2π, from the same hash. Total capped at `CLOUD_MAX` (120); past the cap the density thins evenly.
   - Same area and seed → the same ring.
 - `cloudArea(model, focus): { area: Area; inset: number; seed: number } | null`:
   - **Archipelago:** `null` (no clouds).
   - **Island:** the island's layer area (20.1) with `inset = SHALLOWS_MARGIN` (the band starts at the shallows edge); seed = the island's seed.
-  - **District:** by `CLOUD_DISTRICT_RING`: `'district'` (default) — the district's layer area with `inset = AREA_MARGIN`, over the island's own land; `'coast'` — the island's ring as above. Seed = the island's seed plus the milestone's sort order.
+  - **District:** by `CLOUD_DISTRICT_RING`: `'district'` (default) — the district's layer area with `inset = AREA_MARGIN`, over the island's own land; `'coast'` — the island's ring as above. Seed = `hashInts(island seed, district index + 1)`, the district's place in the island's milestone order.
   - Unknown ids fall back a level, as `layerArea` does.
 - **Switches** (in `scene/tuning.ts`): `CLOUD_DENSITY` 1.0 gives the closed band; about 0.4 gives scattered puffs. `CLOUD_DISTRICT_RING` `'district' | 'coast'`.
 
@@ -1036,7 +1036,8 @@ Phase 5g opens the light-and-mood phase with a cloud ring: soft low-poly clouds 
 ### 21.3 Motion
 
 - A layer change replaces the ring: the old ring's puffs shrink to 0 while drifting outward 1.5 hexes; the new ring's puffs grow from 0 while gliding in from 1.5 hexes further out. Each puff's start is staggered by up to 25% of `CLOUD_MS` (600) by its hash; ease-out. Archipelago → layer: gather only. Layer → archipelago: part only. A refetch whose `cloudArea` is unchanged (same area value and seed) does nothing.
-- On the `high` tier (the sea wave is on, so the 30fps ticker already runs), resting puffs creep along the ring at `CLOUD_DRIFT` (0.05 world units/s) and bob by `CLOUD_BOB` (0.08) with a per-puff phase. On `low`, they gather and part but rest still.
+- On the `high` tier (the sea wave is on, so the 30fps ticker already runs), resting puffs sway along the ring by `CLOUD_SWAY` (0.3) over `CLOUD_SWAY_S` (20 s) and bob by `CLOUD_BOB` (0.08) over `CLOUD_BOB_S` (6 s), each offset by its phase and each zero when the drift begins, so a finished gather never jumps. On `low`, they gather and part but rest still.
+- Changing layer mid-gather parts every visible puff from the size it had reached. The first mount shows its ring at once (like the camera's first framing); route changes after it gather.
 - Reduced motion: rings appear and vanish at once; no drift.
 - A `clouds` ticker demand is held only while a gather or part runs.
 
