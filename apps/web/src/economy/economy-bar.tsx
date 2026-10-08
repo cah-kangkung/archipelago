@@ -1,5 +1,5 @@
 import type { WorldDto } from '@archipelago/shared'
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useWorld } from '../world/use-world'
 import { useClaimDaily } from './use-claim-daily'
 import { useCountUp } from './use-count-up'
@@ -23,11 +23,28 @@ function BalanceChip({ balance }: { balance: number }) {
 function StreakChip({ streak }: { streak: WorldDto['economy']['streak'] }) {
   const [open, setOpen] = useState(false)
   const hintId = useId()
+  const root = useRef<HTMLSpanElement>(null)
+  // iOS Safari never blurs a tapped button, so a tap elsewhere or Escape must close it too.
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
   const hint = streak.next
     ? `Next bonus at ${streak.next.days} days: +${streak.next.amount}`
     : 'Top streak bonus reached'
   return (
-    <span className="relative">
+    <span ref={root} className="relative">
       <button
         type="button"
         aria-label={`${streak.days}-day streak`}
@@ -36,9 +53,11 @@ function StreakChip({ streak }: { streak: WorldDto['economy']['streak'] }) {
         title={hint}
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setOpen(false)}
-        className={`${pill} ${streak.activeToday ? 'text-warning' : 'text-text-secondary'}`}
+        className="flex min-h-11 items-center"
       >
-        {streak.days}d
+        <span className={`${pill} ${streak.activeToday ? 'text-warning' : 'text-text-secondary'}`}>
+          {streak.days}d
+        </span>
       </button>
       {open && (
         <span

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
 import { createFakeApi, fakeEntry } from '../test/fake-api'
 import { renderApp } from '../test/render-app'
@@ -101,6 +101,32 @@ describe('EconomyBar', () => {
     expect(screen.getByText('Next bonus at 3 days: +20')).toBeVisible()
     await user.click(chip)
     expect(screen.queryByText('Next bonus at 3 days: +20')).toBeNull()
+  })
+
+  test('a tap outside the open streak popover closes it, even without a blur', async () => {
+    const { api } = createFakeApi({ today: TODAY, ledger: [fakeEntry({ day: TODAY })] })
+    const { user } = renderApp({ api, path: '/' })
+    const chip = await screen.findByRole('button', { name: '1-day streak' })
+    expect(chip).toHaveClass('min-h-11')
+    await user.click(chip)
+    const hint = screen.getByText('Next bonus at 3 days: +20')
+    // A tap on the popover itself keeps it open.
+    fireEvent.pointerDown(hint)
+    expect(chip).toHaveAttribute('aria-expanded', 'true')
+    // iOS Safari never blurs a tapped button, so only the outside pointerdown can close it.
+    fireEvent.pointerDown(document.body)
+    expect(chip).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Next bonus at 3 days: +20')).toBeNull()
+  })
+
+  test('Escape closes the open streak popover', async () => {
+    const { api } = createFakeApi({ today: TODAY, ledger: [fakeEntry({ day: TODAY })] })
+    const { user } = renderApp({ api, path: '/' })
+    const chip = await screen.findByRole('button', { name: '1-day streak' })
+    await user.click(chip)
+    await user.keyboard('{Escape}')
+    expect(chip).toHaveAttribute('aria-expanded', 'false')
+    expect(chip).toHaveFocus()
   })
 
   test('past the last bonus the popover says the top bonus is reached', async () => {
