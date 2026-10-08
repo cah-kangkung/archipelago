@@ -23,6 +23,7 @@ vi.mock('../scene/world-scene', () => ({
     indicators,
     anchor,
     hudInset,
+    onNewProject,
   }: WorldSceneProps) => {
     seenAnchors.push(anchor ?? '')
     return (
@@ -52,6 +53,11 @@ vi.mock('../scene/world-scene', () => ({
         >
           report indicator
         </button>
+        {model.islands.length === 0 && onNewProject && (
+          <button type="button" onClick={onNewProject}>
+            Create your first island
+          </button>
+        )}
         {model.islands.map((island) => (
           <div key={island.projectId}>
             <button type="button" onClick={() => onOpenIsland(island.projectId)}>
@@ -114,13 +120,26 @@ describe('World screen with the 3D scene', () => {
     expect(vignette).toHaveAttribute('aria-hidden', 'true')
   })
 
-  test('an empty world says so over the sea', async () => {
+  test('an empty world offers its first island from the sea, not a HUD note', async () => {
     const { api } = createFakeApi()
-    renderApp({ api, path: '/' })
+    const { user } = renderApp({ api, path: '/', desktop: true })
+    await user.click(await screen.findByRole('button', { name: 'Create your first island' }))
     expect(
-      await screen.findByText('No islands yet. Create one to start building.'),
+      within(screen.getByRole('dialog')).getByRole('heading', { name: 'New island' }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'New island' })).toBeInTheDocument()
+    expect(screen.queryByText('No islands yet. Create one to start building.')).toBeNull()
+  })
+
+  test('creating the first island replaces the empty prompt with the island', async () => {
+    const { api } = createFakeApi()
+    const { user } = renderApp({ api, path: '/', desktop: true })
+    await user.click(await screen.findByRole('button', { name: 'Create your first island' }))
+    await user.type(within(screen.getByRole('dialog')).getByLabelText('Name'), 'Alpha')
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Create island' }),
+    )
+    expect(await screen.findByRole('button', { name: 'open Alpha' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create your first island' })).toBeNull()
   })
 
   test('HUD buttons open the matching editors', async () => {

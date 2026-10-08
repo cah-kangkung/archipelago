@@ -1,6 +1,7 @@
 import type { WorldDto } from '@archipelago/shared'
 import { Link } from '@tanstack/react-router'
 import type { IslandSummary, resolveFocus } from './selectors'
+import { UnchartedCard } from './uncharted-card'
 
 type Resolved = ReturnType<typeof resolveFocus>
 
@@ -64,7 +65,9 @@ export function CardWorld({
           )}
         </div>
         {summaries.length === 0 && (
-          <p className="px-4 text-text-secondary">No islands yet. Create one to start building.</p>
+          <div className="px-4">
+            <UnchartedCard onCreate={onNewProject} />
+          </div>
         )}
       </section>
     )

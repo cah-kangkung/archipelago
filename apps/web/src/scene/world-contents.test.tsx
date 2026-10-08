@@ -604,4 +604,20 @@ describe('reward effects', () => {
     expect(scaleOf(hut, 0)).toBeCloseTo(1)
     expect(named(renderer.scene, 'float')).toHaveLength(0)
   })
+
+  test('an empty world shows the uncharted ghost island, which ignores taps', async () => {
+    const empty: WorldDto = { projects: [], milestones: [], tasks: [], buildings: [], economy }
+    const { renderer, onSelect } = await render(empty, { kind: 'archipelago' })
+    const ghost = one(renderer.scene, 'uncharted-terrain')
+    expect((ghost.instance as THREE.Mesh).material).toBe(ghostMaterial)
+    expect(ghost.props.onClick).toBeUndefined()
+    await renderer.fireEvent(one(renderer.scene, 'sea'), 'click', { delta: 0 })
+    expect(onSelect).toHaveBeenCalledWith(null)
+  })
+
+  test('any island removes the uncharted ghost', async () => {
+    const { world } = seeded()
+    const { renderer } = await render(world, { kind: 'archipelago' })
+    expect(named(renderer.scene, 'uncharted')).toHaveLength(0)
+  })
 })

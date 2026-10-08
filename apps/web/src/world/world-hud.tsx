@@ -10,7 +10,6 @@ const chip =
 /** Floating controls over the canvas; the same actions the card view offers. */
 export function WorldHud({
   resolved,
-  empty,
   onNewProject,
   onNewMilestone,
   onEditProject,
@@ -19,7 +18,6 @@ export function WorldHud({
   onHeight,
 }: {
   resolved: Resolved
-  empty: boolean
   onNewProject?: () => void
   onNewMilestone?: () => void
   onEditProject?: () => void
@@ -47,19 +45,10 @@ export function WorldHud({
       data-testid="world-hud"
       className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start gap-2 p-3"
     >
-      {focus.kind === 'archipelago' && (
-        <>
-          {onNewProject && (
-            <button type="button" onClick={onNewProject} className={`${chip} text-brand`}>
-              New island
-            </button>
-          )}
-          {empty && (
-            <p className={`${chip} text-text-secondary`}>
-              No islands yet. Create one to start building.
-            </p>
-          )}
-        </>
+      {focus.kind === 'archipelago' && onNewProject && (
+        <button type="button" onClick={onNewProject} className={`${chip} text-brand`}>
+          New island
+        </button>
       )}
       {focus.kind === 'island' && (
         <>

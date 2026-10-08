@@ -119,6 +119,7 @@ export function WorldView({
               hudInset={hudHeight}
               anchor={anchor}
               onSelect={onSelect}
+              onNewProject={onNewProject}
               onSelectBuilding={onSelectBuilding}
               onPickPlot={onPickPlot}
               urgent={urgent}
@@ -140,7 +141,6 @@ export function WorldView({
         {perf && <PerfOverlay store={perf} />}
         <WorldHud
           resolved={resolved}
-          empty={world.projects.length === 0}
           onOpenShop={sceneReady ? onOpenShop : undefined}
           onHeight={setHudHeight}
           {...actions}

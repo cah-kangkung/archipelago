@@ -36,6 +36,8 @@ export type WorldSceneProps = SceneHandlers & {
   perf?: PerfStore | null
   /** Called once the canvas exists. */
   onReady?: () => void
+  /** Opens the new-island editor; offered over the empty sea. */
+  onNewProject?: () => void
 }
 
 function AnimationTicker({ enabled }: { enabled: boolean }) {
