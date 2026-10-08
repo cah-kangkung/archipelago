@@ -946,3 +946,62 @@ Phase 5e makes each layer (archipelago, island, district) feel like its own room
 - **Scene graph:** on an island route, a pan past the island is pulled back inside its shallows square and the zoom-out stops at the target zoom; the same for a district.
 - **App (RTL):** the picker renders on all three layers on desktop and phone with the right value and urgency labels, and changing it routes; no island chips remain in the drawer or above the sheet; the archipelago drawer still reads "Due today & overdue"; the milestone select routes into and out of districts, "No milestone" filters and resets on leaving the island, and New task defaults to the filter's milestone.
 - **Manual:** the owner's visual pass on desktop and phone (colours, spacing, how big islands open), and `?perf` with no regression from 5d.
+
+## 20. Phase 5f Design Addendum: Spotlight, Layer Taps and the Layer Picker (approved 2026-10-08)
+
+Phase 5f finishes the "each layer is a room" idea of section 19. Entering an island or a district dims everything outside it, taps outside it do nothing, the camera centre stays on the layer, and the top-centre picker lists the current layer's contents (islands on the archipelago, milestones on an island). The drawer's milestone filter of 19.4 is removed; the task search is the drawer's only filter. It refines sections 14, 16 and 19; where they disagree, this section wins. No API or DTO change.
+
+### 20.1 The layer area (`scene/model/camera.ts`, pure)
+
+- `type Area = { minX: number; maxX: number; minZ: number; maxZ: number; round: number }`: a rounded rectangle in world x/z, the box `min..max` grown by `round` with round corners. `round` 0 is a plain box; a box shrunk to a point with `round` r is a circle.
+- `layerArea(model, focus): Area | null`:
+  - **Archipelago:** `null` (no spotlight, nothing dead).
+  - **Island:** the point box at the island origin with `round = islandExtent(radius)`: a circle out to the coastline.
+  - **District:** the box around the landmark and every task plot of that milestone (as 19.1's district box, before margin), with `round = AREA_MARGIN` (half a hex, `SQRT3 / 2`).
+  - An unknown island or milestone falls back a level.
+- `panArea(model, focus): Area`: `layerArea`, or on the archipelago `model.bounds` with `round` 0. It replaces `focusBounds` everywhere the rig clamps.
+- `areaDistance(area, p): number`: signed distance from `p` to the area's edge (negative inside). `insideArea(area, p)` is `areaDistance ≤ 0`. The spotlight shader computes the same distance in GLSL with the same constants.
+- `clampToArea(area, p): Point`: the nearest point of the area to `p` (`p` itself when inside).
+- `focusOutline` and `fitZoom` (19.1) are unchanged: the opening zoom still frames the shallows circle (island) or the district box grown by `DISTRICT_MARGIN`.
+
+### 20.2 Panning
+
+- The camera rig clamps the pan target to `panArea` of the current focus. Past the edge, the rubber band (14.3) is measured along the outward direction from `clampToArea(area, p)`: `shown = edge + dir × band(distance, limit)`, and `unband` inverts it the same way. Release springs to `clampToArea`.
+- On the archipelago, `panArea` is the world box with square corners, so every existing behaviour there is unchanged.
+- Island: the centre stays over land (about 40% less diagonal travel than 19.1's shallows square). District: half a hex of margin instead of two hexes.
+- Zoom limits, the fitted zoom and flights are unchanged.
+
+### 20.3 Spotlight
+
+- Shared spotlight uniforms: the area's box (`vec4`), its `round`, a feather width and a strength 0..1. The shared scene materials (`solidMaterial`, `seaMaterial`, `shadowMaterial`, `foamMaterial`, `splashMaterial`, `plotMaterial`, the ghost materials) are patched once (`onBeforeCompile`) to pass the world x/z to the fragment shader and, outside the area, mix the colour toward its own grey (`SPOTLIGHT_DESATURATE` 0.8) and darken it (`SPOTLIGHT_DIM` to 0.55 brightness), with a smoothstep edge `SPOTLIGHT_FEATHER` wide (one hex, `SQRT3`), all scaled by the strength. Instanced meshes use their instance matrix. No new draw calls, no per-object work.
+- Page-element labels and markers (island names, edge indicators, reward floats) whose world position is outside the area fade to `SPOTLIGHT_LABEL_OPACITY` (0.4).
+- Transitions over `SPOTLIGHT_MS` (300), eased:
+  - Archipelago → island or district: the area is set, the strength goes 0 → 1.
+  - Island ↔ island, island ↔ district: the strength stays 1 and the area's box and `round` interpolate from the old shape to the new.
+  - Any layer → archipelago: the strength goes to 0 (the area stays until it is 0).
+  - Reduced motion: every change is instant. The tween holds a `spotlight` ticker demand only while it runs.
+- Every spotlight number lives in `scene/tuning.ts`.
+
+### 20.4 Taps outside the layer
+
+- **Island:** another island's group no longer opens it; a tap there behaves like a tap on open sea (clears the selection).
+- **District:** other districts' landmarks do not open; decorations whose position is outside the area do not select; tasks of other milestones keep 16's rule (a tap clears the selection). A neighbouring district's task that sits inside this district's area is lit but still does not select.
+- **Placement:** in a district only plots inside the area are offered.
+- Inside the area everything works as before. The ways out are the layer picker, "← Archipelago" and the parent link.
+
+### 20.5 Layer picker (replaces 19.3's island picker and 19.4's milestone filter)
+
+- One native `<select>` at the top centre of the scene, on every layer, phone and desktop.
+- **Archipelago:** accessible name "Island"; options "All islands" then every island as 19.3 (`Name · N overdue`, `Name · due soon`, or the name). Picking an island flies there.
+- **Island and district:** accessible name "Milestone"; options `"<Island name> (whole island)"` then the island's milestones by `sortOrder`, each labelled `Name · N overdue`, `Name · due soon` or the name (counts over that milestone's open tasks). On the island the first option is selected; in a district its milestone is. Picking a milestone flies into its district; picking the first option flies back to the island. An island with no milestones lists only the first option.
+- The drawer loses its milestone select, including "No milestone" and its local filter (and the 5e rule that cleared it on a scene tap). New task still takes its milestone from the current layer.
+- The archipelago drawer ("Due today & overdue") is unchanged.
+
+### 20.6 Testing
+
+- Pure: `layerArea` per layer and its fallbacks; `areaDistance`/`insideArea` for a circle and a box; `clampToArea`, the banded and unbanded targets on a circle and a box, with a square-cornered box reproducing 14.3's numbers exactly.
+- Spotlight: the patched materials carry the shared uniforms; the shader chunk and `areaDistance` share their constants; the tween reaches strength 1 in `SPOTLIGHT_MS`, slides the area island → island at strength 1, fades to 0 on the archipelago, is instant under reduced motion, and releases its ticker demand.
+- Taps: on an island a neighbour's tap does not call `onOpenIsland`; in a district other landmarks have no open handler and outside decorations do not select; placement plots are filtered to the area.
+- Rig: a diagonal pan on an island stops at the coastline circle, short of 19.1's square corner; the archipelago clamp is unchanged.
+- Picker: island list on the archipelago; "(whole island)" plus milestones with urgency on an island and in a district, with the current one selected; picking flies both ways; no milestone select in the drawer.
+- Owner's check: `bun run seed:demo`, desktop and phone; `?perf` shows no new draw calls and no tier drop; the spotlight edge reads on the lighter sea.
