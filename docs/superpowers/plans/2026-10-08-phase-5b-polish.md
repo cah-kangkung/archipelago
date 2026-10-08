@@ -21,7 +21,7 @@
 - Pop: scale 0 → 1.15 → 1 over 400ms, ease-out back; `ModelInstances` gains `pop?: { index, startedAt }`.
 - Count-up: 600ms, DOM `requestAnimationFrame`; `aria-label` always the true balance.
 - Reduced motion: no floats, no pop, chip snaps, ticker never runs.
-- Quality: `'high'` (start) `dpr={[1, 2]}`, sea wave on; `'low'` `dpr={1}`, sea frozen flat (shallows ring stays). `onDecline` → low, `onIncline` → high, `flipflops={3}`, `onFallback` → low for the rest of the page load. Not persisted.
+- Quality: `'high'` (start) `dpr={[1, 2]}`, sea wave on; `'low'` `dpr={1}`, sea frozen flat (shallows ring stays). drei's monitor gets only `bounds`, `onDecline` → low and `onIncline` → high (no `flipflops`/`onFallback`: drei counts every signal as a flip). `nextQuality` counts real tier changes and settles on `low` after 3 for the rest of the page load. The monitor is mounted only while the ticker runs, so on a world with nothing ticking `low` is effectively sticky for the page load. The 55fps reading is a manual `?perf` panning check. Not persisted.
 - Ticker (33ms) runs only while: sea wave on (`high` and motion allowed), a crane exists (a `doing` task), a reward event is alive, or a camera flight/spring runs.
 - Every `useFrame` consumer clamps `delta` to 100ms (`MAX_FRAME_DELTA = 0.1` s).
 - `?perf` read once at load; overlay shows fps (last second of rendered frames), tier, draw calls, triangles, DPR.
@@ -32,7 +32,7 @@
 ## Review Focus
 
 1. A world refetch that lands before the completion response (the optimistic flip already shows the house) must not pop or float; only the response does, once. Pinned in Task 2 (producer test counts pushes across an explicit refetch).
-2. After `onFallback`, a later `onIncline` must not bring `high` back for the rest of the page load. Pinned in Task 6 (`nextQuality` unit test).
+2. After three real tier changes settle the tier on `low`, a later `onIncline` must not bring `high` back for the rest of the page load. Pinned in Task 6 (`nextQuality` unit test).
 3. A second balance change while the chip is still counting continues from the number on screen, not from the old target and not with a jump. Pinned in Task 3.
 4. A pop whose index no longer exists (a refetch removed instances of that kind mid-pop) is ignored without throwing, and the other instances keep their matrices. Pinned in Task 5.
 5. `?perf` combined with other query parameters (`?x=1&perf`) still enables the overlay; `?perform` does not. Pinned in Task 7.
@@ -1679,7 +1679,7 @@ git commit -m "feat(web): pop new buildings and float reward amounts in the scen
 **Interfaces:**
 - Consumes: `RewardStore` events in `WorldScene` (Task 5), `tuning.ts` (Task 4).
 - Produces:
-  - `scene/model/quality.ts`: `type Quality = 'high' | 'low'`, `type QualityState = { tier: Quality; settled: boolean }`, `START_QUALITY: QualityState`, `type QualitySignal = 'decline' | 'incline' | 'fallback'`, `nextQuality(state: QualityState, signal: QualitySignal): QualityState`, `qualityDpr(tier: Quality): number | [number, number]`.
+  - `scene/model/quality.ts`: `type Quality = 'high' | 'low'`, `type QualityState = { tier: Quality; settled: boolean; changes: number }`, `START_QUALITY: QualityState`, `type QualitySignal = 'decline' | 'incline'`, `nextQuality(state: QualityState, signal: QualitySignal): QualityState`, `qualityDpr(tier: Quality): number | [number, number]`.
   - `scene/ticker.ts`: `type TickerDemand = { animate: boolean; seaWave: boolean; cranes: boolean; effects: boolean; camera: boolean }`, `tickerWanted(d: TickerDemand): boolean`.
   - `scene/adaptive-quality.tsx`: `AdaptiveQuality({ tier, monitoring, onSignal })`.
   - `CameraRig` gains `onMotion?: (moving: boolean) => void`, called when a flight or spring starts or ends.
@@ -1695,6 +1695,7 @@ git commit -m "feat(web): pop new buildings and float reward amounts in the scen
  * continuous loop; this scene draws at the 33ms ticker, so they would decline every device.
  */
 export const QUALITY_MONITOR_BOUNDS: [lower: number, upper: number] = [22, 28]
+/** Real tier changes (high↔low) after which the tier settles on `low` for the page load. */
 export const QUALITY_FLIPFLOPS = 3
 ```
 
@@ -1704,19 +1705,33 @@ export const QUALITY_FLIPFLOPS = 3
 
 ```ts
 import { describe, expect, test } from 'vitest'
+import { QUALITY_FLIPFLOPS } from '../tuning'
 import { nextQuality, qualityDpr, START_QUALITY } from './quality'
 
 describe('quality', () => {
   test('starts high; decline lowers, incline raises', () => {
-    expect(START_QUALITY).toEqual({ tier: 'high', settled: false })
+    expect(START_QUALITY).toEqual({ tier: 'high', settled: false, changes: 0 })
     const low = nextQuality(START_QUALITY, 'decline')
-    expect(low).toEqual({ tier: 'low', settled: false })
-    expect(nextQuality(low, 'incline')).toEqual({ tier: 'high', settled: false })
+    expect(low).toEqual({ tier: 'low', settled: false, changes: 1 })
+    expect(nextQuality(low, 'incline')).toEqual({ tier: 'high', settled: false, changes: 2 })
   })
 
-  test('a fallback settles on low for good: a later incline is ignored', () => {
-    const settled = nextQuality(START_QUALITY, 'fallback')
-    expect(settled).toEqual({ tier: 'low', settled: true })
+  test('a signal that keeps the tier changes nothing and never settles', () => {
+    let high = START_QUALITY
+    for (let i = 0; i < 10; i++) high = nextQuality(high, 'incline')
+    expect(high).toBe(START_QUALITY)
+    const low = nextQuality(START_QUALITY, 'decline')
+    let still = low
+    for (let i = 0; i < 10; i++) still = nextQuality(still, 'decline')
+    expect(still).toBe(low)
+  })
+
+  test('three real changes settle on low for good: a later incline is ignored', () => {
+    expect(QUALITY_FLIPFLOPS).toBe(3)
+    const once = nextQuality(START_QUALITY, 'decline')
+    const twice = nextQuality(once, 'incline')
+    const settled = nextQuality(twice, 'decline')
+    expect(settled).toEqual({ tier: 'low', settled: true, changes: 3 })
     expect(nextQuality(settled, 'incline')).toBe(settled)
     expect(nextQuality(settled, 'decline')).toBe(settled)
   })
@@ -1762,17 +1777,31 @@ Run: `cd apps/web && bunx vitest run src/scene/model/quality.test.ts src/scene/t
 `apps/web/src/scene/model/quality.ts`:
 
 ```ts
+import { QUALITY_FLIPFLOPS } from '../tuning'
+
 export type Quality = 'high' | 'low'
-/** `settled` once the monitor has flip-flopped too often: low for the rest of the page load. */
-export type QualityState = { tier: Quality; settled: boolean }
-export type QualitySignal = 'decline' | 'incline' | 'fallback'
+/**
+ * `changes` counts real high↔low tier changes; once it reaches `QUALITY_FLIPFLOPS` the state is
+ * `settled`: low for the rest of the page load.
+ */
+export type QualityState = { tier: Quality; settled: boolean; changes: number }
+export type QualitySignal = 'decline' | 'incline'
 
-export const START_QUALITY: QualityState = { tier: 'high', settled: false }
+export const START_QUALITY: QualityState = { tier: 'high', settled: false, changes: 0 }
 
+/**
+ * Settling is counted here rather than with drei's `flipflops`/`onFallback`: drei counts every
+ * incline or decline call, so a healthy device repeatedly inclining at the ticker's 30fps would
+ * fall back to low within seconds. Only a signal that actually changes the tier counts; any other
+ * signal returns the same state object.
+ */
 export function nextQuality(state: QualityState, signal: QualitySignal): QualityState {
   if (state.settled) return state
-  if (signal === 'fallback') return { tier: 'low', settled: true }
-  return { tier: signal === 'decline' ? 'low' : 'high', settled: false }
+  const tier: Quality = signal === 'decline' ? 'low' : 'high'
+  if (tier === state.tier) return state
+  const changes = state.changes + 1
+  if (changes >= QUALITY_FLIPFLOPS) return { tier: 'low', settled: true, changes }
+  return { tier, settled: false, changes }
 }
 
 export function qualityDpr(tier: Quality): number | [number, number] {
@@ -1887,7 +1916,7 @@ import { PerformanceMonitor } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
 import { useEffect } from 'react'
 import { type Quality, type QualitySignal, qualityDpr } from './model/quality'
-import { QUALITY_FLIPFLOPS, QUALITY_MONITOR_BOUNDS } from './tuning'
+import { QUALITY_MONITOR_BOUNDS } from './tuning'
 
 const bounds = () => QUALITY_MONITOR_BOUNDS
 
@@ -1911,13 +1940,13 @@ export function AdaptiveQuality({
     setDpr(qualityDpr(tier))
   }, [tier, setDpr])
   if (!monitoring) return null
+  // No `flipflops`/`onFallback`: drei counts every signal as a flip-flop, so settling is counted
+  // on real tier changes in `nextQuality` instead.
   return (
     <PerformanceMonitor
       bounds={bounds}
-      flipflops={QUALITY_FLIPFLOPS}
       onDecline={() => onSignal('decline')}
       onIncline={() => onSignal('incline')}
-      onFallback={() => onSignal('fallback')}
     />
   )
 }
@@ -3062,4 +3091,4 @@ git commit -m "fix(web): ignore stale purchase settles, wait for the scene befor
 
 - [ ] **Step 9: Manual check (report, do not block)**
 
-`bun run --cwd apps/api dev` and `bun run --cwd apps/web dev -- --host`. On the owner's phone over the LAN open `/?perf`, enter the busiest island and pan for 10s: record fps, tier, calls, triangles and DPR. Read fps while a finger is moving: idle frames come only from the 30fps ticker, so an idle reading near 30 is expected (exit criterion: ≥ 55fps on `high`, or the monitor settles on `low` and shows ≥ 55fps). On phone and desktop: complete a task in a milestone (pop + two staggered floats + chip count-up), place a decoration (pop, no float), turn on reduced motion and repeat (no pop, no floats, chip snaps). Report the readings for the tuning follow-up.
+`bun run --cwd apps/api dev` and `bun run --cwd apps/web dev -- --host`. On the owner's phone over the LAN open `/?perf`, enter the busiest island and pan for 10s: record fps, tier, calls, triangles and DPR. Read fps while a finger is moving: idle frames come only from the 30fps ticker, so an idle reading near 30 is expected (exit criterion, a manual check: ≥ 55fps on `high`, or the tier settles on `low` and shows ≥ 55fps). On phone and desktop: complete a task in a milestone (pop + two staggered floats + chip count-up), place a decoration (pop, no float), turn on reduced motion and repeat (no pop, no floats, chip snaps). Report the readings for the tuning follow-up.

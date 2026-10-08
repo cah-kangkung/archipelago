@@ -703,27 +703,30 @@ Phase 5b finishes Phase 5: reward animations (section 7.6 "Reward feedback", sec
 - drei `<PerformanceMonitor>` inside the Canvas sets a `quality` state held by `WorldScene`: `'high' | 'low'`.
   - `high` (start): `dpr={[1, 2]}`, sea wave on.
   - `low`: `dpr={1}`, sea wave frozen flat (the shallows ring stays).
-  - `onDecline` → `low`, `onIncline` → `high`; `flipflops={3}` with `onFallback` → `low` for the rest of the page load. The tier is not persisted.
+  - The monitor gets only `bounds`, `onDecline` and `onIncline` (no `flipflops`/`onFallback`: drei counts every incline or decline call as a flip-flop, so a healthy device inclining repeatedly would fall back within seconds).
+  - `onDecline` → `low`, `onIncline` → `high`. `nextQuality` counts only real tier changes (high↔low); after 3 it settles on `low` for the rest of the page load. The tier is not persisted.
+  - The monitor samples rendered frames, so it is mounted only while the ticker runs. On a world where nothing ticks (low tier, no crane, no reward, no camera motion) it is unmounted, so `low` is effectively sticky for the page load.
 
 ### 16.4 Ticker on demand
 
 - The 30fps ticker (section 13.3) runs only while something moves: the sea wave is on (`high` tier), a crane is in the scene (the world has a `doing` task), a reward effect is alive, or a camera flight or spring is running. Otherwise the scene renders on change only.
 - Under `prefers-reduced-motion: reduce` it never runs, as before.
 - Every `useFrame` consumer (camera rig, sea, crane jibs, pop, floats) clamps `delta` to 100ms, so the first frame after a hidden tab cannot skip a flight.
+- A motion that starts from rest (a camera flight, a pop, a float line) ignores the delta of its first frame: with the ticker idle that delta is the whole idle gap, not motion time.
 - A camera flight captures its frame (cover and viewport) at flight start; a cover change mid-flight no longer jumps the hop zoom.
 
 ### 16.5 Instrumentation and tuning
 
 - **`?perf` overlay:** when the page URL has `?perf` (read once at load), a small corner panel shows fps over the last second of rendered frames, quality tier, draw calls and triangles (`gl.info.render`) and the current DPR. It ships in production builds and costs nothing without the flag.
 - **`scene/tuning.ts`** gathers every device-tunable value: hemisphere and directional light intensities, sea amplitude and speed, flight and spring durations, band strength, marker size and colour, pop and float timings. 5b moves today's values there unchanged.
-- **Exit criterion:** on the owner's phone, the overlay shows ≥ 55fps on `high` while panning the busiest island for 10s (idle readings cap near the 30fps ticker), or the monitor settles on `low` and shows ≥ 55fps there. Constants are tuned in a short follow-up from those readings.
+- **Exit criterion:** a manual `?perf` check on the owner's phone: the overlay shows ≥ 55fps on `high` while panning the busiest island for 10s (idle readings cap near the 30fps ticker), or the tier settles on `low` and shows ≥ 55fps there. The 55fps reading is the panning check only; the monitor's own bounds sit below the ticker's 30fps. Constants are tuned in a short follow-up from those readings.
 
 ### 16.6 Carry-over fixes
 
 - **Sheet (`panel-frame.tsx`):** the `dragged` flag clears on the next `pointerdown`, not in a microtask, so a mouse drag no longer fires a click; `pointercancel` restores the previous detent; the dead `_event`/`MouseEvent` parameter goes.
 - **Editor dialog (`editor-frame.tsx`):** crossing the 1024px breakpoint while open re-runs `showModal`/`close` for the new layout (the form remounts in the new container, so unsaved input resets; acceptable for a rare resize or rotation); the stray `relative` class goes; `autoFocus` applies on desktop only.
 - **Resize handles:** `role="separator"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and `aria-orientation`.
-- **Streak hint:** tapping the streak chip opens a small popover with "Next bonus at N days: +X" (or "Top streak bonus reached" when there is no next bonus); the `title` stays for hover.
+- **Streak hint:** tapping the streak chip opens a small popover with "Next bonus at N days: +X" (or "Top streak bonus reached" when there is no next bonus); a tap outside it, Escape or a blur closes it; the chip's tap target is 44px tall; the `title` stays for hover.
 - **Switcher strip:** at the 92dvh detent its top is clamped to stay inside the viewport on short phones.
 - **Edge markers:** the top inset grows by the HUD chips' measured height, so no marker sits under them.
 - **Placement late settle:** `onSuccess`/`onError` of a purchase check the attempt id, so a purchase from island A settling after A→B→A cannot end a fresh placement on A.
