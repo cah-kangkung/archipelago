@@ -39,8 +39,9 @@ export function ModelInstances({
 }) {
   const ref = useRef<THREE.InstancedMesh>(null)
   const invalidate = useThree((s) => s.invalidate)
-  // The pop's own clock: it starts when the instance first renders with this pop.
-  const popClock = useRef<{ startedAt: number; elapsed: number } | null>(null)
+  // The pop's own clock: it starts when the instance first renders with this pop. `fresh` marks
+  // its first frame, whose delta is the idle gap before the ticker woke, not pop time.
+  const popClock = useRef<{ startedAt: number; elapsed: number; fresh: boolean } | null>(null)
   const popIndex = pop?.index
   const popStartedAt = pop?.startedAt
 
@@ -49,7 +50,7 @@ export function ModelInstances({
     if (!mesh) return
     if (popStartedAt === undefined) popClock.current = null
     else if (popClock.current?.startedAt !== popStartedAt) {
-      popClock.current = { startedAt: popStartedAt, elapsed: 0 }
+      popClock.current = { startedAt: popStartedAt, elapsed: 0, fresh: true }
     }
     const clock = popClock.current
     points.forEach((p, i) => {
@@ -66,7 +67,9 @@ export function ModelInstances({
     const mesh = ref.current
     const clock = popClock.current
     if (!mesh || !clock || popIndex === undefined || clock.elapsed >= POP_MS) return
-    clock.elapsed = Math.min(POP_MS, clock.elapsed + clampDelta(delta) * 1000)
+    const step = clock.fresh ? 0 : clampDelta(delta) * 1000
+    clock.fresh = false
+    clock.elapsed = Math.min(POP_MS, clock.elapsed + step)
     // A refetch can shrink the layer under a running pop; a stale index is skipped.
     const p = points[popIndex]
     if (!p) return

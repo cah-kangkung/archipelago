@@ -45,9 +45,12 @@ function FloatLine({
   const group = useRef<THREE.Group>(null)
   const label = useRef<HTMLSpanElement>(null)
   const elapsed = useRef(0)
+  // The first frame's delta is the idle gap before the ticker woke, not float time.
+  const fresh = useRef(true)
 
   useFrame((_, delta) => {
-    elapsed.current += clampDelta(delta) * 1000
+    if (!fresh.current) elapsed.current += clampDelta(delta) * 1000
+    fresh.current = false
     const f = floatFrame(elapsed.current, line)
     const g = group.current
     if (g) {

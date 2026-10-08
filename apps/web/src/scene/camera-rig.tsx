@@ -25,7 +25,16 @@ export const ISO_DISTANCE = 200
 type Controls = ComponentRef<typeof MapControls>
 type Motion =
   | { kind: 'idle' }
-  | { kind: 'fly'; from: View; to: View; elapsed: number; duration: number; frame: Frame }
+  | {
+      kind: 'fly'
+      from: View
+      to: View
+      elapsed: number
+      duration: number
+      frame: Frame
+      /** Not yet stepped: its first delta is the idle gap before the flight, not flight time. */
+      fresh: boolean
+    }
   | { kind: 'spring'; from: Point; to: Point; elapsed: number; duration: number }
 
 const IDLE: Motion = { kind: 'idle' }
@@ -139,7 +148,7 @@ export function CameraRig({
       setZoomLimits(to.zoom, to.zoom * MAX_ZOOM_FACTOR)
     } else {
       setZoomLimits(0, Infinity)
-      setMotion({ kind: 'fly', from, to, elapsed: 0, duration, frame: startFrame })
+      setMotion({ kind: 'fly', from, to, elapsed: 0, duration, frame: startFrame, fresh: true })
     }
     invalidate()
   }, [key, camera, invalidate])
@@ -154,7 +163,8 @@ export function CameraRig({
     const step = clampDelta(delta) * 1000
     const m = motion.current
     if (m.kind === 'fly') {
-      m.elapsed += step
+      if (!m.fresh) m.elapsed += step
+      m.fresh = false
       const t = Math.min(1, m.elapsed / m.duration)
       show(flyFrame(m.from, m.to, t, m.frame))
       if (t < 1) {
@@ -165,6 +175,7 @@ export function CameraRig({
       setZoomLimits(m.to.zoom, m.to.zoom * MAX_ZOOM_FACTOR)
       return
     }
+    // A spring starts inside a frame, so its first step already gets a fresh delta.
     if (m.kind === 'spring') {
       m.elapsed += step
       const t = Math.min(1, m.elapsed / m.duration)

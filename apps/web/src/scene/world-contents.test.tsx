@@ -471,6 +471,19 @@ describe('reward effects', () => {
     expect(mesh.boundingSphere?.radius ?? 0).toBeGreaterThan(0)
   })
 
+  test('a pop that starts after an idle gap begins from nothing', async () => {
+    const points = [hexToWorld({ q: 0, r: 1 })]
+    const renderer = await ReactThreeTestRenderer.create(
+      <ModelInstances kind="pine" points={points} />,
+    )
+    await renderer.update(
+      <ModelInstances kind="pine" points={points} pop={{ index: 0, startedAt: 1 }} />,
+    )
+    // The ticker was idle, so the first delta is the whole gap since the last frame.
+    await renderer.advanceFrames(1, 5)
+    expect(scaleOf(one(renderer.scene, 'pine'), 0)).toBeLessThan(0.5)
+  })
+
   test('a pop index past the instances is ignored', async () => {
     const points = [hexToWorld({ q: 0, r: 1 }), hexToWorld({ q: 1, r: 0 })]
     const renderer = await ReactThreeTestRenderer.create(
@@ -498,7 +511,8 @@ describe('reward effects', () => {
     expect(first.position.x).toBeCloseTo((island?.origin.x ?? 0) + at.x)
     expect(first.position.z).toBeCloseTo((island?.origin.z ?? 0) + at.z)
     const startY = first.position.y
-    await renderer.advanceFrames(1, 0.1)
+    // The first frame only starts the clock.
+    await renderer.advanceFrames(2, 0.1)
     expect(first.visible).toBe(true)
     expect(first.position.y).toBeGreaterThan(startY)
     // The second line waits 150ms.
@@ -506,6 +520,19 @@ describe('reward effects', () => {
     await renderer.advanceFrames(20, 0.1)
     expect(first.visible).toBe(false)
     expect(second.visible).toBe(false)
+  })
+
+  test('a float that starts after an idle gap begins at its anchor', async () => {
+    const s = seeded()
+    const { renderer } = await render(s.world, { kind: 'island', projectId: s.beta.id }, null, {
+      animate: true,
+      rewards: [reward({ kind: 'task', id: shippedOf(s).id })],
+    })
+    const [float] = named(renderer.scene, 'float').map((n) => n.instance as THREE.Group)
+    if (!float) throw new Error('no float')
+    const startY = float.position.y
+    await renderer.advanceFrames(1, 5)
+    expect(float.position.y).toBeCloseTo(startY)
   })
 
   test('a target outside the scene model shows no float', async () => {

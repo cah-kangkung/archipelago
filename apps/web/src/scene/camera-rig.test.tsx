@@ -110,7 +110,8 @@ describe('CameraRig', () => {
     const start = view()
     const goal = cameraTarget(both, onGamma)
     await r.update(scene({ model: both, focus: onGamma }))
-    await r.advanceFrames(1, 0.1)
+    // The first frame only starts the clock.
+    await r.advanceFrames(2, 0.1)
     const mid = view()
     expect(Math.abs(mid.x - start.x)).toBeGreaterThan(0.01)
     expect(Math.abs(mid.x - goal.x)).toBeGreaterThan(0.01)
@@ -248,11 +249,22 @@ describe('CameraRig', () => {
     expect(view().x).toBeCloseTo(maxX)
   })
 
-  test('a long first frame (a hidden tab) moves a flight by at most 100ms', async () => {
+  test('a flight from rest ignores the idle gap in its first frame', async () => {
     const r = await mount({ model: both, focus: archipelago })
     const start = view()
     const goal = cameraTarget(both, onGamma)
     await r.update(scene({ model: both, focus: onGamma }))
+    // The ticker was idle, so the first delta is the whole gap since the last frame.
+    await r.advanceFrames(1, 5)
+    expectView(view(), start)
+  })
+
+  test('a long frame mid-flight (a hidden tab) moves it by at most 100ms', async () => {
+    const r = await mount({ model: both, focus: archipelago })
+    const start = view()
+    const goal = cameraTarget(both, onGamma)
+    await r.update(scene({ model: both, focus: onGamma }))
+    await r.advanceFrames(1, 0.016)
     await r.advanceFrames(1, 5)
     expectView(view(), flyFrame(start, goal, 100 / flyDuration(start, goal), canvas))
   })
