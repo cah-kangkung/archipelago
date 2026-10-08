@@ -7,7 +7,7 @@ import { scenePalette } from './model/palette'
 import type { SceneModel } from './model/scene-model'
 import {
   areaKey,
-  dimHex,
+  hazeHex,
   SPOTLIGHT_OFF,
   type Spotlight,
   sameSpotlight,
@@ -48,9 +48,9 @@ export function SpotlightRig({
     (s: Spotlight) => {
       shown.current = s
       writeSpotlight(s)
-      // The clear colour shows past the sea mesh: dim it with the sea so no seam appears.
+      // The clear colour shows past the sea mesh: haze it with the sea so no seam appears.
       if (scene.background instanceof THREE.Color) {
-        scene.background.set(dimHex(scenePalette.seaDeep, s.area ? s.strength : 0))
+        scene.background.set(hazeHex(scenePalette.seaDeep, s.area ? s.strength : 0))
       }
     },
     [scene],

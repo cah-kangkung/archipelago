@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'vitest'
-import { SPOTLIGHT_DESATURATE, SPOTLIGHT_DIM, SPOTLIGHT_LABEL_OPACITY } from '../tuning'
+import { SPOTLIGHT_HAZE, SPOTLIGHT_LABEL_OPACITY } from '../tuning'
 import type { Area } from './area'
+import { scenePalette } from './palette'
 import {
   areaKey,
-  dimHex,
+  HAZE_COLOR,
+  hazeHex,
   labelOpacity,
   SPOTLIGHT_OFF,
   sameSpotlight,
@@ -57,12 +59,18 @@ describe('spotlight', () => {
     expect(areaKey(null)).toBe('none')
   })
 
-  test('dimHex greys and darkens like the shader, scaled by strength', () => {
-    expect(dimHex('#4d96e0', 0)).toBe('#4d96e0')
-    const grey = 0.299 * 0x4d + 0.587 * 0x96 + 0.114 * 0xe0
-    const ch = (c: number) => Math.round((c + (grey - c) * SPOTLIGHT_DESATURATE) * SPOTLIGHT_DIM)
+  test('hazeHex blends toward the sea haze like the shader, scaled by strength', () => {
+    expect(hazeHex('#4d96e0', 0)).toBe('#4d96e0')
+    const hz = (i: number) => Number.parseInt(scenePalette.sea.slice(i, i + 2), 16)
+    const ch = (c: number, h: number) => Math.round(c + (h - c) * SPOTLIGHT_HAZE)
     const hex = (n: number) => n.toString(16).padStart(2, '0')
-    expect(dimHex('#4d96e0', 1)).toBe(`#${hex(ch(0x4d))}${hex(ch(0x96))}${hex(ch(0xe0))}`)
+    expect(hazeHex('#4d96e0', 1)).toBe(
+      `#${hex(ch(0x4d, hz(1)))}${hex(ch(0x96, hz(3)))}${hex(ch(0xe0, hz(5)))}`,
+    )
+  })
+
+  test("the sea's own colour is unchanged by the haze", () => {
+    expect(hazeHex(HAZE_COLOR, 1)).toBe(HAZE_COLOR)
   })
 
   test('labels outside the area fade; inside, or with no area, they do not', () => {

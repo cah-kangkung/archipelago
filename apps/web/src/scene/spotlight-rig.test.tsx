@@ -9,7 +9,7 @@ import type { Focus } from '../world/selectors'
 import { layerArea } from './model/camera'
 import { scenePalette } from './model/palette'
 import { buildSceneModel, type SceneModel } from './model/scene-model'
-import { dimHex } from './model/spotlight'
+import { hazeHex } from './model/spotlight'
 import { spotlightUniforms } from './spotlight-material'
 import { SpotlightRig } from './spotlight-rig'
 import { SPOTLIGHT_MS } from './tuning'
@@ -72,7 +72,7 @@ describe('SpotlightRig', () => {
     const a = layerArea(model, onBeta)
     expect(box()).toEqual([a?.minX, a?.minZ, a?.maxX, a?.maxZ])
     expect(onRunning).toHaveBeenLastCalledWith(false)
-    expect(background()).toBe(dimHex(scenePalette.seaDeep, 1))
+    expect(background()).toBe(hazeHex(scenePalette.seaDeep, 1))
   })
 
   test('island to island slides the area at full strength', async () => {

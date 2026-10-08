@@ -10,8 +10,9 @@ import {
   solidMaterial,
   splashMaterial,
 } from './materials'
+import { HAZE_COLOR } from './model/spotlight'
 import { patchSpotlight, spotlightUniforms, writeSpotlight } from './spotlight-material'
-import { SPOTLIGHT_DESATURATE, SPOTLIGHT_DIM, SPOTLIGHT_FEATHER } from './tuning'
+import { SPOTLIGHT_FEATHER, SPOTLIGHT_HAZE } from './tuning'
 
 const shaderOf = (lib: 'lambert' | 'basic') => ({
   uniforms: {} as Record<string, THREE.IUniform>,
@@ -32,8 +33,12 @@ describe('spotlight material', () => {
       frag.indexOf('#include <fog_fragment>'),
     )
     expect(frag).toContain(SPOTLIGHT_FEATHER.toFixed(4))
-    expect(frag).toContain(SPOTLIGHT_DIM.toFixed(4))
-    expect(frag).toContain(SPOTLIGHT_DESATURATE.toFixed(4))
+    expect(frag).toContain(SPOTLIGHT_HAZE.toFixed(4))
+    const [r, g, b] = [1, 3, 5].map((i) =>
+      (Number.parseInt(HAZE_COLOR.slice(i, i + 2), 16) / 255).toFixed(4),
+    )
+    expect(frag).toContain(`vec3( ${r}, ${g}, ${b} )`)
+    expect(frag).not.toContain('spotGrey')
     expect(shader.uniforms.uSpotStrength).toBe(spotlightUniforms.uSpotStrength)
     expect(shader.uniforms.uSpotBox).toBe(spotlightUniforms.uSpotBox)
   })

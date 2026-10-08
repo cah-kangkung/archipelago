@@ -1,9 +1,10 @@
-import { SPOTLIGHT_DESATURATE, SPOTLIGHT_DIM, SPOTLIGHT_LABEL_OPACITY } from '../tuning'
+import { SPOTLIGHT_HAZE, SPOTLIGHT_LABEL_OPACITY } from '../tuning'
 import { type Area, insideArea } from './area'
 import { easeInOutCubic } from './camera-motion'
 import type { Point } from './hex-space'
+import { scenePalette } from './palette'
 
-/** What the spotlight shows: the lit area and how strongly the rest is dimmed (spec 20.3). */
+/** What the spotlight shows: the lit area and how strongly the rest is hazed (spec 20.3). */
 export type Spotlight = { area: Area | null; strength: number }
 
 export const SPOTLIGHT_OFF: Spotlight = { area: null, strength: 0 }
@@ -62,14 +63,15 @@ export function sameSpotlight(a: Spotlight, b: Spotlight): boolean {
   return lit(a) === lit(b) && areaKey(a.area) === areaKey(b.area)
 }
 
-/** `hex` as the spotlight shows it outside the layer at `strength` (the shader's maths, in sRGB). */
-export function dimHex(hex: string, strength: number): string {
-  const c = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16))
-  const [r = 0, g = 0, b = 0] = c
-  const grey = 0.299 * r + 0.587 * g + 0.114 * b
-  const out = c.map((v) => {
-    const tone = (v + (grey - v) * SPOTLIGHT_DESATURATE) * SPOTLIGHT_DIM
-    const n = Math.round(v + (tone - v) * strength)
+/** The haze colour: the sea's mid blue, shared by the shader and `hazeHex`. */
+export const HAZE_COLOR = scenePalette.sea
+
+/** `hex` as the spotlight shows it outside the layer at `strength`: blended toward the sea's haze (the shader's maths, in sRGB). */
+export function hazeHex(hex: string, strength: number): string {
+  const out = [1, 3, 5].map((i) => {
+    const c = Number.parseInt(hex.slice(i, i + 2), 16)
+    const h = Number.parseInt(HAZE_COLOR.slice(i, i + 2), 16)
+    const n = Math.round(c + (h - c) * SPOTLIGHT_HAZE * strength)
     return Math.min(255, Math.max(0, n)).toString(16).padStart(2, '0')
   })
   return `#${out.join('')}`

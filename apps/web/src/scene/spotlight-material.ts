@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import type { Spotlight } from './model/spotlight'
-import { SPOTLIGHT_DESATURATE, SPOTLIGHT_DIM, SPOTLIGHT_FEATHER } from './tuning'
+import { HAZE_COLOR, type Spotlight } from './model/spotlight'
+import { SPOTLIGHT_FEATHER, SPOTLIGHT_HAZE } from './tuning'
 
 /** One set of uniforms shared by every patched material: a write reaches them all (spec 20.3). */
 export const spotlightUniforms = {
@@ -11,6 +11,10 @@ export const spotlightUniforms = {
 }
 
 const glsl = (n: number) => n.toFixed(4)
+const glslRgb = (hex: string) => {
+  const [r, g, b] = [1, 3, 5].map((i) => glsl(Number.parseInt(hex.slice(i, i + 2), 16) / 255))
+  return `vec3( ${r}, ${g}, ${b} )`
+}
 const VERTEX_ANCHOR = '#include <project_vertex>'
 const FRAGMENT_ANCHOR = '#include <fog_fragment>'
 
@@ -34,12 +38,10 @@ float spotDistance( vec2 p ) {
   return length( max( q, 0.0 ) ) + min( max( q.x, q.y ), 0.0 ) - uSpotRound;
 }
 `
-// After the fog and the colour-space conversion, so it works in sRGB like `dimHex`.
+// After the fog and the colour-space conversion, so it works in sRGB like `hazeHex`.
 const FRAGMENT_BODY = `${FRAGMENT_ANCHOR}
 float spotOut = smoothstep( 0.0, ${glsl(SPOTLIGHT_FEATHER)}, spotDistance( vSpotXZ ) ) * uSpotStrength;
-float spotGrey = dot( gl_FragColor.rgb, vec3( 0.299, 0.587, 0.114 ) );
-vec3 spotTone = mix( gl_FragColor.rgb, vec3( spotGrey ), ${glsl(SPOTLIGHT_DESATURATE)} ) * ${glsl(SPOTLIGHT_DIM)};
-gl_FragColor.rgb = mix( gl_FragColor.rgb, spotTone, spotOut );`
+gl_FragColor.rgb = mix( gl_FragColor.rgb, ${glslRgb(HAZE_COLOR)}, ${glsl(SPOTLIGHT_HAZE)} * spotOut );`
 
 type Shader = {
   uniforms: Record<string, THREE.IUniform>
@@ -47,7 +49,7 @@ type Shader = {
   fragmentShader: string
 }
 
-/** Dims everything outside the spotlight's area; set as each shared material's onBeforeCompile. */
+/** Hazes everything outside the spotlight's area; set as each shared material's onBeforeCompile. */
 export function patchSpotlight(shader: Shader): void {
   if (
     !shader.vertexShader.includes(VERTEX_ANCHOR) ||
