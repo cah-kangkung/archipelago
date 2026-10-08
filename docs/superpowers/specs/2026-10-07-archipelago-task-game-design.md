@@ -809,3 +809,73 @@ Phase 5c makes the open sea read as a place rather than an empty plane, before P
 - **Scene graph** (test renderer, `advanceFrames`): the sea material is flat-shaded with vertex colours; fog is set, and its near distance clears every island's far corner after a pan; one instanced mesh per scatter type with the expected count; on `high` boat and gull instance matrices change across frames; on `low` and under reduced motion they do not, and the whale and foam pulse are absent; sea and life on `high` start one ticker, not two.
 - **App** (RTL): zero projects renders the "Uncharted waters" card and its button opens the new-island editor; creating the first island removes the ghost and frames the island; the card fallback shows the same heading and button; the vignette renders over the canvas only.
 - **Manual (exit criterion):** the owner's `?perf` reading on their phone while panning, on both tiers: draw calls at most 12 above the 5b baseline and no tier drop on `high` attributable to 5c. Constants are tuned from those readings.
+
+## 18. Phase 5d Design Addendum: Island Growth (approved 2026-10-08)
+
+Phase 5d fills the island interiors, which sections 9 and 13 leave as a flat green slab. Islands gain seeded scenery, hills, paths and a dock that grow with the number of finished tasks on them, so each island is a visible record of the work done there. It refines sections 13 and 17; where they disagree, this section wins. No API or DTO change: everything derives client-side from `GET /world`, and the land rule (section 15.2) is untouched: hills and scenery are visual only.
+
+### 18.1 Stages
+
+An island's **stage** comes from its count of tasks with `status === 'done'` (`doing` and `todo` do not count):
+
+| Finished tasks | 0–2 | 3–7 | 8–14 | 15–29 | 30+ |
+|---|---|---|---|---|---|
+| Stage | 0 bare | 1 sprouting | 2 green | 3 lush | 4 overgrown |
+
+Thresholds live in `scene/tuning.ts` (`GROWTH_THRESHOLDS = [3, 8, 15, 30]`). Growth only goes backwards if finished tasks are deleted.
+
+### 18.2 Growth model (`scene/model/island-growth.ts`, pure)
+
+`islandGrowth({ seed, radius, stage, occupied, paths })` returns plain data, no three.js:
+
+- **Growth order:** every hex of the island that is not the commons centre gets a fixed rank from an integer hash of `(seed, q, r)` (`hashInts`, section 17.2's family). Scenery is revealed in rank order, so a higher stage only adds pieces: every piece at stage N is unchanged (type, offset, turn, scale) at stage N+1.
+- **Fill:** stage `s` reveals `GROWTH_FILL[s]` of the free interior hexes (`[0.05, 0.2, 0.4, 0.6, 0.75]`). Shore hexes (the outer `SHORE_RINGS`, never plots) fill at half that share.
+- **Exclusions:** no scenery on an occupied hex (a task's plot or a decoration's plot), a path hex or the dock hex (18.4), or the commons centre. Occupying a hex hides only that hex's scenery; the rank of every other hex is unchanged.
+- **Clusters:** a revealed hex holds 1–3 pieces at seeded offsets within `0.55` of the hex centre, each with a seeded turn at any angle and a scale in `[0.8, 1.2]`.
+- **Types by place:** interior hexes draw from `tree`, `flowers`, `grass`; interior hexes adjacent to the shore draw from `bush`, `rock`; shore hexes draw from `rock`, `reeds`, `driftwood`. Weights in tuning.
+- **Shop distinction:** scenery is smaller than decorations (tree canopy at most 0.6 of the shop pine's height), muted (`scenePalette` scenery tokens, darker and less saturated than the decoration colours) and clustered, so the shop's single-standing pine and palm still read as purchases.
+- **`low` tier:** the first half (by rank) of the `high` set; same layout, thinner.
+
+### 18.3 Terrain (`scene/model/terrain.ts`)
+
+`islandTerrain(seed, radius, stage, paths)` replaces `islandTerrain(seed, radius)`:
+
+- **Hills:** interior tile height is `LAND_HEIGHT + step(noise(seed, q, r) · HILL_MAX[stage])`, where `noise` is a smooth seeded value noise over hex coordinates, `step` rounds to `HILL_STEP` (0.15), and `HILL_MAX = [0.15, 0.3, 0.4, 0.5, 0.6]`. The commons centre is always exactly `LAND_HEIGHT`. Shore heights are unchanged.
+- **Tone by stage:** stage 0 grass uses a new `grassDry` token; each stage blends one step from `grassDry` to `grass`, and the meadow share rises from 0.1 at stage 0 to 0.35 at stage 4.
+- **Path tone:** path hexes (18.4) get a new `path` tone (sand, `scenePalette.path`).
+- **Heights reach everything on the land:** `buildSceneModel` gives every structure, district and decoration position a `y` (its hex's tile height). Structures, landmarks, decorations, shadows, crane jibs, labels, plot highlights, the placement ghost and reward floats stand at `position.y` instead of `LAND_HEIGHT`. `Point` stays `{ x, z }`; positions on the land become `Spot = Point & { y: number }`.
+
+### 18.4 Paths and dock
+
+- **Paths:** for each milestone with at least one finished task, the hexes of the straight hex line (`hexLine`, added to `packages/shared/src/hex.ts`) from the commons centre to the milestone's district hex, excluding both ends, are path hexes. Structures may still stand on a path hex; it only changes the tile tone and hides scenery.
+- **Dock:** from stage 2, one wooden jetty stands on an outer-shore hex chosen from the island's seed (the first outer-shore hex in hash order that is present, i.e. not cut for the ragged coast), turned to point away from the island centre. The same seed always picks the same hex while the radius is unchanged.
+
+### 18.5 Scene model and rendering
+
+- `SceneIsland` gains `stage: number`, `scenery: SceneryPiece[]` (`{ type, position: Spot, turn, scale, rank }`) and `dock: { position: Spot, turn } | null`.
+- **Terrain:** hills, tones and paths are baked into each island's existing terrain mesh (tile heights and vertex colours), adding no draw call. The terrain geometry memo keys on seed, radius, stage and the path set, not on the island object.
+- **Scenery layer** (`scene/scenery.tsx`): one instanced mesh per scenery type across the whole archipelago (7 types), plus one for docks: 8 draw calls however many islands exist. Positions are world-space (island origin plus local spot). The layer is not tappable (`raycast` disabled), so a tap reaches the terrain or island beneath. It rebuilds only when some island's growth inputs change (the stable-key pattern of `use-stable-shores.ts`), not on every refetch.
+- **Grow-in:** when an island's stage rises while the scene is mounted, the newly revealed pieces scale from 0 to their scale over `GROW_IN_MS` (600) with an ease-out. Only on `high` with motion allowed; `TickerDemand` gains `growth`, true only while a grow-in runs. Otherwise new pieces simply appear. A first mount never grows in.
+- **Models** (`scene/models/scenery.ts`): low-poly, 12–40 triangles each, coloured from `scenePalette` only.
+
+### 18.6 Tuning
+
+`scene/tuning.ts` gains an "Island growth" block: `GROWTH_THRESHOLDS`, `GROWTH_FILL`, shore fill factor, `HILL_STEP`, `HILL_MAX`, meadow share by stage, scenery type weights, cluster offset and scale range, `GROW_IN_MS`.
+
+### 18.7 Testing
+
+- **Pure model (`*.test.ts`):**
+  - Stage at 0, 2, 3, 7, 8, 15 and 30 finished tasks; `doing` and `todo` tasks do not count.
+  - Growth only adds: for several seeds, every piece at stage N is present and identical at N+1.
+  - Determinism: the same inputs give the same scenery.
+  - No scenery on an occupied hex, a path hex or the commons centre; occupying one hex removes only that hex's pieces.
+  - Fill per stage within tolerance of `GROWTH_FILL`; shore types only on shore hexes, interior types only inland.
+  - Hills: the centre is flat, heights are multiples of `HILL_STEP` above `LAND_HEIGHT`, and the maximum rise respects `HILL_MAX[stage]`. Structures, districts and decorations report their tile's height.
+  - Paths only for milestones with a finished task, along `hexLine`, with the `path` tone. `hexLine` gets its own tests in `packages/shared`.
+  - Dock absent below stage 2, on a present outer-shore hex, turned outward, and stable as the stage rises.
+  - `low` is the first half by rank of `high`.
+  - `tickerWanted`: cases for `growth`.
+- **Scene graph** (test renderer): one instanced mesh per scenery type plus the dock mesh for a multi-island world; taps on scenery reach the terrain; a refetch with identical content does not rebuild the scenery; on `high` a stage rise animates new instances' scale and requests the ticker only during the grow-in; on `low` or reduced motion new pieces appear at full scale with no ticker.
+- **App** (RTL): finishing the task that crosses a threshold reaches the scene as the island's new stage.
+- **Gate:** web and API tests, typecheck, lint and build; three.js only in the world-scene chunk; the three-free boundary (world/, layout/ and app/ import only `scene/model/*`, `scene/tuning.ts` and `scene/use-reduced-motion.ts`) holds.
+- **Manual (exit criterion):** the owner's `?perf` reading on their phone while panning, on both tiers: draw calls at most 8 above the 5c reading and no tier drop on `high` attributable to 5d; a visual pass on desktop and phone. Constants are tuned from those readings.
