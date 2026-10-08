@@ -1,3 +1,5 @@
+import type { WorldDto } from '@archipelago/shared'
+import { useId, useState } from 'react'
 import { useWorld } from '../world/use-world'
 import { useClaimDaily } from './use-claim-daily'
 import { useCountUp } from './use-count-up'
@@ -17,24 +19,49 @@ function BalanceChip({ balance }: { balance: number }) {
   )
 }
 
+/** The streak chip; a tap shows the next-bonus hint that `title` alone hid from touch screens. */
+function StreakChip({ streak }: { streak: WorldDto['economy']['streak'] }) {
+  const [open, setOpen] = useState(false)
+  const hintId = useId()
+  const hint = streak.next
+    ? `Next bonus at ${streak.next.days} days: +${streak.next.amount}`
+    : 'Top streak bonus reached'
+  return (
+    <span className="relative">
+      <button
+        type="button"
+        aria-label={`${streak.days}-day streak`}
+        aria-expanded={open}
+        aria-controls={open ? hintId : undefined}
+        title={hint}
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setOpen(false)}
+        className={`${pill} ${streak.activeToday ? 'text-warning' : 'text-text-secondary'}`}
+      >
+        {streak.days}d
+      </button>
+      {open && (
+        <span
+          id={hintId}
+          className="absolute top-full right-0 z-50 mt-2 w-max max-w-64 rounded-md bg-surface-primary px-3 py-2 text-sm text-text-primary shadow-lg"
+        >
+          {hint}
+        </span>
+      )}
+    </span>
+  )
+}
+
 export function EconomyBar() {
   const { data: world } = useWorld()
   const claim = useClaimDaily()
   if (!world) return null
   const { balance, streak, daily } = world.economy
-  const next = streak.next ? `Next bonus at ${streak.next.days} days: +${streak.next.amount}` : ''
 
   return (
     <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
       <BalanceChip balance={balance} />
-      <span
-        role="img"
-        aria-label={`${streak.days}-day streak`}
-        title={next}
-        className={`${pill} ${streak.activeToday ? 'text-warning' : 'text-text-secondary'}`}
-      >
-        {streak.days}d
-      </span>
+      <StreakChip streak={streak} />
       {!daily.claimedToday && (
         <button
           type="button"

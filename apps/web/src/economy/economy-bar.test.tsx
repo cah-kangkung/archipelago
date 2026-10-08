@@ -89,4 +89,25 @@ describe('EconomyBar', () => {
     await user.click(await screen.findByRole('button', { name: 'Claim +15' }))
     expect(await screen.findByLabelText('15 Supplies')).toHaveTextContent('◆ 15')
   })
+
+  test('tapping the streak chip shows the next bonus; tapping again hides it', async () => {
+    const { api } = createFakeApi({ today: TODAY, ledger: [fakeEntry({ day: TODAY })] })
+    const { user } = renderApp({ api, path: '/' })
+    const chip = await screen.findByRole('button', { name: '1-day streak' })
+    expect(chip).toHaveAttribute('aria-expanded', 'false')
+    expect(chip).toHaveAttribute('title', 'Next bonus at 3 days: +20')
+    await user.click(chip)
+    expect(chip).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Next bonus at 3 days: +20')).toBeVisible()
+    await user.click(chip)
+    expect(screen.queryByText('Next bonus at 3 days: +20')).toBeNull()
+  })
+
+  test('past the last bonus the popover says the top bonus is reached', async () => {
+    const ledger = Array.from({ length: 30 }, (_, i) => fakeEntry({ day: addDays(TODAY, -i) }))
+    const { api } = createFakeApi({ today: TODAY, ledger })
+    const { user } = renderApp({ api, path: '/' })
+    await user.click(await screen.findByRole('button', { name: '30-day streak' }))
+    expect(screen.getByText('Top streak bonus reached')).toBeInTheDocument()
+  })
 })

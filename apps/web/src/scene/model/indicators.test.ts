@@ -72,4 +72,12 @@ describe('edgeIndicators', () => {
     // An island in the covered strip counts as off screen.
     expect(edgeIndicators([islandAt(0, 400)], view, sheet)).toHaveLength(1)
   })
+
+  test('a top inset moves the top edge below the HUD chips', () => {
+    const up = edgeIndicators([islandAt(0, -1000)], view, frame, 60)[0]
+    expect(up).toMatchObject({ left: 200, top: INDICATOR_INSET + 60 })
+    // Other edges are untouched.
+    const down = edgeIndicators([islandAt(0, 1000)], view, frame, 60)[0]
+    expect(down).toMatchObject({ top: 800 - INDICATOR_INSET })
+  })
 })

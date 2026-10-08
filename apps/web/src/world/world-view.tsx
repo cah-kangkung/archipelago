@@ -61,6 +61,7 @@ export function WorldView({
   const rewards = useRewardStore()
   const model = useMemo(() => buildSceneModel(world, today), [world, today])
   const [indicators] = useState(createIndicatorStore)
+  const [hudHeight, setHudHeight] = useState(0)
   // Without `?perf` nothing is created, sampled or drawn.
   const [perf] = useState(() => (perfEnabled() ? createPerfStore() : null))
   // Three.js lives in its own chunk. A failed load is cached by `lazy`, so a retry builds a new one.
@@ -107,6 +108,7 @@ export function WorldView({
               selectedBuildingId={selectedBuildingId}
               placement={placement}
               coveredBottom={coveredBottom}
+              hudInset={hudHeight}
               anchor={anchor}
               onSelect={onSelect}
               onSelectBuilding={onSelectBuilding}
@@ -130,6 +132,7 @@ export function WorldView({
           resolved={resolved}
           empty={world.projects.length === 0}
           onOpenShop={onOpenShop}
+          onHeight={setHudHeight}
           {...actions}
         />
       </section>

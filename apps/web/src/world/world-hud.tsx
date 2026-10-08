@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { useLayoutEffect, useRef } from 'react'
 import type { resolveFocus } from './selectors'
 
 type Resolved = ReturnType<typeof resolveFocus>
@@ -15,6 +16,7 @@ export function WorldHud({
   onEditProject,
   onEditMilestone,
   onOpenShop,
+  onHeight,
 }: {
   resolved: Resolved
   empty: boolean
@@ -23,10 +25,28 @@ export function WorldHud({
   onEditProject?: () => void
   onEditMilestone?: () => void
   onOpenShop?: () => void
+  onHeight?: (px: number) => void
 }) {
   const { focus, project, milestone } = resolved
+  const root = useRef<HTMLDivElement>(null)
+  const report = useRef(onHeight)
+  report.current = onHeight
+  // Edge markers keep below the chips (spec 16.6); the chips wrap, so follow their real height.
+  useLayoutEffect(() => {
+    const el = root.current
+    if (!el) return
+    report.current?.(el.offsetHeight)
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => report.current?.(el.offsetHeight))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start gap-2 p-3">
+    <div
+      ref={root}
+      data-testid="world-hud"
+      className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start gap-2 p-3"
+    >
       {focus.kind === 'archipelago' && (
         <>
           {onNewProject && (

@@ -13,12 +13,14 @@ export function IndicatorProbe({
   urgent,
   currentProjectId,
   covered,
+  topInset,
   store,
 }: {
   model: SceneModel
   urgent: readonly IslandUrgency[]
   currentProjectId: string | null
   covered: number
+  topInset: number
   store: IndicatorStore
 }) {
   const camera = useThree((s) => s.camera)
@@ -30,7 +32,7 @@ export function IndicatorProbe({
   // biome-ignore lint/correctness/useExhaustiveDependencies: the inputs are deliberate triggers
   useEffect(() => {
     invalidate()
-  }, [urgent, currentProjectId, covered, invalidate])
+  }, [urgent, currentProjectId, covered, topInset, invalidate])
 
   useFrame(() => {
     const islands: UrgentIsland[] = []
@@ -50,7 +52,7 @@ export function IndicatorProbe({
       z: camera.position.z - ISO_DISTANCE,
       zoom: camera.zoom,
     }
-    store.set(edgeIndicators(islands, view, frame))
+    store.set(edgeIndicators(islands, view, frame, topInset))
   })
 
   return null

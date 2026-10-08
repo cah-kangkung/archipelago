@@ -42,13 +42,15 @@ export function edgeIndicators(
   islands: readonly UrgentIsland[],
   view: View,
   frame: Frame,
+  /** Canvas px the HUD chips cover at the top (spec 16.6). */
+  topInset = 0,
 ): EdgeIndicator[] {
   const visible = visibleSize(frame)
   const centre = viewCentre(frame)
   const eye = { x: visible.width / 2, y: visible.height / 2 }
   const rect: Rect = {
     left: INDICATOR_INSET,
-    top: INDICATOR_INSET,
+    top: INDICATOR_INSET + topInset,
     right: visible.width - INDICATOR_INSET,
     bottom: visible.height - INDICATOR_INSET,
   }

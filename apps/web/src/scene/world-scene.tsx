@@ -26,6 +26,8 @@ export type WorldSceneProps = SceneHandlers & {
   selectedBuildingId: string | null
   placement: Placement | null
   coveredBottom: number
+  /** Canvas px the HUD chips cover at the top; edge markers stay below it. */
+  hudInset: number
   anchor: string | null
   urgent: readonly IslandUrgency[]
   indicators: IndicatorStore
@@ -89,6 +91,7 @@ export function WorldScene(props: WorldSceneProps) {
         urgent={props.urgent}
         currentProjectId={props.focus.kind === 'archipelago' ? null : props.focus.projectId}
         covered={props.coveredBottom}
+        topInset={props.hudInset}
         store={props.indicators}
       />
       {/*

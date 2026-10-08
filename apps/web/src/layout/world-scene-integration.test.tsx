@@ -22,6 +22,7 @@ vi.mock('../scene/world-scene', () => ({
     coveredBottom,
     indicators,
     anchor,
+    hudInset,
   }: WorldSceneProps) => {
     seenAnchors.push(anchor ?? '')
     return (
@@ -31,6 +32,7 @@ vi.mock('../scene/world-scene', () => ({
         data-selected={selectedTaskId ?? ''}
         data-covered={coveredBottom}
         data-anchor={anchor ?? ''}
+        data-hud-inset={hudInset}
       >
         <button
           type="button"
@@ -305,6 +307,22 @@ describe('World screen with the 3D scene', () => {
     } finally {
       window.history.replaceState(null, '', '/')
       resetPerfFlag()
+    }
+  })
+
+  test('the scene learns the HUD height, so edge markers can sit below it', async () => {
+    const measured = vi
+      .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
+      .mockImplementation(function (this: HTMLElement) {
+        return this.dataset.testid === 'world-hud' ? 68 : 0
+      })
+    try {
+      const { api } = seeded()
+      renderApp({ api, path: '/' })
+      const scene = await screen.findByTestId('scene')
+      await waitFor(() => expect(scene).toHaveAttribute('data-hud-inset', '68'))
+    } finally {
+      measured.mockRestore()
     }
   })
 })

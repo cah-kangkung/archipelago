@@ -122,6 +122,7 @@ describe('indicators', () => {
       urgent={urgent}
       currentProjectId={current}
       covered={covered}
+      topInset={0}
       store={store}
     />
   )
