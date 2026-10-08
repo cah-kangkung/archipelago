@@ -9,6 +9,7 @@ import { type Api, ApiError } from '../api/api'
 import { useApi } from '../api/context'
 import { useToast } from '../app/toast'
 import { formatReversals, formatRewards } from '../economy/format'
+import { useRewardStore } from '../rewards/reward-context'
 import { worldQuery } from '../world/use-world'
 
 type Snapshot = { previousTask: TaskDto | undefined; index: number }
@@ -19,6 +20,7 @@ function useWorldCache() {
   const api = useApi()
   const queryClient = useQueryClient()
   const toast = useToast()
+  const rewards = useRewardStore()
   const key = worldQuery(api).queryKey
 
   const edit = (update: (world: WorldDto) => WorldDto) => {
@@ -53,6 +55,13 @@ function useWorldCache() {
     reward(result: AdvanceResult) {
       if (!('balance' in result)) return
       edit((w) => ({ ...w, economy: { ...w.economy, balance: result.balance } }))
+      // Only the server's answer starts an effect; a refetch never does (spec 16.1).
+      if ('rewards' in result) {
+        rewards.push({
+          target: { kind: 'task', id: result.task.id },
+          amounts: result.rewards.map((r) => r.amount),
+        })
+      }
       const message =
         'rewards' in result ? formatRewards(result.rewards) : formatReversals(result.reversals)
       if (message) toast.show(message)

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { Api } from '../api/api'
 import { AppProviders } from '../app/providers'
 import { createAppRuntime } from '../app/runtime'
+import { createRewardStore } from '../rewards/reward-store'
 import { setDesktop } from './viewport'
 
 export function renderApp({
@@ -19,10 +20,11 @@ export function renderApp({
   const history = createMemoryHistory({ initialEntries: [path] })
   const { router, queryClient } = createAppRuntime(api, { history, retry: false })
   const user = userEvent.setup()
+  const rewards = createRewardStore()
   render(
-    <AppProviders api={api} queryClient={queryClient}>
+    <AppProviders api={api} queryClient={queryClient} rewards={rewards}>
       <RouterProvider router={router} />
     </AppProviders>,
   )
-  return { router, queryClient, user }
+  return { router, queryClient, user, rewards }
 }

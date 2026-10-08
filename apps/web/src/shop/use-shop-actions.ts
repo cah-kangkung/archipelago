@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '../api/api'
 import { useApi } from '../api/context'
 import { useToast } from '../app/toast'
+import { useRewardStore } from '../rewards/reward-context'
 import { worldQuery } from '../world/use-world'
 
 const failed = (error: Error) =>
@@ -12,11 +13,13 @@ export function usePlaceBuilding() {
   const api = useApi()
   const queryClient = useQueryClient()
   const toast = useToast()
+  const rewards = useRewardStore()
   const key = worldQuery(api).queryKey
 
   return useMutation({
     mutationFn: (input: PlaceBuildingInput) => api.placeBuilding(input),
     onSuccess: ({ building, balance }) => {
+      rewards.push({ target: { kind: 'building', id: building.id }, amounts: [] })
       queryClient.setQueryData(key, (world) =>
         world ? { ...world, economy: { ...world.economy, balance } } : world,
       )
