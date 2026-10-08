@@ -909,7 +909,7 @@ Phase 5e makes each layer (archipelago, island, district) feel like its own room
 | Key | Was | Becomes | Hex |
 |---|---|---|---|
 | `shallows` (island plate) | `brandSecondary` | `mix(brandSecondary, surfacePrimary, 0.6)` | `#99c3ed` |
-| `seaShallow` (sea at the coast) | `mix(brand, brandSecondary, 0.3)` | `mix(brandSecondary, surfacePrimary, 0.45)` | `#73ade7` |
+| `seaShallow` (sea at the coast) | `mix(brand, brandSecondary, 0.3)` | `mix(brandSecondary, surfacePrimary, 0.45)` | `#73ade6` |
 | `sea` | `brand` | `mix(brandSecondary, surfacePrimary, 0.3)` | `#4d96e0` |
 | `seaDeep` (open sea, fog, background) | `mix(brand, textPrimary, 0.35)` | `mix(brandSecondary, surfacePrimary, 0.15)` | `#2680d9` |
 
