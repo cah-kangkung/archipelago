@@ -716,14 +716,14 @@ Phase 5b finishes Phase 5: reward animations (section 7.6 "Reward feedback", sec
 
 - **`?perf` overlay:** when the page URL has `?perf` (read once at load), a small corner panel shows fps over the last second of rendered frames, quality tier, draw calls and triangles (`gl.info.render`) and the current DPR. It ships in production builds and costs nothing without the flag.
 - **`scene/tuning.ts`** gathers every device-tunable value: hemisphere and directional light intensities, sea amplitude and speed, flight and spring durations, band strength, marker size and colour, pop and float timings. 5b moves today's values there unchanged.
-- **Exit criterion:** on the owner's phone, the overlay shows ≥ 55fps on `high` while panning the busiest island for 10s, or the monitor settles on `low` and shows ≥ 55fps there. Constants are tuned in a short follow-up from those readings.
+- **Exit criterion:** on the owner's phone, the overlay shows ≥ 55fps on `high` while panning the busiest island for 10s (idle readings cap near the 30fps ticker), or the monitor settles on `low` and shows ≥ 55fps there. Constants are tuned in a short follow-up from those readings.
 
 ### 16.6 Carry-over fixes
 
 - **Sheet (`panel-frame.tsx`):** the `dragged` flag clears on the next `pointerdown`, not in a microtask, so a mouse drag no longer fires a click; `pointercancel` restores the previous detent; the dead `_event`/`MouseEvent` parameter goes.
 - **Editor dialog (`editor-frame.tsx`):** crossing the 1024px breakpoint while open re-runs `showModal`/`close` for the new layout; the stray `relative` class goes; `autoFocus` applies on desktop only.
 - **Resize handles:** `role="separator"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and `aria-orientation`.
-- **Streak hint:** tapping the streak chip opens a small popover with "Next bonus at N days: +X" (or "Streak active today" when there is no next bonus); the `title` stays for hover.
+- **Streak hint:** tapping the streak chip opens a small popover with "Next bonus at N days: +X" (or "Top streak bonus reached" when there is no next bonus); the `title` stays for hover.
 - **Switcher strip:** at the 92dvh detent its top is clamped to stay inside the viewport on short phones.
 - **Edge markers:** the top inset grows by the HUD chips' measured height, so no marker sits under them.
 - **Placement late settle:** `onSuccess`/`onError` of a purchase check the attempt id, so a purchase from island A settling after A→B→A cannot end a fresh placement on A.
