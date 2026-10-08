@@ -1,12 +1,13 @@
 import { hexRing } from '@archipelago/shared'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import * as THREE from 'three'
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { fakeProject, fakeTask } from '../test/fake-api'
 import { quietEconomy } from '../test/sea-worlds'
 import { buildSceneModel, type SceneModel } from './model/scene-model'
 import { SCENERY_KINDS } from './models/scenery'
 import { SceneryLayer } from './scenery'
+import { GROW_IN_MS } from './tuning'
 
 type Renderer = Awaited<ReturnType<typeof ReactThreeTestRenderer.create>>
 
@@ -114,5 +115,93 @@ describe('SceneryLayer', () => {
     expect(versions(r)).toEqual(before)
     await r.update(<SceneryLayer islands={modelWith(15).islands} lowTier={false} animate={false} />)
     expect(versions(r)).not.toEqual(before)
+  })
+})
+
+describe('SceneryLayer grow-in', () => {
+  /** The smallest instance scale across every scenery mesh, relative to its piece's own scale. */
+  function smallest(r: Renderer): number {
+    let min = Number.POSITIVE_INFINITY
+    const m = new THREE.Matrix4()
+    const s = new THREE.Vector3()
+    for (const n of meshes(r)) {
+      const mesh = n.instance as THREE.InstancedMesh
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, m)
+        min = Math.min(min, s.setFromMatrixScale(m).x)
+      }
+    }
+    return min
+  }
+  const layer = (model: SceneModel, animate: boolean, onGrowth = vi.fn(), lowTier = false) => (
+    <SceneryLayer islands={model.islands} lowTier={lowTier} animate={animate} onGrowth={onGrowth} />
+  )
+  /** Every non-dock piece; with few tasks finished the plots leave few free inland hexes. */
+  const pieces = (r: Renderer) =>
+    SCENERY_KINDS.filter((k) => k !== 'dock').reduce((sum, k) => sum + countOf(r, k), 0)
+  const FULL = 0.79 // just under the smallest piece scale (0.8)
+  const frames = Math.ceil(GROW_IN_MS / 100) + 2
+
+  test('the first mount appears at full size and never asks for frames', async () => {
+    const onGrowth = vi.fn()
+    const r = await ReactThreeTestRenderer.create(layer(modelWith(8), true, onGrowth))
+    expect(smallest(r)).toBeGreaterThan(FULL)
+    expect(onGrowth).not.toHaveBeenCalled()
+  })
+
+  test('a stage rise grows the new pieces in from nothing, then settles and releases the ticker', async () => {
+    const onGrowth = vi.fn()
+    const r = await ReactThreeTestRenderer.create(layer(modelWith(8), true, onGrowth))
+    await r.update(layer(modelWith(15), true, onGrowth))
+    expect(onGrowth).toHaveBeenLastCalledWith(true)
+    expect(smallest(r)).toBeLessThan(0.01)
+    await r.advanceFrames(1, 0.1) // the first frame only starts the clock
+    await r.advanceFrames(2, 0.1)
+    const mid = smallest(r)
+    expect(mid).toBeGreaterThan(0.01)
+    expect(mid).toBeLessThan(FULL)
+    await r.advanceFrames(frames, 0.1)
+    expect(smallest(r)).toBeGreaterThan(FULL)
+    expect(onGrowth).toHaveBeenLastCalledWith(false)
+  })
+
+  test('without animation a stage rise just shows the new pieces', async () => {
+    const onGrowth = vi.fn()
+    const r = await ReactThreeTestRenderer.create(layer(modelWith(8), false, onGrowth))
+    await r.update(layer(modelWith(15), false, onGrowth))
+    expect(smallest(r)).toBeGreaterThan(FULL)
+    expect(onGrowth).not.toHaveBeenCalled()
+  })
+
+  test('a stage drop removes pieces with no grow-in', async () => {
+    const onGrowth = vi.fn()
+    const r = await ReactThreeTestRenderer.create(layer(modelWith(36), true, onGrowth))
+    const before = pieces(r)
+    await r.update(layer(modelWith(8), true, onGrowth))
+    const after = pieces(r)
+    expect(after).toBeLessThan(before)
+    expect(smallest(r)).toBeGreaterThan(FULL)
+    expect(onGrowth).not.toHaveBeenCalled()
+  })
+
+  test('losing animation mid grow-in snaps everything to full size and releases the ticker', async () => {
+    const onGrowth = vi.fn()
+    const r = await ReactThreeTestRenderer.create(layer(modelWith(8), true, onGrowth))
+    await r.update(layer(modelWith(15), true, onGrowth))
+    await r.advanceFrames(2, 0.1)
+    expect(smallest(r)).toBeLessThan(FULL)
+    await r.update(layer(modelWith(15), false, onGrowth, true))
+    expect(smallest(r)).toBeGreaterThan(FULL)
+    expect(onGrowth).toHaveBeenLastCalledWith(false)
+    await r.advanceFrames(3, 0.1)
+    expect(smallest(r)).toBeGreaterThan(FULL)
+  })
+
+  test('unmounting mid grow-in releases the ticker', async () => {
+    const onGrowth = vi.fn()
+    const r = await ReactThreeTestRenderer.create(layer(modelWith(8), true, onGrowth))
+    await r.update(layer(modelWith(15), true, onGrowth))
+    await r.unmount()
+    expect(onGrowth).toHaveBeenLastCalledWith(false)
   })
 })

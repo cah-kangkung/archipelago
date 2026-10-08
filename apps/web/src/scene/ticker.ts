@@ -24,9 +24,11 @@ export type TickerDemand = {
   camera: boolean
   /** Boats, gulls or a whale are moving (`high` tier, spec 17.5). */
   life: boolean
+  /** New scenery is growing in after a stage rise (`high` tier, spec 18.5). */
+  growth: boolean
 }
 
 /** The ticker runs only while something moves (spec 16.4); otherwise frames come on change. */
 export function tickerWanted(d: TickerDemand): boolean {
-  return d.animate && (d.seaWave || d.cranes || d.effects || d.camera || d.life)
+  return d.animate && (d.seaWave || d.cranes || d.effects || d.camera || d.life || d.growth)
 }

@@ -55,6 +55,7 @@ export function WorldScene(props: WorldSceneProps) {
   const rewards = useSyncExternalStore(props.rewards.subscribe, props.rewards.get)
   const [quality, setQuality] = useState(START_QUALITY)
   const [cameraMoving, setCameraMoving] = useState(false)
+  const [growing, setGrowing] = useState(false)
   const cranes = useMemo(
     () => props.model.islands.some((i) => i.structures.some((s) => s.kind === 'crane')),
     [props.model],
@@ -68,6 +69,7 @@ export function WorldScene(props: WorldSceneProps) {
     effects: rewards.length > 0,
     camera: cameraMoving,
     life: seaWave && hasLife(props.life),
+    growth: growing,
   })
   return (
     <Canvas
@@ -91,6 +93,7 @@ export function WorldScene(props: WorldSceneProps) {
         animate={animate}
         seaWave={seaWave}
         lowTier={quality.tier === 'low'}
+        onGrowth={setGrowing}
       />
       <Labels model={props.model} focus={props.focus} />
       <CameraRig
