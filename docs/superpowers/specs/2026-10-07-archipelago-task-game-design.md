@@ -828,13 +828,13 @@ Thresholds live in `scene/tuning.ts` (`GROWTH_THRESHOLDS = [3, 8, 15, 30]`). Gro
 
 `islandGrowth({ seed, radius, stage, occupied, paths })` returns plain data, no three.js:
 
-- **Growth order:** every hex of the island that is not the commons centre gets a fixed rank from an integer hash of `(seed, q, r)` (`hashInts`, section 17.2's family). Scenery is revealed in rank order, so a higher stage only adds pieces: every piece at stage N is unchanged (type, offset, turn, scale) at stage N+1.
-- **Fill:** stage `s` reveals `GROWTH_FILL[s]` of the free interior hexes (`[0.05, 0.2, 0.4, 0.6, 0.75]`). Shore hexes (the outer `SHORE_RINGS`, never plots) fill at half that share.
+- **Growth order:** every hex of the island that is not the commons centre gets a fixed rank in [0, 1) from an integer hash of `(seed, q, r)` (`hashInts`, section 17.2's family). A hex is revealed when its rank is below its stage's fill (below), so a higher stage only adds pieces: every piece at stage N is unchanged (type, offset, turn, scale) at stage N+1.
+- **Fill:** at stage `s` about `GROWTH_FILL[s]` of the free interior hexes are revealed (`[0.05, 0.2, 0.4, 0.6, 0.75]`). Shore hexes (the outer `SHORE_RINGS`, never plots) fill at half that share. Each hex decides alone, so the share is statistical, not exact.
 - **Exclusions:** no scenery on an occupied hex (a task's plot or a decoration's plot), a path hex or the dock hex (18.4), or the commons centre. Occupying a hex hides only that hex's scenery; the rank of every other hex is unchanged.
 - **Clusters:** a revealed hex holds 1–3 pieces at seeded offsets within `0.55` of the hex centre, each with a seeded turn at any angle and a scale in `[0.8, 1.2]`.
 - **Types by place:** interior hexes draw from `tree`, `flowers`, `grass`; interior hexes adjacent to the shore draw from `bush`, `rock`; shore hexes draw from `rock`, `reeds`, `driftwood`. Weights in tuning.
 - **Shop distinction:** scenery is smaller than decorations (tree canopy at most 0.6 of the shop pine's height), muted (`scenePalette` scenery tokens, darker and less saturated than the decoration colours) and clustered, so the shop's single-standing pine and palm still read as purchases.
-- **`low` tier:** the first half (by rank) of the `high` set; same layout, thinner.
+- **`low` tier:** a fixed, seeded half of the revealed hexes keep their whole cluster (bit 0 of a second hash of `(seed, q, r)`); same layout, thinner, and stable across stages.
 
 ### 18.3 Terrain (`scene/model/terrain.ts`)
 
@@ -873,7 +873,7 @@ Thresholds live in `scene/tuning.ts` (`GROWTH_THRESHOLDS = [3, 8, 15, 30]`). Gro
   - Hills: the centre is flat, heights are multiples of `HILL_STEP` above `LAND_HEIGHT`, and the maximum rise respects `HILL_MAX[stage]`. Structures, districts and decorations report their tile's height.
   - Paths only for milestones with a finished task, along `hexLine`, with the `path` tone. `hexLine` gets its own tests in `packages/shared`.
   - Dock absent below stage 2, on a present outer-shore hex, turned outward, and stable as the stage rises.
-  - `low` is the first half by rank of `high`.
+  - `low` keeps about half the hexes, whole clusters at a time, and is a subset of `high`.
   - `tickerWanted`: cases for `growth`.
 - **Scene graph** (test renderer): one instanced mesh per scenery type plus the dock mesh for a multi-island world; taps on scenery reach the terrain; a refetch with identical content does not rebuild the scenery; on `high` a stage rise animates new instances' scale and requests the ticker only during the grow-in; on `low` or reduced motion new pieces appear at full scale with no ticker.
 - **App** (RTL): finishing the task that crosses a threshold reaches the scene as the island's new stage.
