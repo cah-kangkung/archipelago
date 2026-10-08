@@ -1,7 +1,11 @@
-import type { TaskDto, WorldDto } from '@archipelago/shared'
+import type { MilestoneDto, TaskDto, WorldDto } from '@archipelago/shared'
 import { type RefObject, useEffect, useState } from 'react'
 import { type Focus, panelTasks } from '../world/selectors'
 import { TaskRow } from './task-row'
+
+/** Milestone select values that are not milestone ids (spec 19.4). */
+export const ALL_TASKS = 'all'
+export const NO_MILESTONE = 'none'
 
 export function TaskPanel({
   world,
@@ -12,6 +16,10 @@ export function TaskPanel({
   onNewTask,
   onEditTask,
   selectedTaskId = null,
+  milestones,
+  milestoneValue,
+  onMilestoneChange,
+  commonsOnly,
 }: {
   world: WorldDto
   focus: Focus
@@ -21,11 +29,20 @@ export function TaskPanel({
   onNewTask?: () => void
   onEditTask?: (task: TaskDto) => void
   selectedTaskId?: string | null
+  /** The island's milestones in order; with `onMilestoneChange`, shows the milestone select. */
+  milestones?: readonly MilestoneDto[]
+  /** ALL_TASKS, NO_MILESTONE or a milestone id. */
+  milestoneValue?: string
+  onMilestoneChange?: (value: string) => void
+  /** Only tasks with no milestone ("No milestone" on the island). */
+  commonsOnly?: boolean
 }) {
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
   const tasks = panelTasks(world, focus, today).filter(
-    (t) => needle === '' || t.title.toLowerCase().includes(needle),
+    (t) =>
+      (!commonsOnly || t.milestoneId === null) &&
+      (needle === '' || t.title.toLowerCase().includes(needle)),
   )
   // A new selection must be visible: clear a search that hides it. Typing afterwards is respected.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the selection is the trigger
@@ -36,18 +53,40 @@ export function TaskPanel({
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center justify-between gap-2 px-4 pt-3">
+      <div className="px-4 pt-3">
         <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
-        {onNewTask && focus.kind !== 'archipelago' && (
-          <button
-            type="button"
-            onClick={onNewTask}
-            className="min-h-11 rounded-md bg-brand px-3 text-sm font-medium text-text-on-brand"
-          >
-            New task
-          </button>
-        )}
       </div>
+      {focus.kind !== 'archipelago' && (onNewTask || (milestones && onMilestoneChange)) && (
+        <div className="flex items-center gap-2 px-4 pt-2">
+          {milestones && onMilestoneChange && (
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Milestone</span>
+              <select
+                value={milestoneValue ?? ALL_TASKS}
+                onChange={(e) => onMilestoneChange(e.target.value)}
+                className="min-h-11 w-full rounded-md border border-border-secondary bg-surface-primary px-3 text-base"
+              >
+                <option value={ALL_TASKS}>All tasks</option>
+                <option value={NO_MILESTONE}>No milestone</option>
+                {milestones.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {onNewTask && (
+            <button
+              type="button"
+              onClick={onNewTask}
+              className="ml-auto min-h-11 shrink-0 rounded-md bg-brand px-3 text-sm font-medium text-text-on-brand"
+            >
+              New task
+            </button>
+          )}
+        </div>
+      )}
       <label className="block px-4 py-2">
         <span className="sr-only">Search tasks</span>
         <input

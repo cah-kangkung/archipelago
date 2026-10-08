@@ -257,4 +257,73 @@ describe('WorldScreen', () => {
       spy.mockRestore()
     })
   })
+
+  describe('milestone filter', () => {
+    const milestoneSelect = () => screen.getByRole('combobox', { name: 'Milestone' })
+
+    test('is on island and district drawers only, with All tasks, No milestone, then milestones', async () => {
+      const { api, beta } = seeded()
+      const { router } = renderApp({ api, path: '/', desktop: true })
+      await screen.findByRole('heading', { level: 2, name: 'Due today & overdue' })
+      expect(screen.queryByRole('combobox', { name: 'Milestone' })).not.toBeInTheDocument()
+      await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: beta.id } }))
+      expect(
+        within(milestoneSelect())
+          .getAllByRole('option')
+          .map((o) => o.textContent),
+      ).toEqual(['All tasks', 'No milestone', 'MVP'])
+      expect(milestoneSelect()).toHaveDisplayValue('All tasks')
+    })
+
+    test('a milestone flies into its district; All tasks flies back out', async () => {
+      const { api, beta, mvp } = seeded()
+      const { user, router } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+      await screen.findByRole('heading', { level: 2, name: 'Beta' })
+      await user.selectOptions(milestoneSelect(), 'MVP')
+      expect(router.state.location.pathname).toBe(`/p/${beta.id}/m/${mvp.id}`)
+      expect(await screen.findByRole('heading', { level: 2, name: 'MVP' })).toBeInTheDocument()
+      expect(milestoneSelect()).toHaveDisplayValue('MVP')
+      await user.selectOptions(milestoneSelect(), 'All tasks')
+      expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
+    })
+
+    test('No milestone filters the island list, and resets after leaving the island', async () => {
+      const { api, beta, gamma } = seeded()
+      const { user, router } = renderApp({ api, path: `/p/${beta.id}`, desktop: true })
+      await screen.findByRole('heading', { level: 2, name: 'Beta' })
+      expect(screen.getByText('MVP task')).toBeInTheDocument()
+      await user.selectOptions(milestoneSelect(), 'No milestone')
+      expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
+      expect(screen.getByText('Late one')).toBeInTheDocument()
+      expect(screen.queryByText('MVP task')).not.toBeInTheDocument()
+      await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: gamma.id } }))
+      await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: beta.id } }))
+      expect(await screen.findByText('MVP task')).toBeInTheDocument()
+      expect(milestoneSelect()).toHaveDisplayValue('All tasks')
+    })
+
+    test('No milestone from inside a district lands on the island with the filter on', async () => {
+      const { api, beta, mvp } = seeded()
+      const { user, router } = renderApp({
+        api,
+        path: `/p/${beta.id}/m/${mvp.id}`,
+        desktop: true,
+      })
+      await screen.findByRole('heading', { level: 2, name: 'MVP' })
+      await user.selectOptions(milestoneSelect(), 'No milestone')
+      expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
+      expect(await screen.findByText('Late one')).toBeInTheDocument()
+      expect(screen.queryByText('MVP task')).not.toBeInTheDocument()
+      expect(milestoneSelect()).toHaveDisplayValue('No milestone')
+    })
+
+    test('New task takes its milestone from where you are', async () => {
+      const { api, beta, mvp } = seeded()
+      const { user } = renderApp({ api, path: `/p/${beta.id}/m/${mvp.id}`, desktop: true })
+      await screen.findByRole('heading', { level: 2, name: 'MVP' })
+      await user.click(screen.getByRole('button', { name: 'New task' }))
+      const dialog = await screen.findByRole('dialog', { name: 'New task' })
+      expect(within(dialog).getByRole('combobox', { name: 'Milestone' })).toHaveDisplayValue('MVP')
+    })
+  })
 })
