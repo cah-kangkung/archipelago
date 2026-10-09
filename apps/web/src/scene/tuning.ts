@@ -91,6 +91,10 @@ export const BOAT_OFFSHORE = 0.8
 /** Fog starts this far past the islands' farthest corner and is solid FOG_DEPTH later. */
 export const FOG_MARGIN = 10
 export const FOG_DEPTH = 60
+
+/** Open water beyond the outermost island, in world units: enough to fill a desktop viewport at
+ * archipelago zoom. The cloud deck's plane reaches as far. */
+export const SEA_MARGIN = 250
 /** Corner opacity of the CSS vignette. */
 export const VIGNETTE_ALPHA = 0.25
 /** World units per second. */

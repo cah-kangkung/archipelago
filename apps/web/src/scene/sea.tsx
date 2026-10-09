@@ -7,12 +7,8 @@ import type { Bounds } from './model/scene-model'
 import { depthShade, type Shore, shoreDistance } from './model/sea-depth'
 import { SEA_LEVEL } from './models/terrain-geometry'
 import { onTap } from './tap'
-import { clampDelta, SEA_SEGMENTS, SEA_WAVE_HEIGHT, SEA_WAVE_SPEED } from './tuning'
+import { clampDelta, SEA_MARGIN, SEA_SEGMENTS, SEA_WAVE_HEIGHT, SEA_WAVE_SPEED } from './tuning'
 import { useStableShores } from './use-stable-shores'
-
-/** Open water beyond the outermost island, in world units: enough to fill a desktop viewport at
- * archipelago zoom. */
-const SEA_MARGIN = 250
 
 const shallowColor = new THREE.Color(scenePalette.seaShallow)
 const deepColor = new THREE.Color(scenePalette.seaDeep)

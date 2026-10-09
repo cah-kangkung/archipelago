@@ -50,13 +50,14 @@ describe('cloud deck material', () => {
   test('the shader warps two wisp layers and thins them by the coverage map', () => {
     const g = (n: number) => n.toFixed(4)
     expect(CLOUD_DECK_FRAGMENT).toContain(`p / ${g(CLOUD_DECK_WARP_SCALE)} + uWarpOff`)
+    expect(CLOUD_DECK_FRAGMENT).toContain('warpUv + vec2( 0.5, 0.21 )')
     expect(CLOUD_DECK_FRAGMENT).toContain(`vec2 q = p + bend * ${g(CLOUD_DECK_WARP)};`)
     expect(CLOUD_DECK_FRAGMENT).toContain(`q / ${g(CLOUD_DECK_TILE)} + uOffA`)
     expect(CLOUD_DECK_FRAGMENT).toContain(
-      `turn( q, vec4( ${LAYER_B_TURN.map(g).join(', ')} ) ) / ${g(CLOUD_DECK_TILE_B)}`,
+      `turn( q, vec4( ${LAYER_B_TURN.map(g).join(', ')} ) ) / ${g(CLOUD_DECK_TILE_B)} + vec2( 0.37, 0.71 ) + uOffB`,
     )
     expect(CLOUD_DECK_FRAGMENT).toContain(
-      `turn( p, vec4( ${COVER_TURN.map(g).join(', ')} ) ) / ${g(CLOUD_DECK_COVER_SCALE)}`,
+      `turn( p, vec4( ${COVER_TURN.map(g).join(', ')} ) ) / ${g(CLOUD_DECK_COVER_SCALE)} + uOffCover`,
     )
     expect(CLOUD_DECK_FRAGMENT).toContain(
       `smoothstep( ${g(CLOUD_DECK_COVER_LO)}, ${g(CLOUD_DECK_COVER_HI)}, cover )`,
@@ -111,11 +112,11 @@ describe('cloud deck material', () => {
     expect(cloudDeckUniforms.uOpacity.value).toBeCloseTo(CLOUD_DECK_ALPHA * 0.5)
   })
 
-  test('with no hole the whole deck shows at the veil, the box left in place', () => {
+  test('with no hole the box collapses to its centre and the whole deck shows at the veil; DECK_OFF shows nothing', () => {
     writeDeck({ hole: { minX: 1, maxX: 3, minZ: -2, maxZ: 4, round: 0.5 }, strength: 1 })
     writeDeck(VEIL)
+    expect(cloudDeckUniforms.uBox.value.toArray()).toEqual([2, 1, 2, 1])
     expect(cloudDeckUniforms.uRound.value).toBe(-CLOUD_DECK_FEATHER)
-    expect(cloudDeckUniforms.uBox.value.toArray()).toEqual([1, -2, 3, 4])
     expect(cloudDeckUniforms.uOpacity.value).toBeCloseTo(CLOUD_DECK_ALPHA * CLOUD_VEIL)
     writeDeck(DECK_OFF)
     expect(cloudDeckUniforms.uOpacity.value).toBe(0)

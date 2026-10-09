@@ -21,7 +21,7 @@ import {
 import { LAND_HEIGHT } from './model/hex-space'
 import type { SceneModel } from './model/scene-model'
 import { areaKey } from './model/spotlight'
-import { CLOUD_MS, clampDelta, FOG_DEPTH, FOG_MARGIN } from './tuning'
+import { CLOUD_MS, clampDelta, SEA_MARGIN } from './tuning'
 
 const noRaycast = () => null
 
@@ -64,6 +64,11 @@ export function CloudDeck({
     // A deck with no strength shows nothing: skip its full-screen blended pass.
     if (mesh.current) mesh.current.visible = d.strength > 0
   }
+
+  // The uniforms are module-level and outlive a remount: start from no drift.
+  useLayoutEffect(() => {
+    writeDrift(0)
+  }, [])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the hole's value is the trigger
   useLayoutEffect(() => {
@@ -114,7 +119,7 @@ export function CloudDeck({
 
   const plane = useMemo(() => {
     const b = model.bounds
-    const m = FOG_MARGIN + FOG_DEPTH
+    const m = SEA_MARGIN
     return {
       x: (b.minX + b.maxX) / 2,
       z: (b.minZ + b.maxZ) / 2,

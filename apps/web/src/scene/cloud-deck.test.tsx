@@ -23,8 +23,7 @@ import {
   CLOUD_DECK_TILE,
   CLOUD_MS,
   CLOUD_VEIL,
-  FOG_DEPTH,
-  FOG_MARGIN,
+  SEA_MARGIN,
 } from './tuning'
 
 const today = '2026-10-09'
@@ -83,7 +82,7 @@ describe('CloudDeck', () => {
     mesh.updateMatrixWorld()
     const size = mesh.geometry.boundingBox?.clone().applyMatrix4(mesh.matrixWorld)
     const b = model.bounds
-    const m = FOG_MARGIN + FOG_DEPTH
+    const m = SEA_MARGIN
     expect(size?.min.x).toBeCloseTo(b.minX - m)
     expect(size?.max.x).toBeCloseTo(b.maxX + m)
     expect(size?.min.z).toBeCloseTo(b.minZ - m)
@@ -102,7 +101,18 @@ describe('CloudDeck', () => {
     await r.update(tree({ model, focus: onBeta, onRunning }))
     await r.advanceFrames(2, 0.1)
     expect(opacity()).toBeCloseTo(veil)
+    expect(mesh.visible).toBe(true)
     expect(onRunning).not.toHaveBeenCalledWith(true)
+  })
+
+  test('a fresh mount on the archipelago shows the whole veil even after a district was mounted', async () => {
+    const d = await ReactThreeTestRenderer.create(tree({ model, focus: onMvp }))
+    await d.unmount()
+    await ReactThreeTestRenderer.create(tree({ model, focus: archipelago }))
+    const [minX, minZ, maxX, maxZ] = box()
+    expect(minX).toBe(maxX)
+    expect(minZ).toBe(maxZ)
+    expect(cloudDeckUniforms.uRound.value).toBe(-CLOUD_DECK_FEATHER)
   })
 
   test('the first mount in a district shows its hole at once', async () => {
@@ -200,6 +210,12 @@ describe('CloudDeck', () => {
     await r.update(tree({ model, focus: onMvp, animate: false, onRunning }))
     expect(opacity()).toBe(CLOUD_DECK_ALPHA)
     expect(onRunning).toHaveBeenLastCalledWith(false)
+  })
+
+  test('a fresh mount resets the drift left by an earlier one', async () => {
+    cloudDeckUniforms.uOffA.value.set(0.4, 0.4)
+    await ReactThreeTestRenderer.create(tree({ model, focus: onBeta }))
+    expect(cloudDeckUniforms.uOffA.value.toArray()).toEqual([0, 0])
   })
 
   test('drifts only while drifting is on, every layer offset in [0, 1)', async () => {

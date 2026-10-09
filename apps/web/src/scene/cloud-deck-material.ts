@@ -124,7 +124,12 @@ export function writeDeck(deck: Deck): void {
     cloudDeckUniforms.uBox.value.set(hole.minX, hole.minZ, hole.maxX, hole.maxZ)
     cloudDeckUniforms.uRound.value = hole.round ?? 0
   } else {
-    // No hole: round inward by the feather so the whole deck shows; the box stays where it was.
+    // No hole: collapse the box to its centre and round inward by the feather, so the whole deck
+    // shows even when the uniforms (module-level) still hold a district's box from an earlier mount.
+    const b = cloudDeckUniforms.uBox.value
+    const x = (b.x + b.z) / 2
+    const z = (b.y + b.w) / 2
+    b.set(x, z, x, z)
     cloudDeckUniforms.uRound.value = -CLOUD_DECK_FEATHER
   }
   cloudDeckUniforms.uOpacity.value = CLOUD_DECK_ALPHA * deck.strength
