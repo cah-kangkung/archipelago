@@ -40,10 +40,10 @@ export function DistrictRing({
   onRunning?: (running: boolean) => void
 }) {
   const invalidate = useThree((s) => s.invalidate)
-  const target = ringTarget(model, focus)
+  const target = useMemo(() => ringTarget(model, focus), [model, focus])
   const latest = useRef(target)
   latest.current = target
-  const [shown, setShown] = useState<RingTarget | null>(() => ringTarget(model, focus))
+  const [shown, setShown] = useState<RingTarget | null>(() => target)
   const district = useRef<string | null>(null)
   const mounted = useRef(false)
   const leg = useRef<{

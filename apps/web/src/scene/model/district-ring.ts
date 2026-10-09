@@ -132,8 +132,9 @@ export function ringTarget(model: SceneModel, focus: Focus): RingTarget | null {
   const island = model.islands.find((i) => i.projectId === focus.projectId)
   const district = island?.districts.find((d) => d.milestoneId === focus.milestoneId)
   if (!island || !district) return null
-  const tiles = districtTiles(district, island.structures)
   const heights = tileHeights(island.tiles)
+  // A bay or dropped coast hex inside the district has no tile: the ring would float over water.
+  const tiles = districtTiles(district, island.structures).filter((h) => heights.has(hexKey(h)))
   return {
     district: `${focus.projectId}/${focus.milestoneId}`,
     key: `${island.origin.x},${island.origin.z}|${tiles

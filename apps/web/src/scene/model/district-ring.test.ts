@@ -190,6 +190,35 @@ describe('ringTarget', () => {
   })
 })
 
+describe('ringTarget without a tile', () => {
+  test('a district hex with no tile is left out of the ring and its key', () => {
+    const beta = fakeProject({ name: 'Beta', archipelagoX: 0, archipelagoY: 0 })
+    const mvp = fakeMilestone({ projectId: beta.id, districtQ: 5, districtR: 0 })
+    const world: WorldDto = {
+      projects: [beta],
+      milestones: [mvp],
+      tasks: [fakeTask({ projectId: beta.id, milestoneId: mvp.id, plotX: 6, plotY: 0 })],
+      buildings: [],
+      economy: quietEconomy,
+    }
+    const focus = { kind: 'district', projectId: beta.id, milestoneId: mvp.id } as const
+    const model = buildSceneModel(world, '2026-10-09')
+    const island = model.islands[0]
+    if (!island) throw new Error('no island')
+    const full = ringTarget(model, focus)
+    expect(full?.key).toContain('6,0@')
+    const bare = {
+      ...model,
+      islands: [{ ...island, tiles: island.tiles.filter((t) => hexKey(t) !== '6,0') }],
+    }
+    const t = ringTarget(bare, focus)
+    expect(t?.key).not.toContain('6,0@')
+    expect(t?.key).toContain('5,0@')
+    expect(t?.loops).toHaveLength(1)
+    expect(t?.loops[0]).toHaveLength(6)
+  })
+})
+
 describe('ringLeg', () => {
   test('draw on arrival, fade on leaving, swap between districts, nothing when the same', () => {
     expect(ringLeg(null, 'a')).toBe('draw')
