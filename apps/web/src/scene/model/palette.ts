@@ -8,7 +8,7 @@ export function mix(a: string, b: string, t: number): string {
   return `#${out.map((v) => v.toString(16).padStart(2, '0')).join('')}`
 }
 
-/** Every colour the 3D scene uses, derived only from A'raf tokens. */
+/** Every colour the 3D scene uses, derived only from A'raf tokens, except `districtRing`. */
 export const scenePalette = {
   sea: mix(colors.brandSecondary, colors.surfacePrimary, 0.3),
   shallows: mix(colors.brandSecondary, colors.surfacePrimary, 0.6),
@@ -16,7 +16,8 @@ export const scenePalette = {
   seaDeep: mix(colors.brandSecondary, colors.surfacePrimary, 0.15),
   foam: colors.surfacePrimary,
   cloud: colors.surfacePrimary,
-  districtRing: mix(colors.warning, colors.surfacePrimary, 0.15),
+  // The one off-token colour: no token is a bright yellow, and the ring must stand out on grass.
+  districtRing: '#ffd84d',
   buoy: colors.error,
   whale: mix(colors.textPrimary, colors.brand, 0.4),
   grass: colors.success,

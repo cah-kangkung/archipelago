@@ -1324,7 +1324,7 @@ Every rule takes the seed; the API already has `project.islandSeed` wherever it 
 - sides chain into closed loops (one per blob, more for detached pieces), each a list of corners in order;
 - where consecutive sides belong to tiles at different heights, the loop holds two points at the shared corner, one at each height, so it drops straight down the terrace step.
 
-**Mesh.** `ringGeometry(loops)`: a flat ribbon on the tile tops, `DISTRICT_RING_WIDTH` (0.15) wide, inset `DISTRICT_RING_INSET` (0.05) from the edge, lifted `DISTRICT_RING_LIFT` (0.02); vertical segments at height steps become a vertical strip of the same width. Unlit, a transparent ShaderMaterial (`uReveal` reveals it along each loop, `uOpacity` fades it), full opacity when idle, `scenePalette.districtRing` (a warm gold from the design tokens), depth test on (hills in front hide it), `renderOrder` `CLOUD_DECK_RENDER_ORDER + 1` so the hole's feather never veils it, raycast disabled.
+**Mesh.** `ringGeometry(loops)`: a flat ribbon on the tile tops, `DISTRICT_RING_WIDTH` (0.22) wide, inset `DISTRICT_RING_INSET` (0.05) from the edge, lifted `DISTRICT_RING_LIFT` (0.02); vertical segments at height steps become a vertical strip of the same width. Unlit, a transparent ShaderMaterial (`uReveal` reveals it along each loop, `uOpacity` fades it), full opacity when idle, `scenePalette.districtRing` (bright yellow `#ffd84d`, the scene palette's one off-token colour, chosen by the owner so the ring stands out on grass), depth test on (hills in front hide it), `renderOrder` `CLOUD_DECK_RENDER_ORDER + 1` so the hole's feather never veils it, raycast disabled.
 
 **When it shows.**
 
@@ -1337,7 +1337,7 @@ Every rule takes the seed; the API already has `project.islandSeed` wherever it 
 ### 24.6 Tuning
 
 - Shared: `MIN_ISLAND_SIZE` 4 (replaces `MIN_ISLAND_RADIUS`), `MAX_ISLAND_SIZE` 60, `FREE_PLOTS` 12, footprint weights (round 1, oval 1.2, elongated 1.2, crescent 1, lobed 1.2, spiral 0.8, irregular 1.2), coast and relief chosen uniformly; `SHORE_RINGS` and `DISTRICT_SPACING` unchanged.
-- Web: `DISTRICT_RING_WIDTH` 0.15, `DISTRICT_RING_INSET` 0.05, `DISTRICT_RING_LIFT` 0.02, relief factors as 24.3; `scenePalette.districtRing`; `TickerDemand` gains `ring`.
+- Web: `DISTRICT_RING_WIDTH` 0.22, `DISTRICT_RING_INSET` 0.05, `DISTRICT_RING_LIFT` 0.02, relief factors as 24.3; `scenePalette.districtRing`; `TickerDemand` gains `ring`.
 
 ### 24.7 Testing
 
