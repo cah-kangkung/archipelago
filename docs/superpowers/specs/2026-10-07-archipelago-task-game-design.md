@@ -1059,6 +1059,8 @@ Phase 5g opens the light-and-mood phase with a cloud ring: soft low-poly clouds 
 
 ## 22. Phase 5h Design Addendum: Cloud Frame (approved 2026-10-09)
 
+> **22.2–22.6 superseded by section 23** (the screen-space frame was built, then replaced by a world-anchored cloud deck). 22.1 and 22.7 stand.
+
 Phase 5h replaces 21's in-scene cloud ring with a cloud frame drawn over the camera view: soft cloud wisps round the screen edges while you are inside an island or district, as if looking down through a gap in the clouds. It is a DOM overlay beside 17.3's vignette, not scene geometry, so it never covers tiles, costs WebGL nothing and lives outside the three.js chunk. Where it disagrees with sections 20 and 21, this section wins. No API or DTO change. Taps and panning are unchanged; the spotlight haze is removed (22.7).
 
 ### 22.1 Removal of the ring
@@ -1106,3 +1108,48 @@ Phase 5h replaces 21's in-scene cloud ring with a cloud frame drawn over the cam
 
 - At the owner's request the cloud frame is the only layer cue: the spotlight haze of 20.3 is removed. Deleted: `scene/spotlight-material.ts` (the shader patch) and `scene/spotlight-rig.tsx` with their tests; every material is plain again; the background stays `scenePalette.seaDeep`; the `spotlight` ticker demand and `SPOTLIGHT_MS`, `SPOTLIGHT_HAZE`, `SPOTLIGHT_FEATHER` are gone.
 - Kept: labels anchored outside the current layer still show at `SPOTLIGHT_LABEL_OPACITY` (0.6) via `labelOpacity` in `scene/model/spotlight.ts`, alongside `areaKey`. Taps outside the layer (20.4) and the layer area for panning (20.1–20.2) are unchanged.
+
+## 23. Phase 5h Revision: Cloud Deck (approved 2026-10-09)
+
+The owner wanted the cloud to stay with the world instead of the camera. The screen-space frame of 22.2–22.6 is replaced by a cloud deck: one flat cloud layer over the world with a hole in the shape of the current layer. Panning and zooming move it with the tiles. It is in the scene again, but as a single textured plane, not puffs. Where it disagrees with section 22, this section wins. 22.1 (ring removed) and 22.7 (haze removed) stand. No API or DTO change.
+
+### 23.1 The hole (`scene/model/cloud-deck.ts`, pure)
+
+- `growArea(area: Area, by: number): Area` — the rounded rectangle offset outward by `by`: same box, `round + by`.
+- `deckHole(model, focus): Area | null`:
+  - **Archipelago:** `null` (no deck).
+  - **Island:** `growArea(layerArea, SHALLOWS_MARGIN)`: the land circle plus the shallows, so the beach and shallows stay clear.
+  - **District:** `layerArea` (the district's rounded box); the rest of the island lies under cloud.
+- `type Deck = { hole: Area | null; strength: number }` (strength 0–1 scales the deck's opacity). `DECK_OFF`, `deckFor(hole)`, `deckLeg(current, target)`, `deckAt(from, to, t)` and `sameDeck(a, b)` behave as 20.3's spotlight tween did: from off it fades in on the new hole; hole to hole it slides at full strength (box and rounding lerped, ease in-out cubic); to the archipelago it fades out in place. `holeKey(area)` is a value key: a refetch that rebuilds the same hole does nothing.
+
+### 23.2 Texture (`scene/model/cloud-noise.ts`, pure)
+
+- `cloudNoise` and `wispAlpha` (22.3) move here unchanged from `world/cloud-texture.ts`. `paintCloudTexture` and `cloudTextureUrl` are deleted.
+- The deck uploads `wispAlpha(cloudNoise(CLOUD_TEXTURE_SIZE, CLOUD_TEXTURE_SEED), CLOUD_WISP_LO, CLOUD_WISP_HI)` once as a single-channel, repeat-wrapped, linearly filtered texture.
+
+### 23.3 The deck (`scene/cloud-deck.tsx`)
+
+- One horizontal plane at ground level covering `model.bounds` grown by `FOG_MARGIN + FOG_DEPTH` on every side. `renderOrder` above every other mesh; `depthTest` and `depthWrite` off, transparent, no fog: it draws over everything outside the hole. Raycast disabled, so taps pass through. Not frustum-culled.
+- A custom shader material (`cloudDeckMaterial` in `scene/materials.ts`, the only non-shared-pattern material): uniforms `uMap`, `uBox` (vec4 minX, minZ, maxX, maxZ), `uRound`, `uFeather`, `uOpacity`, `uTile`, `uOffset` (vec2), `uColor`. Per fragment, at world x/z: `d` = signed distance to the hole (the maths of `areaDistance`); `edge = smoothstep(0, CLOUD_DECK_FEATHER, d)`; `a = texture(uMap, (xz + uOffset) / uTile).r · edge · uOpacity`; colour `uColor` = `scenePalette.cloud`. With no hole (`uOpacity` 0) nothing shows.
+- `uOpacity = CLOUD_DECK_ALPHA · strength`. The deck component tweens the `Deck` over `CLOUD_MS` (600) and holds a `clouds` ticker demand only while a leg runs; the first mount shows its deck at once; reduced motion is instant.
+- **Drift:** on the `high` tier only (the sea wave already ticks), `uOffset` advances by `CLOUD_DECK_DRIFT` world units per second along (1, 1), wrapping at `CLOUD_DECK_TILE`. On `low` and under reduced motion it stays still.
+- Labels (drei `Html`) stay above the canvas; those outside the layer keep 0.6 opacity (22.7).
+- Known limit: the deck is drawn at ground level, so a tall building right at the hole's edge can show partly under cloud.
+
+### 23.4 Removed (the frame of 22.2–22.6)
+
+- `world/cloud-frame.tsx`, `world/cloud-frame-state.ts`, `world/cloud-texture.ts` and their tests; the `CloudFrame` mount in `world/world-view.tsx`; the `cloud-drift` keyframes in `src/styles.css`; `CLOUD_FRAME_ALPHA`, `CLOUD_FRAME_CLEAR`, `CLOUD_FRAME_ISLAND_SCALE`, `CLOUD_FRAME_MS`, `CLOUD_FRAME_DRIFT_S`, `CLOUD_TEXTURE_PX`.
+
+### 23.5 Tuning (`scene/tuning.ts`)
+
+- `CLOUD_DECK_ALPHA` 0.85, `CLOUD_DECK_FEATHER` `2 * Math.sqrt(3)` (two hexes), `CLOUD_DECK_TILE` 12 (world units per texture tile), `CLOUD_DECK_DRIFT` 0.2 (world units per second), `CLOUD_MS` 600; kept: `CLOUD_TEXTURE_SIZE` 128, `CLOUD_TEXTURE_SEED` 7, `CLOUD_WISP_LO` 0.45, `CLOUD_WISP_HI` 0.75. `scenePalette.cloud` stays `surfacePrimary`.
+- `TickerDemand` gains `clouds` (a deck leg is running).
+
+### 23.6 Testing
+
+- Pure: `growArea`; `deckHole` per layer kind and its fallbacks; `deckLeg`/`deckAt` fade in, slide, fade out, endpoints exact; `sameDeck`/`holeKey`; the noise tests of 22.6 move with `cloudNoise`/`wispAlpha`.
+- Shader: the fragment's distance matches `areaDistance` (same constants and maths, checked by a test reading the shader source); the material compiles in the headless Chromium harness.
+- Deck (test renderer): one mesh, raycast disabled, renderOrder above the rest; opacity 0 on the archipelago, `CLOUD_DECK_ALPHA` once a leg ends; `uBox` reaches the new hole after `CLOUD_MS`; the ticker demand is held only during a leg; a refetch with the same hole starts nothing; no drift on `low`; instant under reduced motion.
+- Removal: nothing references `CloudFrame`, `cloud-texture`, `CLOUD_FRAME_` or `cloud-drift`.
+- Preview: the controller renders the deck over a real screenshot before calling it done.
+- Owner's check: `bun run seed:demo`; archipelago → island → district → pan; the cloud stays with the world; `?perf` one more draw call and no tier drop.
