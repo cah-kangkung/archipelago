@@ -121,6 +121,7 @@ export function writeDeck(deck: Deck): void {
     cloudDeckUniforms.uRound.value = -CLOUD_DECK_FEATHER
   }
   cloudDeckUniforms.uOpacity.value = CLOUD_DECK_ALPHA * deck.strength
+  cloudDeckUniforms.uThreshold.value = deck.threshold
 }
 
 /** Writes the drift for `along` world units along (1, 1), wrapped for the shader. */

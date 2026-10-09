@@ -17,10 +17,13 @@ import { DECK_OFF, deckHole } from './model/cloud-deck'
 import { LAND_HEIGHT } from './model/hex-space'
 import { buildSceneModel, type SceneModel } from './model/scene-model'
 import {
+  CLOUD_ARCHIPELAGO_THRESHOLD,
+  CLOUD_ARCHIPELAGO_VEIL,
   CLOUD_DECK_ALPHA,
   CLOUD_DECK_DRIFT,
   CLOUD_DECK_FEATHER,
   CLOUD_MS,
+  CLOUD_THRESHOLD,
   CLOUD_VEIL,
   SEA_MARGIN,
 } from './tuning'
@@ -42,7 +45,8 @@ const archipelago: Focus = { kind: 'archipelago' }
 const onBeta: Focus = { kind: 'island', projectId: beta.id }
 const onMvp: Focus = { kind: 'district', projectId: beta.id, milestoneId: mvp.id }
 const onLater: Focus = { kind: 'district', projectId: beta.id, milestoneId: later.id }
-const veil = CLOUD_DECK_ALPHA * CLOUD_VEIL
+const islandVeil = CLOUD_DECK_ALPHA * CLOUD_VEIL
+const archVeil = CLOUD_DECK_ALPHA * CLOUD_ARCHIPELAGO_VEIL
 
 type Props = {
   model: SceneModel
@@ -90,18 +94,45 @@ describe('CloudDeck', () => {
     expect(size?.max.y).toBeCloseTo(LAND_HEIGHT)
   })
 
-  test('the archipelago and an island show the veil; between them nothing runs', async () => {
+  test('the archipelago shows its lighter, sparser veil; entering an island tweens to the island veil', async () => {
     const onRunning = vi.fn()
     const r = await ReactThreeTestRenderer.create(tree({ model, focus: archipelago, onRunning }))
     const mesh = r.scene.findAllByType('Mesh')[0]?.instance as THREE.Mesh
     expect(mesh.visible).toBe(true)
-    expect(opacity()).toBeCloseTo(veil)
+    expect(opacity()).toBeCloseTo(archVeil)
+    expect(cloudDeckUniforms.uThreshold.value).toBe(CLOUD_ARCHIPELAGO_THRESHOLD)
     expect(cloudDeckUniforms.uRound.value).toBe(-CLOUD_DECK_FEATHER)
     await r.update(tree({ model, focus: onBeta, onRunning }))
+    expect(onRunning).toHaveBeenLastCalledWith(true)
     await r.advanceFrames(2, 0.1)
-    expect(opacity()).toBeCloseTo(veil)
+    expect(opacity()).toBeGreaterThan(archVeil)
+    expect(opacity()).toBeLessThan(islandVeil)
+    await r.advanceFrames(frames, 0.1)
+    expect(opacity()).toBeCloseTo(islandVeil)
+    expect(cloudDeckUniforms.uThreshold.value).toBe(CLOUD_THRESHOLD)
     expect(mesh.visible).toBe(true)
+    expect(onRunning).toHaveBeenLastCalledWith(false)
+  })
+
+  test('a refetch on an island neither replays the leg nor runs', async () => {
+    const onRunning = vi.fn()
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta, onRunning }))
+    const refetched = buildSceneModel(
+      { ...world, tasks: [...world.tasks, fakeTask({ projectId: gamma.id, plotX: 1, plotY: 0 })] },
+      today,
+    )
+    await r.update(tree({ model: refetched, focus: onBeta, onRunning }))
+    expect(opacity()).toBeCloseTo(islandVeil)
     expect(onRunning).not.toHaveBeenCalledWith(true)
+  })
+
+  test('district to archipelago closes the hole to the archipelago veil', async () => {
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onMvp }))
+    await r.update(tree({ model, focus: archipelago }))
+    await r.advanceFrames(frames + 1, 0.1)
+    expect(opacity()).toBeCloseTo(archVeil)
+    expect(cloudDeckUniforms.uThreshold.value).toBe(CLOUD_ARCHIPELAGO_THRESHOLD)
+    expect(cloudDeckUniforms.uRound.value).toBe(-CLOUD_DECK_FEATHER)
   })
 
   test('a fresh mount on the archipelago shows the whole veil even after a district was mounted', async () => {
@@ -136,7 +167,7 @@ describe('CloudDeck', () => {
     expect(cloudDeckUniforms.uRound.value).toBe(-CLOUD_DECK_FEATHER)
     expect(box()[0]).toBeCloseTo((h.minX + h.maxX) / 2)
     await r.advanceFrames(1, 0.1)
-    expect(opacity()).toBeGreaterThan(veil)
+    expect(opacity()).toBeGreaterThan(islandVeil)
     expect(opacity()).toBeLessThan(CLOUD_DECK_ALPHA)
     await r.advanceFrames(frames, 0.1)
     expect(opacity()).toBe(CLOUD_DECK_ALPHA)
@@ -150,7 +181,7 @@ describe('CloudDeck', () => {
     if (!h) throw new Error('no district hole')
     await r.update(tree({ model, focus: onBeta }))
     await r.advanceFrames(frames + 1, 0.1)
-    expect(opacity()).toBeCloseTo(veil)
+    expect(opacity()).toBeCloseTo(islandVeil)
     expect(cloudDeckUniforms.uRound.value).toBe(-CLOUD_DECK_FEATHER)
     expect(box()[0]).toBeCloseTo((h.minX + h.maxX) / 2)
   })

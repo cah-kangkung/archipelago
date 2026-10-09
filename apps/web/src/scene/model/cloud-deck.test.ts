@@ -3,21 +3,32 @@ import { describe, expect, test } from 'vitest'
 import { fakeMilestone, fakeProject, fakeTask } from '../../test/fake-api'
 import { quietEconomy } from '../../test/sea-worlds'
 import type { Focus } from '../../world/selectors'
-import { CLOUD_DECK_DRIFT, CLOUD_DECK_DRIFT_WRAP, CLOUD_DECK_FEATHER, CLOUD_VEIL } from '../tuning'
+import {
+  CLOUD_ARCHIPELAGO_THRESHOLD,
+  CLOUD_ARCHIPELAGO_VEIL,
+  CLOUD_DECK_DRIFT,
+  CLOUD_DECK_DRIFT_WRAP,
+  CLOUD_DECK_FEATHER,
+  CLOUD_THRESHOLD,
+  CLOUD_VEIL,
+} from '../tuning'
 import { type Area, areaDistance } from './area'
 import { layerArea } from './camera'
 import {
+  ARCHIPELAGO_VEIL,
   closeHole,
   DECK_OFF,
+  type Deck,
   deckAt,
-  deckFor,
   deckHole,
+  deckKey,
   deckLeg,
+  deckTarget,
   driftStep,
   driftWrap,
+  ISLAND_VEIL,
   isOpen,
   sameDeck,
-  VEIL,
 } from './cloud-deck'
 import { buildSceneModel } from './scene-model'
 
@@ -58,46 +69,86 @@ describe('deckHole', () => {
   })
 })
 
+const island: Deck = ISLAND_VEIL
+const arch: Deck = ARCHIPELAGO_VEIL
+const open = (hole: Area): Deck => ({ hole, strength: 1, threshold: CLOUD_THRESHOLD })
+
+describe('deckTarget', () => {
+  test('the archipelago is a lighter, sparser veil than an island', () => {
+    expect(ARCHIPELAGO_VEIL).toEqual({
+      hole: null,
+      strength: CLOUD_ARCHIPELAGO_VEIL,
+      threshold: CLOUD_ARCHIPELAGO_THRESHOLD,
+    })
+    expect(ISLAND_VEIL).toEqual({ hole: null, strength: CLOUD_VEIL, threshold: CLOUD_THRESHOLD })
+    expect(deckTarget(model, { kind: 'archipelago' })).toEqual(ARCHIPELAGO_VEIL)
+    expect(deckTarget(model, onBeta)).toEqual(ISLAND_VEIL)
+  })
+
+  test('a district is full strength with its hole', () => {
+    expect(deckTarget(model, onMvp)).toEqual(open(layerArea(model, onMvp) as Area))
+  })
+
+  test('unknown ids fall back a level', () => {
+    expect(deckTarget(model, { kind: 'island', projectId: 'nope' })).toEqual(ARCHIPELAGO_VEIL)
+    expect(
+      deckTarget(model, { kind: 'district', projectId: beta.id, milestoneId: 'nope' }),
+    ).toEqual(ISLAND_VEIL)
+  })
+})
+
 describe('closeHole', () => {
   test('collapses to the centre and shows nothing anywhere', () => {
     const closed = closeHole(b)
     expect(closed).toEqual({ minX: 11, maxX: 11, minZ: 2, maxZ: 2, round: -CLOUD_DECK_FEATHER })
     expect(areaDistance(closed, { x: 11, z: 2 })).toBeGreaterThanOrEqual(CLOUD_DECK_FEATHER)
     expect(areaDistance(closed, { x: 40, z: -9 })).toBeGreaterThanOrEqual(CLOUD_DECK_FEATHER)
-    expect(isOpen({ hole: closed, strength: CLOUD_VEIL })).toBe(false)
-    expect(isOpen(deckFor(b))).toBe(true)
-    expect(isOpen(VEIL)).toBe(false)
+    expect(isOpen({ ...island, hole: closed })).toBe(false)
+    expect(isOpen(open(b))).toBe(true)
+    expect(isOpen(island)).toBe(false)
   })
 })
 
 describe('deck legs', () => {
-  test('no hole is the veil; a hole is full strength', () => {
-    expect(deckFor(null)).toEqual(VEIL)
-    expect(VEIL).toEqual({ hole: null, strength: CLOUD_VEIL })
-    expect(deckFor(a)).toEqual({ hole: a, strength: 1 })
-  })
-
-  test('island to district opens the hole from its centre as the cloud thickens', () => {
-    const { from, to } = deckLeg(VEIL, deckFor(b))
-    expect(from).toEqual({ hole: closeHole(b), strength: CLOUD_VEIL })
-    expect(to).toEqual({ hole: b, strength: 1 })
+  test('archipelago to island tweens strength and threshold', () => {
+    const { from, to } = deckLeg(arch, island)
+    expect(from).toEqual(arch)
+    expect(to).toEqual(island)
     const mid = deckAt(from, to, 0.5)
-    expect(mid.strength).toBeGreaterThan(CLOUD_VEIL)
-    expect(mid.strength).toBeLessThan(1)
-    expect(mid.hole?.minX).toBeCloseTo(10.5)
+    expect(mid.strength).toBeCloseTo((CLOUD_ARCHIPELAGO_VEIL + CLOUD_VEIL) / 2)
+    expect(mid.threshold).toBeCloseTo((CLOUD_ARCHIPELAGO_THRESHOLD + CLOUD_THRESHOLD) / 2)
+    expect(mid.hole).toBeNull()
   })
 
-  test('district to island closes the hole in place as the cloud thins', () => {
-    expect(deckLeg(deckFor(b), VEIL)).toEqual({
-      from: { hole: b, strength: 1 },
-      to: { hole: closeHole(b), strength: CLOUD_VEIL },
+  test('turning back mid-leg tweens from where it is', () => {
+    const mid = deckAt(arch, island, 0.5)
+    const { from, to } = deckLeg(mid, arch)
+    expect(from).toEqual(mid)
+    expect(to).toEqual(arch)
+  })
+
+  test('island to district opens the hole from its centre, keeping the island threshold', () => {
+    const { from, to } = deckLeg(island, open(b))
+    expect(from).toEqual({ hole: closeHole(b), strength: CLOUD_VEIL, threshold: CLOUD_THRESHOLD })
+    expect(to).toEqual(open(b))
+    expect(deckAt(from, to, 0.5).hole?.minX).toBeCloseTo(10.5)
+  })
+
+  test('district to archipelago closes the hole to the archipelago strength and threshold', () => {
+    expect(deckLeg(open(b), arch)).toEqual({
+      from: open(b),
+      to: {
+        hole: closeHole(b),
+        strength: CLOUD_ARCHIPELAGO_VEIL,
+        threshold: CLOUD_ARCHIPELAGO_THRESHOLD,
+      },
     })
   })
 
   test('leaving mid-opening closes from where the hole is', () => {
-    const opening = deckLeg(VEIL, deckFor(b))
+    const opening = deckLeg(island, open(b))
     const mid = deckAt(opening.from, opening.to, 0.5)
-    const { from, to } = deckLeg(mid, VEIL)
+    const { from, to } = deckLeg(mid, island)
     expect(from).toEqual(mid)
     expect(to.strength).toBe(CLOUD_VEIL)
     expect(to.hole?.round).toBe(-CLOUD_DECK_FEATHER)
@@ -105,38 +156,37 @@ describe('deck legs', () => {
   })
 
   test('after closing, the next district opens from its own centre', () => {
-    const closed = { hole: closeHole(b), strength: CLOUD_VEIL }
-    expect(deckLeg(closed, deckFor(a)).from).toEqual({ hole: closeHole(a), strength: CLOUD_VEIL })
+    const closed: Deck = { ...island, hole: closeHole(b) }
+    expect(deckLeg(closed, open(a)).from).toEqual({ ...island, hole: closeHole(a) })
   })
 
   test('district to district slides at full strength', () => {
-    const { from, to } = deckLeg(deckFor(a), deckFor(b))
-    expect(from).toEqual({ hole: a, strength: 1 })
-    expect(to).toEqual({ hole: b, strength: 1 })
-    const mid = deckAt(from, to, 0.5)
+    const mid = deckAt(open(a), open(b), 0.5)
     expect(mid.strength).toBe(1)
+    expect(mid.threshold).toBe(CLOUD_THRESHOLD)
     expect(mid.hole?.minX).toBeCloseTo(5)
     expect(mid.hole?.round).toBeCloseTo(2.5)
   })
 
-  test('veil to veil is the same deck', () => {
-    const { from, to } = deckLeg(VEIL, VEIL)
-    expect(sameDeck(from, to)).toBe(true)
-  })
-
   test('endpoints are exact', () => {
-    const from = deckFor(a)
-    const to = deckFor(b)
-    expect(deckAt(from, to, 0)).toEqual(from)
-    expect(deckAt(from, to, 1)).toEqual(to)
+    expect(deckAt(arch, island, 0)).toEqual(arch)
+    expect(deckAt(arch, island, 1)).toEqual(island)
   })
 
-  test('sameDeck: equal strength, and both closed or the same open hole', () => {
-    expect(sameDeck(VEIL, { hole: closeHole(a), strength: CLOUD_VEIL })).toBe(true)
-    expect(sameDeck(deckFor(a), deckFor({ ...a }))).toBe(true)
-    expect(sameDeck(deckFor(a), deckFor(b))).toBe(false)
-    expect(sameDeck(VEIL, DECK_OFF)).toBe(false)
-    expect(sameDeck(deckFor(a), { hole: a, strength: 0.5 })).toBe(false)
+  test('sameDeck compares strength, threshold and the open hole', () => {
+    expect(sameDeck(island, { ...island, hole: closeHole(a) })).toBe(true)
+    expect(sameDeck(island, arch)).toBe(false)
+    expect(sameDeck(island, { ...island, threshold: 0.7 })).toBe(false)
+    expect(sameDeck(open(a), open({ ...a }))).toBe(true)
+    expect(sameDeck(open(a), open(b))).toBe(false)
+    expect(sameDeck(island, DECK_OFF)).toBe(false)
+  })
+
+  test('deckKey changes with the open hole, strength or threshold, not with object identity', () => {
+    expect(deckKey(open({ ...a }))).toBe(deckKey(open(a)))
+    expect(deckKey(island)).toBe(deckKey({ ...island, hole: closeHole(b) }))
+    const keys = new Set([deckKey(island), deckKey(arch), deckKey(open(a)), deckKey(open(b))])
+    expect(keys.size).toBe(4)
   })
 })
 

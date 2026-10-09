@@ -8,9 +8,11 @@ import {
   writeDrift,
 } from './cloud-deck-material'
 import type { Area } from './model/area'
-import { DECK_OFF, VEIL } from './model/cloud-deck'
+import { ARCHIPELAGO_VEIL, DECK_OFF } from './model/cloud-deck'
 import { scenePalette } from './model/palette'
 import {
+  CLOUD_ARCHIPELAGO_THRESHOLD,
+  CLOUD_ARCHIPELAGO_VEIL,
   CLOUD_DECK_ALPHA,
   CLOUD_DECK_BANK,
   CLOUD_DECK_BANK_SCALE,
@@ -21,7 +23,6 @@ import {
   CLOUD_DECK_SOFT,
   CLOUD_DECK_WARP,
   CLOUD_THRESHOLD,
-  CLOUD_VEIL,
 } from './tuning'
 
 const g = (n: number) => n.toFixed(4)
@@ -84,20 +85,26 @@ describe('cloud deck material', () => {
     expect(cloudDeckUniforms.uDrift.value.toArray()).toEqual([0, 0])
   })
 
-  test('writeDeck sets the hole and scales the opacity by strength', () => {
+  test('writeDeck sets the hole, the threshold and the opacity by strength', () => {
     const hole: Area = { minX: 1, maxX: 3, minZ: -2, maxZ: 4, round: 0.5 }
-    writeDeck({ hole, strength: 0.5 })
+    writeDeck({ hole, strength: 0.5, threshold: 0.55 })
     expect(cloudDeckUniforms.uBox.value.toArray()).toEqual([1, -2, 3, 4])
     expect(cloudDeckUniforms.uRound.value).toBe(0.5)
+    expect(cloudDeckUniforms.uThreshold.value).toBe(0.55)
     expect(cloudDeckUniforms.uOpacity.value).toBeCloseTo(CLOUD_DECK_ALPHA * 0.5)
   })
 
-  test('with no hole the box collapses to its centre and the whole deck shows at the veil; DECK_OFF shows nothing', () => {
-    writeDeck({ hole: { minX: 1, maxX: 3, minZ: -2, maxZ: 4, round: 0.5 }, strength: 1 })
-    writeDeck(VEIL)
+  test('with no hole the box collapses to its centre and the whole deck shows; DECK_OFF shows nothing', () => {
+    writeDeck({
+      hole: { minX: 1, maxX: 3, minZ: -2, maxZ: 4, round: 0.5 },
+      strength: 1,
+      threshold: CLOUD_THRESHOLD,
+    })
+    writeDeck(ARCHIPELAGO_VEIL)
     expect(cloudDeckUniforms.uBox.value.toArray()).toEqual([2, 1, 2, 1])
     expect(cloudDeckUniforms.uRound.value).toBe(-CLOUD_DECK_FEATHER)
-    expect(cloudDeckUniforms.uOpacity.value).toBeCloseTo(CLOUD_DECK_ALPHA * CLOUD_VEIL)
+    expect(cloudDeckUniforms.uOpacity.value).toBeCloseTo(CLOUD_DECK_ALPHA * CLOUD_ARCHIPELAGO_VEIL)
+    expect(cloudDeckUniforms.uThreshold.value).toBe(CLOUD_ARCHIPELAGO_THRESHOLD)
     writeDeck(DECK_OFF)
     expect(cloudDeckUniforms.uOpacity.value).toBe(0)
   })

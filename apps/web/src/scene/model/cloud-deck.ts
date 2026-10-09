@@ -1,5 +1,13 @@
 import type { Focus } from '../../world/selectors'
-import { CLOUD_DECK_DRIFT, CLOUD_DECK_DRIFT_WRAP, CLOUD_DECK_FEATHER, CLOUD_VEIL } from '../tuning'
+import {
+  CLOUD_ARCHIPELAGO_THRESHOLD,
+  CLOUD_ARCHIPELAGO_VEIL,
+  CLOUD_DECK_DRIFT,
+  CLOUD_DECK_DRIFT_WRAP,
+  CLOUD_DECK_FEATHER,
+  CLOUD_THRESHOLD,
+  CLOUD_VEIL,
+} from '../tuning'
 import type { Area } from './area'
 import { layerArea } from './camera'
 import { easeInOutCubic } from './camera-motion'
@@ -18,17 +26,32 @@ export function deckHole(model: SceneModel, focus: Focus): Area | null {
   return area
 }
 
-/** What the deck shows: its hole and how strongly it covers the rest (0–1). */
-export type Deck = { hole: Area | null; strength: number }
+/** What the deck shows: its hole, how strongly it covers the rest (0–1), and how sparse it is. */
+export type Deck = { hole: Area | null; strength: number; threshold: number }
 
 /** Before the first mount writes anything. */
-export const DECK_OFF: Deck = { hole: null, strength: 0 }
+export const DECK_OFF: Deck = { hole: null, strength: 0, threshold: CLOUD_THRESHOLD }
 
-/** The archipelago and island layers: a light veil with no hole. */
-export const VEIL: Deck = { hole: null, strength: CLOUD_VEIL }
+/** An island: a veil with no hole (spec 23.8). */
+export const ISLAND_VEIL: Deck = { hole: null, strength: CLOUD_VEIL, threshold: CLOUD_THRESHOLD }
 
-export function deckFor(hole: Area | null): Deck {
-  return hole ? { hole, strength: 1 } : VEIL
+/** The archipelago: a lighter, sparser veil. */
+export const ARCHIPELAGO_VEIL: Deck = {
+  hole: null,
+  strength: CLOUD_ARCHIPELAGO_VEIL,
+  threshold: CLOUD_ARCHIPELAGO_THRESHOLD,
+}
+
+/**
+ * The deck for a layer: a district's hole at full strength, else an island's veil, else the
+ * archipelago's. Unknown ids fall back a level, as `layerArea` does.
+ */
+export function deckTarget(model: SceneModel, focus: Focus): Deck {
+  const hole = deckHole(model, focus)
+  if (hole) return { hole, strength: 1, threshold: CLOUD_THRESHOLD }
+  if (focus.kind === 'archipelago') return ARCHIPELAGO_VEIL
+  const island = layerArea(model, { kind: 'island', projectId: focus.projectId })
+  return island ? ISLAND_VEIL : ARCHIPELAGO_VEIL
 }
 
 /** The hole shrunk to its centre and rounded inward by the feather: it shows nothing. */
@@ -44,19 +67,19 @@ export function isOpen(d: Deck): boolean {
 }
 
 /**
- * The tween between what is shown and the new layer's deck (spec 23.7): into a district the hole
+ * The tween between what is shown and the new layer's deck (spec 23.8): into a district the hole
  * opens from its centre as the cloud thickens; out of one it closes in place as the cloud thins to
- * the veil; district to district it slides at full strength.
+ * the target veil; district to district it slides; veil to veil it tweens strength and threshold.
  */
 export function deckLeg(current: Deck, target: Deck): { from: Deck; to: Deck } {
   if (!target.hole) {
     if (current.hole && isOpen(current)) {
-      return { from: current, to: { hole: closeHole(current.hole), strength: target.strength } }
+      return { from: current, to: { ...target, hole: closeHole(current.hole) } }
     }
     return { from: current, to: target }
   }
   if (!isOpen(current)) {
-    return { from: { hole: closeHole(target.hole), strength: current.strength }, to: target }
+    return { from: { ...current, hole: closeHole(target.hole) }, to: target }
   }
   return { from: current, to: target }
 }
@@ -80,16 +103,25 @@ export function deckAt(from: Deck, to: Deck, t: number): Deck {
           round: lerp(a.round ?? 0, b.round ?? 0, e),
         }
       : (b ?? a)
-  return { hole, strength: lerp(from.strength, to.strength, e) }
+  return {
+    hole,
+    strength: lerp(from.strength, to.strength, e),
+    threshold: lerp(from.threshold, to.threshold, e),
+  }
 }
 
-/** Two decks that look the same: equal strength, and both closed or the same open hole. */
+/** Two decks that look the same: equal strength and threshold, and both closed or the same hole. */
 export function sameDeck(a: Deck, b: Deck): boolean {
-  if (a.strength !== b.strength) return false
+  if (a.strength !== b.strength || a.threshold !== b.threshold) return false
   const openA = isOpen(a)
   const openB = isOpen(b)
   if (!openA && !openB) return true
   return openA && openB && areaKey(a.hole) === areaKey(b.hole)
+}
+
+/** A value key for a deck: a refetch that rebuilds the same deck keeps the same key. */
+export function deckKey(d: Deck): string {
+  return [areaKey(isOpen(d) ? d.hole : null), d.strength, d.threshold].join('|')
 }
 
 /** The drift distance after `seconds` more; unbounded (see `driftWrap` for the shader). */

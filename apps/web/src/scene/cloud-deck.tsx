@@ -12,21 +12,20 @@ import {
   DECK_OFF,
   type Deck,
   deckAt,
-  deckFor,
-  deckHole,
+  deckKey,
   deckLeg,
+  deckTarget,
   driftStep,
   sameDeck,
 } from './model/cloud-deck'
 import { LAND_HEIGHT } from './model/hex-space'
 import type { SceneModel } from './model/scene-model'
-import { areaKey } from './model/spotlight'
 import { CLOUD_MS, clampDelta, SEA_MARGIN } from './tuning'
 
 const noRaycast = () => null
 
 /**
- * The cloud deck (spec 23.7): one plane over the world, a veil on the archipelago and island layers
+ * The cloud deck (spec 23.8): one plane over the world, a veil on the archipelago and island layers
  * and a hole in a district. It opens, closes and slides with the route; a refetch with the same
  * hole is still. Drifts while `drifting`.
  */
@@ -46,10 +45,10 @@ export function CloudDeck({
   onRunning?: (running: boolean) => void
 }) {
   const invalidate = useThree((s) => s.invalidate)
-  const hole = deckHole(model, focus)
-  const key = areaKey(hole)
-  const target = useRef(deckFor(hole))
-  target.current = deckFor(hole)
+  const targetDeck = deckTarget(model, focus)
+  const key = deckKey(targetDeck)
+  const target = useRef(targetDeck)
+  target.current = targetDeck
   const shown = useRef<Deck>(DECK_OFF)
   const mesh = useRef<Mesh>(null)
   const mounted = useRef(false)
@@ -70,7 +69,7 @@ export function CloudDeck({
     writeDrift(0)
   }, [])
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the hole's value is the trigger
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the target deck's value is the trigger
   useLayoutEffect(() => {
     const { from, to } = deckLeg(shown.current, target.current)
     const wasRunning = leg.current !== null

@@ -146,8 +146,10 @@ export const SPOTLIGHT_LABEL_OPACITY = 0.6
 // Cloud deck (spec 23): a cloud layer over the world with a hole the shape of the current layer.
 /** The deck's opacity at full strength. */
 export const CLOUD_DECK_ALPHA = 0.85
-/** The deck's strength on the archipelago and island layers: a light veil, no hole (spec 23.7). */
-export const CLOUD_VEIL = 0.4
+/** The deck's strength on an island: a veil, no hole (spec 23.8). */
+export const CLOUD_VEIL = 0.65
+/** The deck's strength on the archipelago: a lighter veil. */
+export const CLOUD_ARCHIPELAGO_VEIL = 0.47
 /** From the hole's edge to full cloud, in world units: two hexes. */
 export const CLOUD_DECK_FEATHER = 2 * Math.sqrt(3)
 /** World units per base noise cell of the clouds (spec 23.8). */
@@ -164,6 +166,8 @@ export const CLOUD_DECK_BANK = 0.25
 export const CLOUD_DECK_SOFT = 0.18
 /** Density threshold on an island and in a district: higher is sparser. */
 export const CLOUD_THRESHOLD = 0.5
+/** Density threshold on the archipelago: sparser than an island. */
+export const CLOUD_ARCHIPELAGO_THRESHOLD = 0.58
 /** The drift wraps here (world units), keeping the noise inputs small for float precision. */
 export const CLOUD_DECK_DRIFT_WRAP = 4500
 /** Drift speed along (1, 1), world units per second (`high` tier only). */
