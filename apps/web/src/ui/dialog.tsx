@@ -1,7 +1,20 @@
 import { X } from '@phosphor-icons/react'
 import * as D from '@radix-ui/react-dialog'
-import { type ReactNode, useEffect, useRef } from 'react'
+import { type ReactNode, useRef } from 'react'
 import { Icon } from './icon'
+
+let lastInteraction: HTMLElement | null = null
+
+// Safari does not focus tapped buttons, so activeElement can be stale. Record the element the user
+// last pressed or typed on at module scope, so a Dialog mounted by that very press still sees it.
+if (typeof document !== 'undefined') {
+  const record = (event: Event) => {
+    if (!(event.target instanceof Element)) return
+    lastInteraction = event.target.closest<HTMLElement>('button, a, [tabindex]')
+  }
+  document.addEventListener('pointerdown', record, true)
+  document.addEventListener('keydown', record, true)
+}
 
 /** A centred modal: focuses the first field, Escape and Close dismiss, focus returns (spec 25.1). */
 export function Dialog({
@@ -19,24 +32,6 @@ export function Dialog({
 }) {
   const content = useRef<HTMLDivElement>(null)
   const opener = useRef<HTMLElement | null>(null)
-  const lastInteraction = useRef<HTMLElement | null>(null)
-  const isOpen = useRef(open)
-  isOpen.current = open
-
-  // Safari does not focus tapped buttons, so activeElement can be stale. Record the element the
-  // user actually pressed or typed on while the dialog is closed.
-  useEffect(() => {
-    const record = (event: Event) => {
-      if (isOpen.current || !(event.target instanceof Element)) return
-      lastInteraction.current = event.target.closest<HTMLElement>('button, a, [tabindex]')
-    }
-    document.addEventListener('pointerdown', record, true)
-    document.addEventListener('keydown', record, true)
-    return () => {
-      document.removeEventListener('pointerdown', record, true)
-      document.removeEventListener('keydown', record, true)
-    }
-  }, [])
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
@@ -45,10 +40,13 @@ export function Dialog({
           ref={content}
           data-testid={testId}
           aria-describedby={undefined}
+          // Typed input must survive a stray click: only Escape and Close dismiss.
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
           onOpenAutoFocus={(event) => {
             // The dialog is controlled, with no Radix trigger, so remember the opener here.
-            opener.current =
-              lastInteraction.current ?? (document.activeElement as HTMLElement | null)
+            opener.current = lastInteraction ?? (document.activeElement as HTMLElement | null)
+            lastInteraction = null
             const field = content.current?.querySelector<HTMLElement>('input, textarea, select')
             if (!field) return
             event.preventDefault()

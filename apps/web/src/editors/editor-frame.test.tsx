@@ -1,5 +1,6 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { describe, expect, test, vi } from 'vitest'
 import { setDesktop } from '../test/viewport'
 import { EditorFrame } from './editor-frame'
@@ -42,5 +43,43 @@ describe('EditorFrame', () => {
     setDesktop(true)
     render(ui())
     expect(screen.getByRole('dialog', { name: 'Edit island' })).toBeInTheDocument()
+  })
+
+  test('an outside press or click leaves the editor open', async () => {
+    setDesktop(true)
+    const onClose = vi.fn()
+    render(ui(onClose))
+    // Radix arms its outside-press listener on the next tick.
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    fireEvent.pointerDown(document.body)
+    fireEvent.click(document.body)
+    expect(screen.getByTestId('editor-dialog')).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  test('mounted only after the press, it still returns focus to the tapped opener', async () => {
+    setDesktop(true)
+    const user = userEvent.setup()
+    function Harness() {
+      const [editing, setEditing] = useState(false)
+      return (
+        <>
+          <button type="button">B</button>
+          <button type="button" onClick={() => setEditing(true)}>
+            A
+          </button>
+          {editing && ui(() => setEditing(false))}
+        </>
+      )
+    }
+    render(<Harness />)
+    const a = screen.getByRole('button', { name: 'A' })
+    screen.getByRole('button', { name: 'B' }).focus()
+    fireEvent.pointerDown(a)
+    fireEvent.click(a)
+    await screen.findByRole('dialog')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(a).toHaveFocus()
   })
 })

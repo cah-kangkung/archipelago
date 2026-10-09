@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { Dialog } from './dialog'
 
 function Harness() {
@@ -71,5 +71,29 @@ describe('Dialog', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(a).toHaveFocus()
+  })
+
+  test('an outside press or click does not dismiss it', async () => {
+    const onOpenChange = vi.fn()
+    render(
+      <Dialog open onOpenChange={onOpenChange} title="T">
+        <input />
+      </Dialog>,
+    )
+    // Radix arms its outside-press listener on the next tick.
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    fireEvent.pointerDown(document.body)
+    fireEvent.click(document.body)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  test('content without a field opens and Radix focuses inside the dialog', () => {
+    render(
+      <Dialog open onOpenChange={() => {}} title="T">
+        <p>Nothing to type</p>
+      </Dialog>,
+    )
+    expect(screen.getByRole('dialog')).toContainElement(document.activeElement as HTMLElement)
   })
 })
