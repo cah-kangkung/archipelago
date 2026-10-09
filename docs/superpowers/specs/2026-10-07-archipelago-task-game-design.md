@@ -1201,10 +1201,10 @@ The owner wanted cloud on every layer and a less regular pattern.
 On screen, the 23.7 look ("X") was nearly invisible on the island and in a district: its coverage map cleared whole views, and the warped 128 px texture smeared into streaks. The owner chose procedural clouds, previewed over real screenshots: "pa" on the island and in a district, "pb_both" on the archipelago.
 
 **Clouds (fragment shader, no texture).** At world `p` (x/z), with `s = (p + uDrift) / CLOUD_DECK_SCALE`:
-- value noise from a hash: `hash(v) = fract(w.x · w.y)` where `w = fract(v · (123.34, 456.21))`, then `w += dot(w, w + 45.32)`; `noise` is the smoothstep-blended lattice of `hash`; `fbm` sums `CLOUD_DECK_OCTAVES` (5) octaves, amplitude halving from 0.5, each octave's point turned and scaled by `mat2(1.6, 1.2, −1.2, 1.6)`;
+- value noise from a hash: `hash(v) = fract(w.x · w.y)` where `w = fract(v · (123.34, 456.21))`, then `w += dot(w, w + 45.32)`; `noise` is the smoothstep-blended lattice of `hash`, the lattice wrapping every 289 cells (`mod(i, 289)`: bounded hash inputs, so the detail stays precise however far the drift has gone); `fbm` sums `CLOUD_DECK_OCTAVES` (5) octaves, amplitude halving from 0.5, each octave's point turned and scaled by `mat2(1.6, 1.2, −1.2, 1.6)`;
 - warp: `s += CLOUD_DECK_WARP · (fbm(s · 0.5 + 3.1), fbm(s · 0.5 − 7.7))`; `d = fbm(s)`;
 - banks: `bank = fbm((p + uDrift) / CLOUD_DECK_BANK_SCALE + 11.0)`; threshold `t = uThreshold − CLOUD_DECK_BANK · (bank − 0.5)`;
-- `cloud = smoothstep(t, t + CLOUD_DECK_SOFT, d)`; alpha `= cloud · edge · uOpacity` (the hole's `edge` as before, on `p` without the drift).
+- `cloud = smoothstep(t, t + CLOUD_DECK_SOFT, d)`; alpha `= cloud · edge · uOpacity` (the hole's `edge` as before, on `p` without the drift); pixels inside the hole (`edge` 0) return transparent before the noise runs.
 - Never a cleared view: unlike 23.7's coverage map, the banks only shift the threshold, so every view keeps some cloud.
 
 **Per-layer look.** `Deck` gains `threshold`:
@@ -1213,7 +1213,7 @@ On screen, the 23.7 look ("X") was nearly invisible on the island and in a distr
 - **District:** `{ hole: layerArea, strength: 1, threshold: CLOUD_THRESHOLD }` (opacity 0.85).
 - `deckTarget(model, focus): Deck` replaces `deckFor`. `deckLeg` keeps 23.7's rules and carries the target's threshold (closing to a veil takes the veil's strength and threshold; opening keeps the current threshold in `from`). `deckAt` lerps `threshold` with strength. `sameDeck` also compares `threshold`. Archipelago ↔ island is now a 600 ms leg (strength and threshold tween); the component's trigger key is the target deck's value (`deckKey`: hole key, strength and threshold), so a refetch that keeps all three starts nothing.
 
-**Drift.** One offset again: `uDrift = (w, w)` with `w = driftWrap(along) = along mod CLOUD_DECK_DRIFT_WRAP` (pure, in the model) (4500 world units, about 6 h at 0.2 u/s), keeping the hash's inputs small enough for float precision; at the wrap the pattern jumps once. Drift still runs only on the `high` tier.
+**Drift.** One offset again: `uDrift = (w, w)` with `w = driftWrap(along) = along mod CLOUD_DECK_DRIFT_WRAP` (pure, in the model) (4500 world units, about 6 h at 0.2 u/s), keeping the uniform's size small (the noise lattice's 289-cell wrap, not this one, keeps the hash precise); at the wrap the pattern jumps once. Drift still runs only on the `high` tier.
 
 **Removed.** The cloud texture and `scene/model/cloud-noise.ts` (`cloudNoise`, `wispAlpha`) with their tests; `layerOffset`, `Turn`, `LAYER_B_TURN`, `COVER_TURN`; uniforms `uMap`, `uOffA`, `uOffB`, `uOffCover`, `uWarpOff`; tuning `CLOUD_TEXTURE_SIZE`, `CLOUD_TEXTURE_SEED`, `CLOUD_WISP_LO`, `CLOUD_WISP_HI`, `CLOUD_DECK_TILE`, `CLOUD_DECK_TILE_B`, `CLOUD_DECK_WARP_SCALE`, `CLOUD_DECK_COVER_SCALE`, `CLOUD_DECK_COVER_LO`, `CLOUD_DECK_COVER_HI`, `CLOUD_COVER_SEED`. `CLOUD_DECK_WARP` is kept with the new value.
 

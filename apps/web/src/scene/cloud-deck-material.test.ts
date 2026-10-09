@@ -68,6 +68,17 @@ describe('cloud deck material', () => {
     expect(CLOUD_DECK_FRAGMENT).toContain('gl_FragColor = vec4( uColor, cloud * edge * uOpacity );')
   })
 
+  test('the noise lattice wraps so the hash inputs stay bounded', () => {
+    expect(CLOUD_DECK_FRAGMENT).toContain('mod( i, 289.0 )')
+    expect(CLOUD_DECK_FRAGMENT).toContain('mod( i + vec2( 1.0, 1.0 ), 289.0 )')
+  })
+
+  test('inside the hole the noise is skipped', () => {
+    expect(CLOUD_DECK_FRAGMENT).toContain(
+      'if ( edge <= 0.0 ) { gl_FragColor = vec4( 0.0 ); return; }',
+    )
+  })
+
   test('starts with the feather, the threshold and the cloud colour; no texture', () => {
     expect(cloudDeckUniforms.uFeather.value).toBe(CLOUD_DECK_FEATHER)
     expect(cloudDeckUniforms.uThreshold.value).toBe(CLOUD_THRESHOLD)

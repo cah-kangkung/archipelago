@@ -68,8 +68,9 @@ float noise( vec2 v ) {
   vec2 i = floor( v );
   vec2 f = fract( v );
   vec2 u = f * f * ( 3.0 - 2.0 * f );
-  float bottom = mix( hash( i ), hash( i + vec2( 1.0, 0.0 ) ), u.x );
-  float top = mix( hash( i + vec2( 0.0, 1.0 ) ), hash( i + vec2( 1.0, 1.0 ) ), u.x );
+  // The lattice wraps every 289 cells: bounded hash inputs for float precision.
+  float bottom = mix( hash( mod( i, 289.0 ) ), hash( mod( i + vec2( 1.0, 0.0 ), 289.0 ) ), u.x );
+  float top = mix( hash( mod( i + vec2( 0.0, 1.0 ), 289.0 ) ), hash( mod( i + vec2( 1.0, 1.0 ), 289.0 ) ), u.x );
   return mix( bottom, top, u.y );
 }
 float fbm( vec2 v ) {
@@ -85,6 +86,8 @@ float fbm( vec2 v ) {
 }
 void main() {
   float edge = smoothstep( 0.0, uFeather, holeDistance( vWorldXZ ) );
+  // Inside a district's hole nothing shows: skip the noise.
+  if ( edge <= 0.0 ) { gl_FragColor = vec4( 0.0 ); return; }
   vec2 world = vWorldXZ + uDrift;
   vec2 s = world / ${glsl(CLOUD_DECK_SCALE)};
   s += ${glsl(CLOUD_DECK_WARP)} * vec2( fbm( s * 0.5 + 3.1 ), fbm( s * 0.5 - 7.7 ) );

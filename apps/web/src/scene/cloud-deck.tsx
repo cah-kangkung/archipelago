@@ -27,7 +27,7 @@ const noRaycast = () => null
 /**
  * The cloud deck (spec 23.8): one plane over the world, a veil on the archipelago and island layers
  * and a hole in a district. It opens, closes and slides with the route; a refetch with the same
- * hole is still. Drifts while `drifting`.
+ * deck is still. Drifts while `drifting`.
  */
 export function CloudDeck({
   model,

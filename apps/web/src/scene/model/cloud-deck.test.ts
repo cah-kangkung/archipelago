@@ -89,6 +89,12 @@ describe('deckTarget', () => {
     expect(deckTarget(model, onMvp)).toEqual(open(layerArea(model, onMvp) as Area))
   })
 
+  test('a district with an unknown project falls back to the archipelago', () => {
+    expect(deckTarget(model, { kind: 'district', projectId: 'nope', milestoneId: mvp.id })).toEqual(
+      ARCHIPELAGO_VEIL,
+    )
+  })
+
   test('unknown ids fall back a level', () => {
     expect(deckTarget(model, { kind: 'island', projectId: 'nope' })).toEqual(ARCHIPELAGO_VEIL)
     expect(

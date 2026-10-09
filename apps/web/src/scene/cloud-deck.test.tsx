@@ -126,6 +126,36 @@ describe('CloudDeck', () => {
     expect(onRunning).not.toHaveBeenCalledWith(true)
   })
 
+  test('a refetch mid-leg does not restart the leg', async () => {
+    const onRunning = vi.fn()
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: archipelago, onRunning }))
+    await r.update(tree({ model, focus: onBeta, onRunning }))
+    await r.advanceFrames(2, 0.1)
+    const refetched = buildSceneModel(
+      { ...world, tasks: [...world.tasks, fakeTask({ projectId: gamma.id, plotX: 1, plotY: 0 })] },
+      today,
+    )
+    await r.update(tree({ model: refetched, focus: onBeta, onRunning }))
+    await r.advanceFrames(Math.ceil(CLOUD_MS / 100) - 1, 0.1)
+    expect(opacity()).toBeCloseTo(islandVeil)
+    expect(onRunning).toHaveBeenLastCalledWith(false)
+  })
+
+  test('a refetch mid-leg into a district does not restart the leg', async () => {
+    const onRunning = vi.fn()
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta, onRunning }))
+    await r.update(tree({ model, focus: onMvp, onRunning }))
+    await r.advanceFrames(2, 0.1)
+    const refetched = buildSceneModel(
+      { ...world, tasks: [...world.tasks, fakeTask({ projectId: gamma.id, plotX: 1, plotY: 0 })] },
+      today,
+    )
+    await r.update(tree({ model: refetched, focus: onMvp, onRunning }))
+    await r.advanceFrames(Math.ceil(CLOUD_MS / 100) - 1, 0.1)
+    expect(opacity()).toBeCloseTo(CLOUD_DECK_ALPHA)
+    expect(onRunning).toHaveBeenLastCalledWith(false)
+  })
+
   test('district to archipelago closes the hole to the archipelago veil', async () => {
     const r = await ReactThreeTestRenderer.create(tree({ model, focus: onMvp }))
     await r.update(tree({ model, focus: archipelago }))
