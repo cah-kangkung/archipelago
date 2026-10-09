@@ -5,7 +5,7 @@ const TOP = ''
 const NO_URGENCY = { overdue: 0, dueSoon: 0 }
 
 const selectClass =
-  'min-h-11 max-w-[70vw] truncate rounded-full border border-border-secondary bg-surface-primary/95 px-4 text-sm font-medium text-text-primary shadow'
+  'glass min-h-11 max-w-[70vw] truncate rounded-full px-4 text-label font-label text-text-primary shadow-2'
 
 /** "Name · N overdue", "Name · due soon", or just the name (spec 19.3, 20.5). */
 export function urgencyLabel(name: string, u: { overdue: number; dueSoon: number }): string {

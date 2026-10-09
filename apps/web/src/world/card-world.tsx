@@ -1,14 +1,19 @@
 import type { WorldDto } from '@archipelago/shared'
+import { ArrowLeft, Flag, PencilSimple, Plus } from '@phosphor-icons/react'
 import { Link } from '@tanstack/react-router'
+import { Button } from '../ui/button'
+import { Chip } from '../ui/chip'
+import { Icon } from '../ui/icon'
 import type { IslandSummary, resolveFocus } from './selectors'
 import { UnchartedCard } from './uncharted-card'
 
 type Resolved = ReturnType<typeof resolveFocus>
 
 const card =
-  'flex min-h-28 w-64 shrink-0 flex-col justify-between rounded-lg border border-border-primary bg-surface-primary p-4 text-left shadow-sm'
-const actionButton =
-  'min-h-11 rounded-md border border-border-secondary px-3 text-sm text-text-secondary hover:border-brand'
+  'flex min-h-28 w-64 shrink-0 flex-col justify-between rounded-2xl bg-surface-primary p-4 text-left shadow-1'
+const newCard =
+  'flex min-h-28 w-64 shrink-0 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border-secondary p-4 text-label font-label text-brand hover:border-brand-secondary'
+const backLink = 'inline-flex min-h-11 items-center gap-1.5 text-label font-label text-brand'
 
 /** The Phase 2 card view; the fallback when WebGL is unavailable (and the path jsdom takes). */
 export function CardWorld({
@@ -44,22 +49,19 @@ export function CardWorld({
               params={{ projectId: s.project.id }}
               className={card}
             >
-              <span className="font-semibold text-text-primary">{s.project.name}</span>
+              <span className="text-title font-heading text-text-primary">{s.project.name}</span>
               <span className="text-sm text-text-secondary">
                 {s.open} open · {s.done} done
               </span>
-              <span className="text-xs">
-                {s.overdue > 0 && <span className="text-error">{s.overdue} overdue </span>}
-                {s.dueSoon > 0 && <span className="text-warning">{s.dueSoon} due soon</span>}
+              <span className="flex gap-1">
+                {s.overdue > 0 && <Chip tone="coral">{s.overdue} overdue</Chip>}
+                {s.dueSoon > 0 && <Chip tone="gold">{s.dueSoon} due soon</Chip>}
               </span>
             </Link>
           ))}
           {onNewProject && (
-            <button
-              type="button"
-              onClick={onNewProject}
-              className={`${card} items-center justify-center border-dashed text-brand`}
-            >
+            <button type="button" onClick={onNewProject} className={newCard}>
+              <Icon icon={Plus} />
               New island
             </button>
           )}
@@ -84,13 +86,14 @@ export function CardWorld({
         className="min-h-0 flex-1 overflow-y-auto py-4 pb-32 lg:pb-4"
       >
         <div className="flex items-center justify-between gap-2 px-4 pb-3">
-          <Link to="/" className="min-h-11 content-center text-sm text-brand">
-            ← Archipelago
+          <Link to="/" aria-label="Back to Archipelago" className={backLink}>
+            <Icon icon={ArrowLeft} />
+            Archipelago
           </Link>
           {onEditProject && (
-            <button type="button" onClick={onEditProject} className={actionButton}>
+            <Button variant="ghost" size="sm" icon={PencilSimple} onClick={onEditProject}>
               Edit island
-            </button>
+            </Button>
           )}
         </div>
         <div className="flex gap-3 overflow-x-auto px-4 pb-2">
@@ -104,7 +107,7 @@ export function CardWorld({
                 params={{ projectId: project.id, milestoneId: m.id }}
                 className={card}
               >
-                <span className="font-semibold text-text-primary">{m.name}</span>
+                <span className="text-title font-heading text-text-primary">{m.name}</span>
                 <span className="text-sm text-text-secondary">
                   {m.landmarkType.replace('_', ' ')} · {done}/{tasks.length} done
                 </span>
@@ -112,15 +115,12 @@ export function CardWorld({
             )
           })}
           <div className={card}>
-            <span className="font-semibold text-text-primary">Commons</span>
+            <span className="text-title font-heading text-text-primary">Commons</span>
             <span className="text-sm text-text-secondary">{loose.length} loose tasks</span>
           </div>
           {onNewMilestone && (
-            <button
-              type="button"
-              onClick={onNewMilestone}
-              className={`${card} items-center justify-center border-dashed text-brand`}
-            >
+            <button type="button" onClick={onNewMilestone} className={newCard}>
+              <Icon icon={Flag} />
               New milestone
             </button>
           )}
@@ -141,18 +141,20 @@ export function CardWorld({
           <Link
             to="/p/$projectId"
             params={{ projectId: project.id }}
-            className="min-h-11 content-center text-sm text-brand"
+            aria-label={`Back to ${project.name}`}
+            className={backLink}
           >
-            ← {project.name}
+            <Icon icon={ArrowLeft} />
+            {project.name}
           </Link>
           {onEditMilestone && (
-            <button type="button" onClick={onEditMilestone} className={actionButton}>
+            <Button variant="ghost" size="sm" icon={PencilSimple} onClick={onEditMilestone}>
               Edit milestone
-            </button>
+            </Button>
           )}
         </div>
         <div className={`${card} w-full max-w-md`}>
-          <span className="font-semibold text-text-primary">
+          <span className="text-title font-heading text-text-primary">
             {milestone.landmarkType.replace('_', ' ')}
           </span>
           <span className="text-sm text-text-secondary">

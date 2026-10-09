@@ -51,7 +51,7 @@ describe('EconomyBar', () => {
       ledger: [fakeEntry({ kind: 'purchase', amount: -40, day: TODAY })],
     })
     renderApp({ api, path: '/' })
-    expect(await screen.findByLabelText('-40 Supplies')).toHaveClass('text-error')
+    expect(await screen.findByLabelText('-40 Supplies')).toHaveClass('text-coral-text')
   })
 
   test('the claim button is disabled while the claim is pending', async () => {
@@ -76,10 +76,10 @@ describe('EconomyBar', () => {
   test('the chip shows the new balance after a change; its label states the true balance at once', async () => {
     const { api } = createFakeApi({ today: TODAY })
     const { user } = renderApp({ api, path: '/' })
-    expect(await screen.findByLabelText('0 Supplies')).toHaveTextContent('◆ 0')
+    expect(await screen.findByLabelText('0 Supplies')).toHaveTextContent('0')
     await user.click(await screen.findByRole('button', { name: 'Claim +15' }))
     const chip = await screen.findByLabelText('15 Supplies')
-    await waitFor(() => expect(chip).toHaveTextContent('◆ 15'))
+    await waitFor(() => expect(chip).toHaveTextContent('15'))
   })
 
   test('under reduced motion the chip shows the new balance immediately', async () => {
@@ -87,7 +87,7 @@ describe('EconomyBar', () => {
     const { api } = createFakeApi({ today: TODAY })
     const { user } = renderApp({ api, path: '/' })
     await user.click(await screen.findByRole('button', { name: 'Claim +15' }))
-    expect(await screen.findByLabelText('15 Supplies')).toHaveTextContent('◆ 15')
+    expect(await screen.findByLabelText('15 Supplies')).toHaveTextContent('15')
   })
 
   test('tapping the streak chip shows the next bonus; tapping again hides it', async () => {

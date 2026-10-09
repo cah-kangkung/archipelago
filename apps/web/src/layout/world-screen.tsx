@@ -5,6 +5,7 @@ import {
   refundFor,
   shopItem,
 } from '@archipelago/shared'
+import { ArrowClockwise } from '@phosphor-icons/react'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
@@ -20,6 +21,8 @@ import { PlacementBar } from '../shop/placement-bar'
 import { ShopPanel } from '../shop/shop-panel'
 import { usePlaceBuilding, useRemoveBuilding } from '../shop/use-shop-actions'
 import { TaskPanel } from '../tasks/task-panel'
+import { Button, buttonClass } from '../ui/button'
+import { Skeleton } from '../ui/skeleton'
 import { readLastIsland, writeLastIsland } from '../world/last-island'
 import {
   islandOccupied,
@@ -52,8 +55,6 @@ const editorTitle: Record<Editor['kind'], string> = {
   'edit-task': 'Edit task',
   shop: 'Shop',
 }
-
-const retryButton = 'inline-flex min-h-11 items-center rounded-md px-3 text-brand'
 
 export function WorldScreen() {
   const params = useParams({ strict: false })
@@ -206,16 +207,24 @@ export function WorldScreen() {
     },
   })
 
-  if (world.isPending) return <p className="p-4 text-text-secondary">Loading your islands…</p>
+  if (world.isPending) {
+    return (
+      <div className="space-y-3 p-4" aria-busy="true">
+        <p className="text-label text-text-secondary">Loading your islands…</p>
+        <Skeleton className="h-28 w-64" />
+        <Skeleton className="h-4 w-48" />
+      </div>
+    )
+  }
   if ((world.isError && !world.data) || !resolved) {
     return (
       <div className="space-y-3 p-4">
-        <p role="alert" className="text-error">
+        <p role="alert" className="text-body text-error">
           Could not load your islands.
         </p>
-        <button type="button" onClick={() => void world.refetch()} className={retryButton}>
+        <Button variant="ghost" icon={ArrowClockwise} onClick={() => void world.refetch()}>
           Try again
-        </button>
+        </Button>
       </div>
     )
   }
@@ -223,7 +232,7 @@ export function WorldScreen() {
     return (
       <div className="space-y-3 p-4">
         <p className="text-text-primary">That island or district doesn't exist.</p>
-        <Link to="/" className="inline-flex min-h-11 items-center text-brand">
+        <Link to="/" className={buttonClass('ghost')}>
           Back to the archipelago
         </Link>
       </div>
@@ -287,11 +296,16 @@ export function WorldScreen() {
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
       <div className="flex min-h-0 flex-1 flex-col">
         {world.isError && (
-          <div className="flex items-center justify-between gap-2 bg-surface-primary px-4 text-sm text-text-secondary">
+          <div className="flex items-center justify-between gap-2 bg-gold-tint px-4 text-label text-gold-text">
             <p role="status">Couldn't refresh. Showing your last update.</p>
-            <button type="button" onClick={() => void world.refetch()} className={retryButton}>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={ArrowClockwise}
+              onClick={() => void world.refetch()}
+            >
               Try again
-            </button>
+            </Button>
           </div>
         )}
         <WorldView

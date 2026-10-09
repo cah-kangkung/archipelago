@@ -112,7 +112,11 @@ export function WorldView({
         style={{ backgroundColor: scenePalette.seaDeep }}
       >
         <div className="absolute inset-0">
-          <Suspense fallback={<p className="p-4 text-text-on-brand">Loading the world…</p>}>
+          <Suspense
+            fallback={
+              <p className="p-4 text-label font-label text-text-on-brand">Loading the world…</p>
+            }
+          >
             <WorldScene
               rewards={rewards}
               model={model}

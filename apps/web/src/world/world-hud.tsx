@@ -1,12 +1,14 @@
+import { ArrowLeft } from '@phosphor-icons/react'
 import { Link } from '@tanstack/react-router'
 import { useLayoutEffect, useRef } from 'react'
+import { Icon } from '../ui/icon'
 import { LayerPicker } from './layer-picker'
 import type { IslandSummary, resolveFocus } from './selectors'
 
 type Resolved = ReturnType<typeof resolveFocus>
 
 const chip =
-  'pointer-events-auto inline-flex min-h-11 items-center rounded-md bg-surface-primary/95 px-3 text-sm shadow'
+  'glass pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-label font-label shadow-2'
 
 /** Floating controls over the canvas; the same actions the card view offers. */
 export function WorldHud({
@@ -66,8 +68,9 @@ export function WorldHud({
           )}
           {focus.kind === 'island' && (
             <>
-              <Link to="/" className={`${chip} text-brand`}>
-                ← Archipelago
+              <Link to="/" aria-label="Back to Archipelago" className={`${chip} text-brand`}>
+                <Icon icon={ArrowLeft} />
+                Archipelago
               </Link>
               {onEditProject && (
                 <button
@@ -95,9 +98,11 @@ export function WorldHud({
               <Link
                 to="/p/$projectId"
                 params={{ projectId: project.id }}
+                aria-label={`Back to ${project.name}`}
                 className={`${chip} text-brand`}
               >
-                ← {project.name}
+                <Icon icon={ArrowLeft} />
+                {project.name}
               </Link>
               {onEditMilestone && (
                 <button

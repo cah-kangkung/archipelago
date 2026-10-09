@@ -116,7 +116,7 @@ describe('World screen with the 3D scene', () => {
 
     await user.click(screen.getByRole('button', { name: 'open Beta' }))
     expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
-    expect(await screen.findByRole('link', { name: '← Archipelago' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Back to Archipelago' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit island' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New milestone' })).toBeInTheDocument()
   })
@@ -184,7 +184,7 @@ describe('World screen with the 3D scene', () => {
       within(screen.getByRole('dialog')).getByRole('heading', { name: 'Edit milestone' }),
     ).toBeInTheDocument()
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }))
-    await user.click(screen.getByRole('link', { name: '← Beta' }))
+    await user.click(screen.getByRole('link', { name: 'Back to Beta' }))
     expect(router.state.location.pathname).toBe(`/p/${beta.id}`)
   })
 
@@ -214,7 +214,7 @@ describe('World screen with the 3D scene', () => {
     expect(sheet).toHaveAttribute('data-detent', '2')
 
     await user.click(screen.getByRole('button', { name: 'open district MVP' }))
-    expect(await screen.findByRole('link', { name: '← Beta' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Back to Beta' })).toBeInTheDocument()
     expect(screen.getByTestId('scene')).toHaveAttribute('data-selected', '')
   })
 
@@ -413,7 +413,7 @@ describe('World screen with the 3D scene', () => {
       const { user } = renderApp({ api, path: '/' })
       expect(await screen.findByTestId('scene')).toHaveAttribute('data-anchor', gamma.id)
       await user.click(screen.getByRole('button', { name: 'open Beta' }))
-      await user.click(await screen.findByRole('link', { name: '← Archipelago' }))
+      await user.click(await screen.findByRole('link', { name: 'Back to Archipelago' }))
       await waitFor(() =>
         expect(screen.getByTestId('scene')).toHaveAttribute('data-anchor', beta.id),
       )
