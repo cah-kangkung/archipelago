@@ -15,7 +15,7 @@ bun install
 cp apps/api/.env.example apps/api/.env
 docker compose up -d postgres        # Postgres 16 on 127.0.0.1:5433 (+ archipelago_test DB)
 bun run seed:user --email you@example.com   # prompts for a password (min 12 chars)
-bun run dev                          # API on :3000, web app on http://localhost:5173
+bun run dev                          # API on :3100, web app on http://localhost:5173
 ```
 
 The web dev server proxies `/api` to the API, so the session cookie is same-origin.

@@ -6,7 +6,7 @@
     "./app": "./src/app.ts"
   },
   "scripts": {
-    "dev": "bun --watch src/server.ts",
+    "dev": "PORT=3100 bun --watch src/server.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "db:generate": "bunx --bun drizzle-kit generate",

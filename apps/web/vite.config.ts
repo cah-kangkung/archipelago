@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     port: 5173,
     // Same-origin in dev so the httpOnly session cookie just works.
-    proxy: { '/api': 'http://localhost:3000' },
+    proxy: { '/api': 'http://localhost:3100' },
   },
   test: {
     environment: 'jsdom',
