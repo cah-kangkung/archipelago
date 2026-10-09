@@ -1,5 +1,5 @@
 import type { Focus } from '../../world/selectors'
-import { CLOUD_DECK_DRIFT, CLOUD_DECK_TILE } from '../tuning'
+import { CLOUD_DECK_DRIFT } from '../tuning'
 import type { Area } from './area'
 import { layerArea } from './camera'
 import { easeInOutCubic } from './camera-motion'
@@ -73,7 +73,27 @@ export function sameDeck(a: Deck, b: Deck): boolean {
   return shown(a) === shown(b) && areaKey(a.hole) === areaKey(b.hole)
 }
 
-/** The drift offset after `seconds`, wrapped at one texture tile. */
+/** A 2×2 rotation, row-major: `[[a, b], [c, d]]` as `[a, b, c, d]`. */
+export type Turn = readonly [number, number, number, number]
+
+const STRAIGHT: Turn = [1, 0, 0, 1]
+/** The second wisp layer's rotation, so the two layers never line up. */
+export const LAYER_B_TURN: Turn = [0.8, -0.6, 0.6, 0.8]
+/** The coverage map's rotation. */
+export const COVER_TURN: Turn = [0.28, 0.96, -0.96, 0.28]
+
+/** The drift distance after `seconds` more; unbounded (the layers share no common period). */
 export function driftStep(along: number, seconds: number): number {
-  return (along + seconds * CLOUD_DECK_DRIFT) % CLOUD_DECK_TILE
+  return along + seconds * CLOUD_DECK_DRIFT
+}
+
+const fract = (v: number) => v - Math.floor(v)
+
+/**
+ * One layer's texture offset for a drift of `along` along (1, 1): `fract(turn · (along, along) /
+ * scale)`, so the uniform stays in [0, 1) however long the session runs (spec 23.7).
+ */
+export function layerOffset(along: number, scale: number, turn: Turn = STRAIGHT): [number, number] {
+  const [a, b, c, d] = turn
+  return [fract(((a + b) * along) / scale), fract(((c + d) * along) / scale)]
 }

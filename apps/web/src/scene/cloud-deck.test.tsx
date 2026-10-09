@@ -11,11 +11,19 @@ import {
   cloudDeckMaterial,
   cloudDeckUniforms,
   writeDeck,
+  writeDrift,
 } from './cloud-deck-material'
 import { DECK_OFF, deckHole } from './model/cloud-deck'
 import { LAND_HEIGHT } from './model/hex-space'
 import { buildSceneModel, type SceneModel } from './model/scene-model'
-import { CLOUD_DECK_ALPHA, CLOUD_DECK_DRIFT, CLOUD_MS, FOG_DEPTH, FOG_MARGIN } from './tuning'
+import {
+  CLOUD_DECK_ALPHA,
+  CLOUD_DECK_DRIFT,
+  CLOUD_DECK_TILE,
+  CLOUD_MS,
+  FOG_DEPTH,
+  FOG_MARGIN,
+} from './tuning'
 
 const today = '2026-10-09'
 const beta = fakeProject({ name: 'Beta', archipelagoX: 0, archipelagoY: 0 })
@@ -51,7 +59,7 @@ describe('CloudDeck', () => {
     writeDeck(DECK_OFF)
     cloudDeckUniforms.uBox.value.set(0, 0, 0, 0)
     cloudDeckUniforms.uRound.value = 0
-    cloudDeckUniforms.uOffset.value.set(0, 0)
+    writeDrift(0)
   })
 
   test('one untappable plane over the whole world, drawn above everything', async () => {
@@ -193,16 +201,25 @@ describe('CloudDeck', () => {
     expect(onRunning).toHaveBeenLastCalledWith(false)
   })
 
-  test('drifts only while drifting is on', async () => {
+  test('drifts only while drifting is on, every layer offset in [0, 1)', async () => {
     const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta }))
-    const start = cloudDeckUniforms.uOffset.value.x
     await r.advanceFrames(5, 0.1)
-    expect(cloudDeckUniforms.uOffset.value.x).toBe(start)
+    expect(cloudDeckUniforms.uOffA.value.toArray()).toEqual([0, 0])
     await r.update(tree({ model, focus: onBeta, drifting: true }))
     await r.advanceFrames(5, 0.1)
-    const moved = cloudDeckUniforms.uOffset.value.x - start
-    expect(moved).toBeGreaterThan(0)
-    expect(moved).toBeLessThanOrEqual(5 * 0.1 * CLOUD_DECK_DRIFT + 1e-9)
-    expect(cloudDeckUniforms.uOffset.value.y).toBe(cloudDeckUniforms.uOffset.value.x)
+    const [u] = cloudDeckUniforms.uOffA.value.toArray()
+    expect(u).toBeGreaterThan(0)
+    expect(u).toBeLessThanOrEqual((5 * 0.1 * CLOUD_DECK_DRIFT) / CLOUD_DECK_TILE + 1e-9)
+    for (const off of [
+      cloudDeckUniforms.uOffA,
+      cloudDeckUniforms.uOffB,
+      cloudDeckUniforms.uOffCover,
+      cloudDeckUniforms.uWarpOff,
+    ]) {
+      for (const x of off.value.toArray()) {
+        expect(x).toBeGreaterThanOrEqual(0)
+        expect(x).toBeLessThan(1)
+      }
+    }
   })
 })

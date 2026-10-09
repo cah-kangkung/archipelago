@@ -5,8 +5,8 @@ import type { Focus } from '../world/selectors'
 import {
   CLOUD_DECK_RENDER_ORDER,
   cloudDeckMaterial,
-  cloudDeckUniforms,
   writeDeck,
+  writeDrift,
 } from './cloud-deck-material'
 import {
   DECK_OFF,
@@ -55,7 +55,7 @@ export function CloudDeck({
   const leg = useRef<{ from: Deck; to: Deck; elapsed: number; fresh: boolean } | null>(null)
   const running = useRef(onRunning)
   running.current = onRunning
-  const along = useRef(cloudDeckUniforms.uOffset.value.x)
+  const along = useRef(0)
 
   const show = (d: Deck) => {
     shown.current = d
@@ -94,7 +94,7 @@ export function CloudDeck({
   useFrame((_, delta) => {
     if (drifting) {
       along.current = driftStep(along.current, clampDelta(delta))
-      cloudDeckUniforms.uOffset.value.set(along.current, along.current)
+      writeDrift(along.current)
     }
     const l = leg.current
     if (!l) return

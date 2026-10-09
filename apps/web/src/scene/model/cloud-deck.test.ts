@@ -3,10 +3,11 @@ import { describe, expect, test } from 'vitest'
 import { fakeMilestone, fakeProject, fakeTask } from '../../test/fake-api'
 import { quietEconomy } from '../../test/sea-worlds'
 import type { Focus } from '../../world/selectors'
-import { CLOUD_DECK_DRIFT, CLOUD_DECK_TILE } from '../tuning'
+import { CLOUD_DECK_DRIFT } from '../tuning'
 import type { Area } from './area'
 import { layerArea } from './camera'
 import {
+  COVER_TURN,
   DECK_OFF,
   deckAt,
   deckFor,
@@ -14,6 +15,8 @@ import {
   deckLeg,
   driftStep,
   growArea,
+  LAYER_B_TURN,
+  layerOffset,
   sameDeck,
 } from './cloud-deck'
 import { SHALLOWS_MARGIN } from './hex-space'
@@ -118,16 +121,31 @@ describe('deck tween', () => {
   })
 })
 
-describe('driftStep', () => {
-  test('moves at CLOUD_DECK_DRIFT per second', () => {
+describe('drift', () => {
+  test('driftStep moves at CLOUD_DECK_DRIFT per second and never wraps', () => {
     expect(driftStep(0, 2)).toBeCloseTo(2 * CLOUD_DECK_DRIFT)
+    expect(driftStep(1000, 1)).toBeCloseTo(1000 + CLOUD_DECK_DRIFT)
   })
 
-  test('wraps at one tile, so it never grows without bound', () => {
-    expect(driftStep(CLOUD_DECK_TILE - 0.1, 1)).toBeCloseTo(CLOUD_DECK_DRIFT - 0.1)
-    let along = 0
-    for (let i = 0; i < 10_000; i++) along = driftStep(along, 1)
-    expect(along).toBeGreaterThanOrEqual(0)
-    expect(along).toBeLessThan(CLOUD_DECK_TILE)
+  test('layerOffset is the fractional texture offset of one layer', () => {
+    expect(layerOffset(11, 22)).toEqual([0.5, 0.5])
+    const [u, v] = layerOffset(10, 37, LAYER_B_TURN)
+    expect(u).toBeCloseTo((((0.8 - 0.6) * 10) / 37) % 1)
+    expect(v).toBeCloseTo((((0.6 + 0.8) * 10) / 37) % 1)
+  })
+
+  test('layerOffset stays in [0, 1) for any along, including a turn with negative terms', () => {
+    for (const along of [0, 0.3, 123.4, 1e6 + 0.7]) {
+      for (const [scale, turn] of [
+        [22, undefined],
+        [37, LAYER_B_TURN],
+        [140, COVER_TURN],
+      ] as const) {
+        for (const x of layerOffset(along, scale, turn)) {
+          expect(x).toBeGreaterThanOrEqual(0)
+          expect(x).toBeLessThan(1)
+        }
+      }
+    }
   })
 })

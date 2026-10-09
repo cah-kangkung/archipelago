@@ -144,8 +144,21 @@ export const SPOTLIGHT_LABEL_OPACITY = 0.6
 export const CLOUD_DECK_ALPHA = 0.85
 /** From the hole's edge to full cloud, in world units: two hexes. */
 export const CLOUD_DECK_FEATHER = 2 * Math.sqrt(3)
-/** World units per texture tile. */
-export const CLOUD_DECK_TILE = 12
+/** World units per tile of the first wisp layer. */
+export const CLOUD_DECK_TILE = 22
+/** World units per tile of the second, rotated wisp layer. */
+export const CLOUD_DECK_TILE_B = 37
+/** How far, in world units, the raw noise bends the wisps' shapes. */
+export const CLOUD_DECK_WARP = 10
+/** World units per tile of the bending noise. */
+export const CLOUD_DECK_WARP_SCALE = 45
+/** World units per tile of the coverage map: thick banks and clear sky. */
+export const CLOUD_DECK_COVER_SCALE = 140
+/** Coverage below LO is clear sky, above HI full cloud (0–1 of the raw noise). */
+export const CLOUD_DECK_COVER_LO = 0.45
+export const CLOUD_DECK_COVER_HI = 0.7
+/** Seeds the raw noise in the texture's second channel. */
+export const CLOUD_COVER_SEED = 11
 /** Drift speed along (1, 1), world units per second (`high` tier only). */
 export const CLOUD_DECK_DRIFT = 0.2
 /** The deck fading or its hole sliding between layers, in ms. */
