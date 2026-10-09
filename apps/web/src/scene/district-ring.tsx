@@ -95,7 +95,9 @@ export function DistrictRing({
   // Unmounting mid-leg releases the ticker demand.
   useLayoutEffect(
     () => () => {
-      if (leg.current) running.current?.(false)
+      if (!leg.current) return
+      running.current?.(false)
+      write(1, 1)
     },
     [],
   )

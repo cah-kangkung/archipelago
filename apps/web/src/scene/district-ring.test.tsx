@@ -151,6 +151,38 @@ describe('DistrictRing', () => {
     expect(onRunning).not.toHaveBeenCalled()
   })
 
+  test('another island growing moves the origin: the ring follows without a leg', async () => {
+    const onRunning = vi.fn()
+    const gamma = fakeProject({ name: 'Gamma', archipelagoX: 0, archipelagoY: 0 })
+    const shifted = { ...beta, archipelagoX: 1 }
+    const withGamma = (count: number) =>
+      buildSceneModel(
+        {
+          ...world,
+          projects: [shifted, gamma],
+          tasks: [
+            ...world.tasks,
+            ...Array.from({ length: count }, (_, i) =>
+              fakeTask({ projectId: gamma.id, plotX: i % 4, plotY: Math.floor(i / 4) }),
+            ),
+          ],
+        },
+        today,
+      )
+    const near = withGamma(12)
+    const far = withGamma(120)
+    const from = near.islands.find((i) => i.projectId === beta.id)?.origin
+    const to = far.islands.find((i) => i.projectId === beta.id)?.origin
+    expect(to).not.toEqual(from)
+    const r = await ReactThreeTestRenderer.create(tree({ model: near, focus: onMvp, onRunning }))
+    expect(meshes(r)[0]?.position.x).toBe(from?.x)
+    await r.update(tree({ model: far, focus: onMvp, onRunning }))
+    expect(meshes(r)[0]?.position.x).toBe(to?.x)
+    expect(meshes(r)[0]?.position.z).toBe(to?.z)
+    expect(reveal()).toBe(1)
+    expect(onRunning).not.toHaveBeenCalled()
+  })
+
   test('without animation it appears and disappears at once', async () => {
     const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta, animate: false }))
     await r.update(tree({ model, focus: onMvp, animate: false }))
@@ -164,7 +196,11 @@ describe('DistrictRing', () => {
     const onRunning = vi.fn()
     const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta, onRunning }))
     await r.update(tree({ model, focus: onMvp, onRunning }))
+    await r.advanceFrames(3, 0.1)
+    expect(reveal()).toBeLessThan(1)
     await r.unmount()
     expect(onRunning).toHaveBeenLastCalledWith(false)
+    expect(reveal()).toBe(1)
+    expect(opacity()).toBe(1)
   })
 })

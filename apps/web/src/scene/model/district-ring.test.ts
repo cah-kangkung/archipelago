@@ -161,6 +161,33 @@ describe('ringTarget', () => {
       })?.key,
     )
   })
+
+  test('the key follows the island origin, which moves when another island grows', () => {
+    const focus = { kind: 'district', projectId: beta.id, milestoneId: mvp.id } as const
+    const gamma = fakeProject({ name: 'Gamma', archipelagoX: 0, archipelagoY: 0 })
+    const shifted = { ...beta, archipelagoX: 1 }
+    const withGamma = (count: number) =>
+      buildSceneModel(
+        {
+          ...world,
+          projects: [shifted, gamma],
+          tasks: [
+            ...world.tasks,
+            ...Array.from({ length: count }, (_, i) =>
+              fakeTask({ projectId: gamma.id, plotX: i % 4, plotY: Math.floor(i / 4) }),
+            ),
+          ],
+        },
+        '2026-10-09',
+      )
+    const near = withGamma(12)
+    const far = withGamma(120)
+    const a = ringTarget(near, focus)
+    const b = ringTarget(far, focus)
+    expect(a?.origin).not.toEqual(b?.origin)
+    expect(a?.key).not.toBe(b?.key)
+    expect(a?.key).toBe(ringTarget(withGamma(12), focus)?.key)
+  })
 })
 
 describe('ringLeg', () => {

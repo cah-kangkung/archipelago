@@ -136,10 +136,10 @@ export function ringTarget(model: SceneModel, focus: Focus): RingTarget | null {
   const heights = tileHeights(island.tiles)
   return {
     district: `${focus.projectId}/${focus.milestoneId}`,
-    key: tiles
+    key: `${island.origin.x},${island.origin.z}|${tiles
       .map((h) => `${hexKey(h)}@${heightAt(heights, h)}`)
       .sort()
-      .join(';'),
+      .join(';')}`,
     origin: island.origin,
     loops: ringLoops(tiles, heights),
   }
