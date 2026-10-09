@@ -174,8 +174,7 @@ describe('editors', () => {
     await screen.findByRole('heading', { level: 2, name: 'MVP' })
     await user.keyboard('n')
     expect(within(dialog()).getByLabelText('Title')).toHaveFocus()
-    expect((dialog() as HTMLDialogElement).open).toBe(true)
-    expect(dialog()).not.toHaveAttribute('open', 'false')
+    expect(dialog()).toHaveAttribute('data-state', 'open')
   })
 
   test('N and / are ignored while an editor is open', async () => {

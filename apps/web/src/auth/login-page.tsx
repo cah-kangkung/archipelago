@@ -1,12 +1,13 @@
+import { Sailboat } from '@phosphor-icons/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { type FormEvent, useState } from 'react'
 import { ApiError } from '../api/api'
 import { useApi } from '../api/context'
+import { inputClass } from '../editors/fields'
+import { Button } from '../ui/button'
+import { Icon } from '../ui/icon'
 import { meQuery } from '../world/use-world'
-
-const inputClass =
-  'min-h-11 w-full rounded-md border border-border-secondary bg-surface-primary px-3 text-base focus:border-brand focus:outline-none'
 
 export function LoginPage() {
   const api = useApi()
@@ -39,10 +40,14 @@ export function LoginPage() {
     <main className="flex min-h-dvh items-center justify-center bg-brand px-4">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-4 rounded-lg bg-surface-primary p-6 shadow-lg"
+        className="w-full max-w-sm space-y-4 rounded-2xl bg-surface-primary p-6 shadow-3"
       >
-        <h1 className="text-xl font-semibold text-text-primary">Sign in</h1>
-        <label className="block space-y-1 text-sm text-text-secondary">
+        <div className="flex items-center gap-2 text-brand">
+          <Icon icon={Sailboat} size={32} active />
+          <span className="text-display font-heading">Archipelago</span>
+        </div>
+        <h1 className="text-heading font-heading text-text-primary">Sign in</h1>
+        <label className="block space-y-1 text-label font-label text-text-secondary">
           <span>Email</span>
           <input
             type="email"
@@ -53,7 +58,7 @@ export function LoginPage() {
             className={inputClass}
           />
         </label>
-        <label className="block space-y-1 text-sm text-text-secondary">
+        <label className="block space-y-1 text-label font-label text-text-secondary">
           <span>Password</span>
           <input
             type="password"
@@ -65,17 +70,13 @@ export function LoginPage() {
           />
         </label>
         {error && (
-          <p role="alert" className="text-sm text-error">
+          <p role="alert" className="text-label text-error">
             {error}
           </p>
         )}
-        <button
-          type="submit"
-          disabled={login.isPending}
-          className="min-h-11 w-full rounded-md bg-brand font-medium text-text-on-brand disabled:opacity-60"
-        >
+        <Button type="submit" loading={login.isPending} className="w-full">
           Sign in
-        </button>
+        </Button>
       </form>
     </main>
   )

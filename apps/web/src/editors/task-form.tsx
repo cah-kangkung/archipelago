@@ -1,11 +1,9 @@
 import type { TaskDto, TaskPriority, TaskSize, WorldDto } from '@archipelago/shared'
 import { type FormEvent, useState } from 'react'
 import { useApi } from '../api/context'
+import { Button } from '../ui/button'
 import { Field, inputClass } from './fields'
 import { useEditorMutation } from './use-editor-mutation'
-
-const primary =
-  'min-h-11 rounded-md bg-brand px-4 font-medium text-text-on-brand disabled:opacity-60'
 
 export function TaskForm({
   world,
@@ -63,7 +61,7 @@ export function TaskForm({
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       {formError && (
-        <p role="alert" className="text-sm text-error">
+        <p role="alert" className="text-label text-error">
           {formError}
         </p>
       )}
@@ -124,9 +122,9 @@ export function TaskForm({
           ))}
         </select>
       </Field>
-      <button type="submit" disabled={save.mutation.isPending} className={primary}>
+      <Button type="submit" loading={save.mutation.isPending}>
         {task ? 'Save' : 'Create task'}
-      </button>
+      </Button>
     </form>
   )
 }

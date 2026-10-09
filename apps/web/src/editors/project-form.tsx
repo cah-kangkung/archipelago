@@ -1,13 +1,9 @@
 import type { ProjectDto } from '@archipelago/shared'
 import { type FormEvent, useState } from 'react'
 import { useApi } from '../api/context'
+import { Button } from '../ui/button'
 import { Field, inputClass } from './fields'
 import { useEditorMutation } from './use-editor-mutation'
-
-const primary =
-  'min-h-11 rounded-md bg-brand px-4 font-medium text-text-on-brand disabled:opacity-60'
-const secondary = 'min-h-11 rounded-md border border-border-secondary px-4 text-text-secondary'
-const danger = 'min-h-11 rounded-md px-4 text-error'
 
 export function ProjectForm({
   project,
@@ -53,7 +49,7 @@ export function ProjectForm({
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       {formError && (
-        <p role="alert" className="text-sm text-error">
+        <p role="alert" className="text-label text-error">
           {formError}
         </p>
       )}
@@ -61,31 +57,25 @@ export function ProjectForm({
         <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
       </Field>
       <div className="flex flex-wrap gap-2">
-        <button type="submit" disabled={busy} className={primary}>
+        <Button type="submit" disabled={busy}>
           {project ? 'Save' : 'Create island'}
-        </button>
+        </Button>
         {project && (
           <>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => archive.mutation.mutate()}
-              className={secondary}
-            >
+            <Button variant="ghost" disabled={busy} onClick={() => archive.mutation.mutate()}>
               Archive island
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="danger"
               disabled={busy}
               onClick={() => {
                 if (window.confirm(`Delete "${project.name}" and everything on it?`)) {
                   remove.mutation.mutate()
                 }
               }}
-              className={danger}
             >
               Delete island
-            </button>
+            </Button>
           </>
         )}
       </div>

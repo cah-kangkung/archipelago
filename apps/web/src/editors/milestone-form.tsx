@@ -1,12 +1,9 @@
 import type { MilestoneDto } from '@archipelago/shared'
 import { type FormEvent, useState } from 'react'
 import { useApi } from '../api/context'
+import { Button } from '../ui/button'
 import { Field, inputClass } from './fields'
 import { useEditorMutation } from './use-editor-mutation'
-
-const primary =
-  'min-h-11 rounded-md bg-brand px-4 font-medium text-text-on-brand disabled:opacity-60'
-const danger = 'min-h-11 rounded-md px-4 text-error'
 
 export function MilestoneForm({
   projectId,
@@ -49,7 +46,7 @@ export function MilestoneForm({
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       {formError && (
-        <p role="alert" className="text-sm text-error">
+        <p role="alert" className="text-label text-error">
           {formError}
         </p>
       )}
@@ -57,22 +54,21 @@ export function MilestoneForm({
         <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
       </Field>
       <div className="flex flex-wrap gap-2">
-        <button type="submit" disabled={busy} className={primary}>
+        <Button type="submit" disabled={busy}>
           {milestone ? 'Save' : 'Create milestone'}
-        </button>
+        </Button>
         {milestone && (
-          <button
-            type="button"
+          <Button
+            variant="danger"
             disabled={busy}
             onClick={() => {
               if (window.confirm(`Delete "${milestone.name}"? Its tasks move to the commons.`)) {
                 remove.mutation.mutate()
               }
             }}
-            className={danger}
           >
             Delete milestone
-          </button>
+          </Button>
         )}
       </div>
     </form>
