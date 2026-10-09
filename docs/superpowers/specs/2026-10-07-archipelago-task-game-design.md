@@ -1233,7 +1233,7 @@ The owner wanted islands that differ in shape, not only in size, and a visual cu
 
 ### 24.1 Shape model (`packages/shared/src/island-shape.ts`, pure)
 
-**Genome.** `islandShape(seed): IslandShape` draws, each from `islandSeed` with its own salt (`mulberry32(hashInts(seed, SALT))`, the shared copies of the web's `random.ts` helpers):
+**Genome.** `islandShape(seed): IslandShape` draws, each from `islandSeed` with its own salt (`mulberry32(hashInts(seed, SALT))`; `hashInts` and `mulberry32` move from `apps/web/src/scene/model/random.ts` to `packages/shared/src/random.ts`, and the web re-exports them):
 
 - `footprint`, weighted: `round`, `oval`, `elongated`, `crescent`, `lobed`, `spiral`, `irregular`;
 - `angle`: a uniform rotation of the whole shape;
@@ -1293,7 +1293,7 @@ Every rule takes the seed; the API already has `project.islandSeed` wherever it 
 
 `islandTerrain(seed, size, stage, paths)` builds one tile per `land` hex:
 
-- **Zones by depth:** shore = depth 1–2 (depth 1 keeps the ragged dropout, 30% left out, never a hex next to an interior hex, and the `rock` tone chance); edge = depth 3; inland = deeper. Scenery zones (`island-growth.ts`) use the same depth instead of rings.
+- **Zones by depth:** shore = depth 1–2 (depth 1 keeps the ragged dropout (30% of depth-1 hexes get no tile) and the `rock` tone chance; the dropout is visual only and applied after `land`, `interior` and `depth` are computed, so it never changes placement); edge = depth 3; inland = deeper. Scenery zones (`island-growth.ts`) use the same depth instead of rings.
 - **Relief:** with `t = depth / maxDepth` over interior hexes, heights stay quantised to `HILL_STEP` and capped by `HILL_MAX[stage] · factor`:
 
 | Relief | Height before quantising | Factor |
@@ -1343,7 +1343,7 @@ Every rule takes the seed; the API already has `project.islandSeed` wherever it 
 
 - **Shape:** the same seed gives the same genome and land; every footprint, coast and relief value occurs across seeds 0–999; the centre and ring 1 are always land; land is connected; interior is exactly land eroded by two; growth only adds land; an elongated seed's land is at least twice as long as it is wide.
 - **Placement:** every plot, centre and decoration lands on interior; `isPlaceable` agrees with `placeablePlots`; size never shrinks as hexes are added; on an elongated seed the first three district centres line up along its axis; the API refuses a building on shore or sea (`not_land`).
-- **Terrain:** each relief profile's heights follow its formula on a fixed seed; zones agree with depth; the dropout never removes a hex next to interior; the dock is a depth-1 hex facing the sea.
+- **Terrain:** each relief profile's heights follow its formula on a fixed seed; zones agree with depth; the dropout only removes depth-1 tiles and leaves `interior` unchanged; the dock is a depth-1 hex facing the sea.
 - **Sea:** on an elongated island a point beside its tip is shallow while one at the same distance across its narrow width is deep; shallows prisms ring the coast.
 - **Ring:** one hex → 6 sides; two neighbours → 10; an enclosed gap is filled; a detached plot makes a second loop; a height step adds a vertical drop; loops close; the component renders only on a district focus, draws on over `CLOUD_MS`, holds `ring` only while animating, and a same-tiles refetch does nothing.
 - **Preview:** the controller renders a sheet of seeds (each footprint × a few coasts and reliefs) and a district ring over a real screenshot before calling it done.
