@@ -316,7 +316,7 @@ v1 is built in phases. Each phase is a vertical slice that gets its own implemen
 | 2 | Task core | Projects/milestones/tasks CRUD, complete/reopen (no rewards), `GET /world`, plot assignment (section 11.1), plain responsive list UI (bottom sheet on mobile / side panel on desktop), routing for the three states | Usable task manager on phone and desktop |
 | 3 | Economy | Ledger, complete/reopen with rewards, milestone bonus, streaks, daily bonus, `GET /economy`, reward events in the UI | Completing tasks earns Supplies, reversals are correct |
 | 4 | World (4a scene, section 13; 4b camera, section 14) | R3F scene: archipelago, islands, districts, task structures + states, landmarks, camera states, overflow panning, island switcher, edge indicators | The game renders the real data |
-| 5 | Shop & polish (5a shop, section 15; 5b polish, section 16) | Shop catalogue, decoration placement, reward animations, performance pass on a real device | Decorations purchasable and placeable; 60fps target met |
+| 5 | Shop & polish (5a shop, section 15; 5b polish, section 16; 5j–5m UI, section 25) | Shop catalogue, decoration placement, reward animations, performance pass on a real device | Decorations purchasable and placeable; 60fps target met |
 | 6 | Ship | PWA + offline viewing, web build served by Caddy with HTTPS on the VPS, backups, Playwright smoke tests on both viewports | Live on the VPS and installable |
 
 ### Post-v1 roadmap (not in v1)
@@ -1351,3 +1351,123 @@ Every rule takes the seed; the API already has `project.islandSeed` wherever it 
 - **Ring:** one hex → 6 sides; two neighbours → 10; an enclosed gap is filled; a detached plot makes a second loop; a height step adds a vertical drop; loops close; the component renders on a district focus or a hovered district on the island view, fades in and out over `DISTRICT_RING_FADE_MS`, holds `ring` only while fading, and a same-tiles refetch does nothing.
 - **Preview:** the controller renders a sheet of seeds (each footprint × a few coasts and reliefs) and a district ring over a real screenshot before calling it done.
 - **Owner's check:** reset the database, `bun run seed:demo`; islands differ in shape; districts sit along each shape; open a district: the ring hugs its tiles; `?perf` no tier drop.
+
+## 25. Phases 5j–5m Design Addendum: Cozy Game UI (approved 2026-10-09)
+
+The owner found the UI bland: a flat brand-blue header slab, white chips, a native `<select>`, text-link actions, placeholder glyphs (◆ ⛵ »), raw ISO dates and an empty login. This addendum turns it into a cozy game HUD that floats over the world: frosted glass surfaces, Nunito, tropical accents alongside A'raf blue, Phosphor icons, and a bottom game tab bar. It is a visual and interaction layer only: routes, React Query data, the world-screen state machine (editors, placement, selection), the API and the game rules are unchanged.
+
+Decisions (owner, via mockups): glass over paper or chunky (A); Nunito over Fredoka, Quicksand or Jakarta (A); tropical over A'raf-only or pastel accents (A); game tab bar over corners-plus-dock (B); Phosphor over Lucide or Tabler (A); Radix primitives with our own skin, `motion`, `cmdk`; extras: command palette and shortcuts, first-run tips, sound and haptics. No night mode.
+
+Four phases, each with its own plan and branch, each green and shippable on its own: **5j** foundation, **5k** shell and HUD, **5l** panels and content, **5m** feel and polish.
+
+### 25.1 Phase 5j: design language and component kit
+
+**Tokens (`packages/ui-tokens`).** Existing colours, spacing and radii keep their names and values. Added:
+
+| Group | Tokens |
+|---|---|
+| Accents | `gold #f5b82e`, `coral #ff7a59`, `leaf #2fb36f`, `lagoon #1fb5c4`, `sand #f3e3bf` |
+| Accent text (AA on white and on the accent's tint) | `goldText #8a5a00`, `coralText #c2410c`, `leafText #17784a`, `lagoonText #0b7480`, `sandText #7a5a1e` |
+| Accent tints (chip backgrounds) | `goldTint #fdf0cf`, `coralTint #ffe1d8`, `leafTint #dcf5e6`, `lagoonTint #d6f4f6`, `sandTint #faf3e3` |
+| Glass | `glassFill` = white 62%, `glassFillStrong` = white 80%, `glassFillSolid` = white 92% (no `backdrop-filter`), `glassBorder` = white 70%; blur 14px, saturate 1.4 |
+| Elevation | `shadow1..3`: soft shadows tinted toward `brand` (`0 2px 8px`, `0 8px 24px`, `0 16px 40px` at 12–22% of `#00285a`) |
+| Radii | existing 4, 6, 8 plus `lg 12`, `xl 16`, `2xl 20`, `full 9999` |
+| Type | Nunito Variable; sizes 12, 13, 14, 15, 17, 20, 24, 32; weights 600 body, 700 labels and buttons, 800 headings and numbers; tabular figures on every counter |
+| Motion | durations `fast 120`, `base 200`, `slow 320` ms; `ease` cubic-bezier(.2,.8,.2,1); springs `sheet` (stiffness 400, damping 40) and `pop` (stiffness 600, damping 22) |
+
+- `toCssVariables`, `styles.css` `@theme` and `styles.test.ts` parity cover every new token. Section 13.2's rule becomes: **every UI and scene colour comes from `@archipelago/ui-tokens` or a blend of its tokens**; the district ring yellow (24.5) stays the one documented scene exception. The scene palette (`scene/model/palette.ts`) is unchanged in 5j.
+- **Glass legibility.** Every text token used on glass is checked by a test computing WCAG contrast of the text over the glass fill composited on white and on `lagoon` (the brightest and the most saturated backdrop): body text ≥ 4.5:1, large text and icons ≥ 3:1. `@supports not (backdrop-filter: blur(1px))` swaps every glass surface to `glassFillSolid`.
+
+**Assets.** `@fontsource-variable/nunito` imported once in `main.tsx` with a metric-matched `system-ui` fallback (`size-adjust`), so a slow font shifts nothing. `@phosphor-icons/react` (named imports only). `ui/icons.tsx`: `SuppliesIcon` (gold coin) and `ChestIcon` (daily chest) as inline SVG, plus an `Icon` wrapper fixing Phosphor's weight (`duotone`, `fill` when active) and sizes (16, 20, 24, 32).
+
+**Kit (`apps/web/src/ui/`).** One file per component with its own test:
+
+- `Button`: variants `primary` (brandSecondary), `accent` (gold, `goldText` label; claim and buy), `ghost`, `danger`; sizes `md` (44px) and `sm` (36px, desktop only); `loading` (spinner, `aria-busy`, disabled); optional leading icon.
+- `IconButton`: required `label` (its accessible name); a `Tooltip` on hover-capable pointers.
+- `Chip` (tones `neutral | gold | coral | leaf | lagoon | brand`) and `Badge` (count, coral, caps at `99+`).
+- `GlassPanel`: the surface primitive, `elevation 1 | 2 | 3`, `strong` fill option.
+- `Sheet`: vaul, reskinned glass, keeping today's detents and behaviour.
+- `Dialog`, `Popover`, `Menu`, `Tooltip`, `Tabs`: Radix primitives (`@radix-ui/react-*`) with our skin.
+- `Toast`: replaces `app/toast.tsx`; `show(message)` keeps working, plus `show(message, { tone, action })`.
+- `Skeleton`: shimmer blocks; static under reduced motion.
+
+**Migration.** Every existing screen swaps its raw buttons, chips, inputs, toasts and glyphs for kit components and icons, in the current layout, copy and behaviour (the header is restyled, not removed, until 5k). Existing tests pass with only selector-neutral changes. Done when nothing has moved but everything wears the new tokens, font and icons.
+
+### 25.2 Phase 5k: shell, HUD and tab bar
+
+**Layers** (back to front): the canvas, full-bleed (the 56px header is removed); HUD corners; the tab host; the tab bar; toasts, dialogs and the palette.
+
+**HUD corners** (glass, inside `env(safe-area-inset-*)`, 12px from the edges):
+- **Breadcrumb chip, top-left:** `Archipelago › {island} › {district}`, each part a link; below 640px it collapses to a back `IconButton` (to `parentPath`) plus the current layer's name. Replaces the HUD's "← Archipelago" and "← {project}" chips.
+- **Resource cluster, top-right:** supplies (`SuppliesIcon` and count-up, `coralText` when negative), streak (flame, `coral` when active today, the existing tap and Escape popover hint), and the claim button (`Button accent` with `ChestIcon`, `Claim +N`, only while claimable; a scale bump on success in 5k, the burst in 5m).
+
+**Tab bar.** A glass bar of four tabs: **Tasks** (`CheckSquare`), **Islands** (`Island`), **Shop** (`Storefront`), **Me** (`UserCircle`). Icon plus label; the active tab uses the filled icon and a `brandSecondary` tint. Phone (< 1024px): docked full width to the bottom edge with safe-area padding. Desktop: a floating pill centred 12px above the bottom edge. Tasks carries a `Badge` with the overdue count across the current layer's tasks. Shop is disabled on the archipelago with the tooltip "Open an island to shop". The bar is a `Tabs` list with `role=tablist`; arrow keys move between tabs.
+
+**Tab host.** The current `PanelFrame` becomes the host for the active tab:
+- Desktop: the right drawer (resizable, width remembered as today), as an inset glass panel with a 12px margin and `xl` radius, ending above the tab bar. Activating the active tab, or `]`, collapses it to nothing (the tab bar remains).
+- Phone: the sheet sits above the tab bar with detents closed, half (50dvh) and full. Tapping a tab opens it at half; tapping the active tab closes it.
+- The active tab is UI state (not in the URL), remembered in localStorage (`archipelago.tab`, default `tasks`), behind try/catch like the panel width.
+
+| Tab | Archipelago | Island | District |
+|---|---|---|---|
+| Tasks | due today and overdue (as now) | the island's tasks; header: New task, New milestone, Edit island | the district's tasks; header: New task, Edit milestone |
+| Islands | the island list | same, the current island highlighted | same |
+| Shop | disabled | the catalogue (15.4) | the catalogue |
+| Me | account and settings | same | same |
+
+- **Islands tab** replaces the layer picker's island `<select>` (20.5): one glass card per island with its name, a progress ring (done / total tasks), the district count and a coral overdue badge; tapping navigates to the island. A **New island** button heads the list. In island and district views the card expands to list its districts (tap to open), replacing the picker's district control.
+- **Me tab:** the email, the timezone (read-only), sound and haptics toggles (present but inert until 5m), a "Replay tips" row (5m), and Log out (`Button danger`, the current failure toast kept).
+- **Kept behaviours:** starting a placement switches to Shop and opens the host; selecting a task switches to Tasks; selecting a building switches to Shop (the building bar lives there). Route changes still reset editors, selection and placement (the current effect).
+- **Framing.** Section 14.3's sheet-aware framing and 14.4's edge indicators also inset for the HUD corner row (measured, replacing `WorldHud`'s `onHeight`) and the tab bar's height (measured), so nothing is framed under glass.
+- The `n`, `/`, `]` and `Esc` shortcuts are unchanged.
+
+### 25.3 Phase 5l: panels and content
+
+**Tasks tab.**
+- Sections: **Overdue** (coral heading), **Today** (lagoon), **Upcoming**, **No date**, **Done** (collapsed by default; shows the newest 20 with "Show all"). Empty sections are hidden.
+- **Row:** a 32px status button showing the task's stage icon (`Wall` todo in lagoon, `Crane` doing in brandSecondary, the built size's house in leaf: `HouseSimple` S, `HouseLine` M, `Factory` L); tapping it advances the task (todo → doing → done → todo, as now) with a `pop` scale. Title, then the place (`{island} · {district}`) in `textSecondary`. A due `Chip`: `today`, `tomorrow`, `in Nd`, `Nd late` (coral), absolute date in `title` and `aria-label`. A `Menu` (`DotsThreeOutline`): Edit, Move to doing / done / not done, Delete; Delete confirms inside the menu ("Delete task? Delete / Cancel"), no extra dialog.
+- **Swipe (touch only):** swipe right past 72px advances, swipe left past 72px reveals a Delete action; pointer events with a 10px slop before the row claims the gesture, vertical scroll wins below it. Every swipe action is also in the menu.
+- Search: a glass input with `MagnifyingGlass`, unchanged behaviour.
+- The selected row (scene tap) keeps its scroll-into-view and highlight, restyled.
+
+**Shop tab.**
+- A card grid: 2 columns on phone, 3 in the desktop drawer. Each card: the thumbnail, the name, a gold price `Chip` with `SuppliesIcon`. Unaffordable: the card is dimmed and the chip reads "Need N more"; it stays focusable and says why.
+- **Thumbnails:** static PNGs (256px, transparent) of the real decoration models, rendered by `bun run thumbs` (a headless Chromium script under `apps/web/scripts/`) and committed to `apps/web/public/thumbs/{type}.png`. The panel never loads three.js. `decoration-icon.tsx` stays as the `onError` fallback.
+- The placement bar and building bar become glass action bars at the top of the Shop tab, with `Button` actions.
+
+**Editors.** Desktop: `Dialog`; phone: `Sheet` at the full detent. Fields: labelled glass inputs, inline errors from the existing zod schemas on blur and submit, the S/M/L size picker as three cards showing the hut, house and workshop icons, the native date input skinned. Submit uses `Button loading`.
+
+**Empty and loading states.** An inline SVG illustration and a call to action for: no islands ("Chart your first island" → New island), no tasks in a layer (→ New task), nothing due (a calm "All clear" with a palm). `Skeleton` rows while the world loads. The no-WebGL card view (`card-world.tsx`) wears the same kit.
+
+**Login.** A CSS-only animated sea gradient with a slowly drifting SVG island silhouette (static under reduced motion), and a glass card with the wordmark, labelled inputs and a primary button. No three.js before login.
+
+### 25.4 Phase 5m: feel and polish
+
+**Motion (`motion`, `LazyMotion` with `domAnimation`).** Sheet and drawer use the `sheet` spring; tab content cross-fades (`base`); list rows animate in and out (`fast`, height and opacity); `pop` on status advance and claim. The claim plays a coin burst: 6–10 `SuppliesIcon` sprites fly from the button to the supplies counter, then the count-up runs. Section 16.1's reward floats are unchanged. Under `prefers-reduced-motion` every spring becomes a `fast` opacity fade and the burst is skipped.
+
+**Command palette (`cmdk`).** `⌘K` / `Ctrl+K` on any pointer type (also an IconButton in the Me tab). Groups: **Go to** (every island and district, fuzzy by name), **Create** (task in the current layer, milestone, island), **Tabs** (Tasks, Islands, Shop, Me), **Actions** (claim when claimable, toggle sound, replay tips, log out). Uses only loaded data; no requests. A `?` key opens a **Shortcuts** sheet listing `n`, `/`, `]`, `Esc`, `⌘K`, `1`–`4` (tabs, new in 5m), `?`. Shortcuts stay off while typing in a field.
+
+**First-run tips.** Four coach marks in order: the world ("Your islands grow as you finish tasks"), the Tasks tab, a task's status button, the Shop tab. Each a glass popover anchored to its target, with Next and Skip; the target is spotlit by a dimmed overlay with a cut-out. Shown once per browser (`archipelago.tips` = `done`, localStorage, try/catch: unavailable storage shows them once per session). A step whose target is absent (e.g. no tasks yet) is skipped. Replay from Me or the palette.
+
+**Sound.** Five CC0 clips under `apps/web/public/sfx/` (`tap`, `advance`, `built`, `claim`, `buy`), ≤ 30 KB total, fetched and decoded with Web Audio on the first user gesture after load, never before. Played on: tab change (`tap`), status advance (`advance`), a task reaching done (`built`), a successful claim (`claim`), a successful purchase (`buy`). Volume 0.5. On by default, toggle in Me and the palette, remembered (`archipelago.sound`). A failed fetch, decode or blocked context leaves the app silent with no error.
+
+**Haptics.** `navigator.vibrate` where it exists (Android; iOS Safari has none): 10ms on advance, `[10, 40, 20]` on built and claim. Toggle in Me (`archipelago.haptics`), on by default; missing API hides the toggle.
+
+**Accessibility pass.** A visible 2px `brandSecondary` focus ring with a white halo on every interactive element (`:focus-visible`); 44px minimum targets on touch; reduced motion as above; the glass contrast test from 25.1 extended to every component state; every icon-only control has a label.
+
+### 25.5 Budgets and failure modes
+
+- **Bundle:** the pre-scene (initial) JS grows by at most 60 KB gzip across all four phases for Radix, `motion`, `cmdk`, Phosphor and Nunito's CSS; `cmdk` and the sound module load lazily. The scene chunk is untouched.
+- **Blur:** at most four blurred surfaces on screen at once (HUD corners count as one each, the tab bar, the host); rows inside a panel use the strong fill without their own blur. `?perf` gains `?perf&noblur`, which swaps every glass surface to `glassFillSolid`, for the owner's phone check.
+- **Fallbacks:** font failure → metric-matched system font; no `backdrop-filter` → solid fill; storage unavailable → defaults; audio or vibrate unavailable → silent; a thumbnail 404 → the SVG icon.
+
+### 25.6 Testing
+
+- **Tokens:** `toCssVariables` and `@theme` parity for every token; WCAG contrast for every text-on-glass and text-on-tint pair (thresholds in 25.1).
+- **Kit:** each component's roles, accessible names, keyboard behaviour (Menu arrows and Escape, Tabs arrows, Dialog focus trap and return), `loading` disabling, `Badge` capping.
+- **Shell (5k):** the active tab persists and defaults to Tasks; Shop is disabled on the archipelago; placement switches to Shop and selection to Tasks; tapping the active tab collapses the host; the breadcrumb links match `parentPath`; framing insets include the HUD row and the tab bar; the Islands tab navigates and lists districts.
+- **Content (5l):** sectioning by due status; due-chip wording for today, tomorrow, in N days, N days late; the status icon per state and size; menu delete confirms; swipe thresholds and slop (and vertical scroll not hijacked); unaffordable shop cards; editor inline errors; empty states per layer.
+- **Polish (5m):** palette commands navigate, create and toggle; `1`–`4` switch tabs and are ignored in inputs; tips run in order, skip absent targets, persist and replay; sound never fetches before a gesture and respects the toggle; reduced motion disables springs and the burst.
+- **Existing suites:** every current web test is carried over; selectors may move to roles and labels, behaviour assertions stay.
+- **Visual check:** each phase review attaches a Playwright screenshot sheet (login, archipelago, island, district, each tab, an editor; 1440×900 and 390×844) over the seeded demo world.
+- **Owner's check:** `bun run seed:demo`; the UI reads as a cozy game HUD on desktop and phone; `?perf` and `?perf&noblur` show no tier drop on the phone.
