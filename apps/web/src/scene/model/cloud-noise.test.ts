@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, test, vi } from 'vitest'
-import { scenePalette } from '../scene/model/palette'
-import { CLOUD_WISP_HI, CLOUD_WISP_LO } from '../scene/tuning'
-import { cloudNoise, paintCloudTexture, wispAlpha } from './cloud-texture'
+import { describe, expect, test } from 'vitest'
+import { CLOUD_WISP_HI, CLOUD_WISP_LO } from '../tuning'
+import { cloudNoise, wispAlpha } from './cloud-noise'
 
 const SIZE = 64
 const at = (n: Uint8ClampedArray, x: number, y: number) => n[y * SIZE + x] ?? Number.NaN
@@ -64,56 +63,5 @@ describe('wispAlpha', () => {
     const solid = wisps.filter((v) => v > 200).length / wisps.length
     expect(clear).toBeGreaterThan(0.2)
     expect(solid).toBeGreaterThan(0.05)
-  })
-})
-
-describe('paintCloudTexture', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  test('without a 2D context there is no texture', () => {
-    expect(paintCloudTexture(4, 7)).toBeNull()
-  })
-
-  test('paints the noise, shaped into wisps, as the alpha of the cloud colour', () => {
-    const image = { data: new Uint8ClampedArray(4 * 4 * 4) }
-    const put = vi.fn()
-    const ctx = { createImageData: () => image, putImageData: put }
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-      ctx as unknown as CanvasRenderingContext2D,
-    )
-    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,x')
-    expect(paintCloudTexture(4, 7)).toBe('data:image/png;base64,x')
-    expect(put).toHaveBeenCalledWith(image, 0, 0)
-    const hex = scenePalette.cloud
-    const rgb = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16))
-    const alpha = wispAlpha(cloudNoise(4, 7), CLOUD_WISP_LO, CLOUD_WISP_HI)
-    for (let p = 0; p < 16; p++) {
-      expect([...image.data.slice(p * 4, p * 4 + 3)]).toEqual(rgb)
-      expect(image.data[p * 4 + 3]).toBe(alpha[p])
-    }
-  })
-
-  test('a canvas that throws gives no texture instead of an error', () => {
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
-      throw new Error('blocked')
-    })
-    expect(paintCloudTexture(4, 7)).toBeNull()
-  })
-})
-
-describe('cloudTextureUrl', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.resetModules()
-  })
-
-  test('paints once per page', async () => {
-    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
-    const { cloudTextureUrl } = await import('./cloud-texture')
-    expect(cloudTextureUrl()).toBeNull()
-    expect(cloudTextureUrl()).toBeNull()
-    expect(getContext).toHaveBeenCalledTimes(1)
   })
 })
