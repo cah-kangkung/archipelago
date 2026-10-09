@@ -1120,7 +1120,7 @@ The owner wanted the cloud to stay with the world instead of the camera. The scr
   - **Archipelago:** `null` (no deck).
   - **Island:** `growArea(layerArea, SHALLOWS_MARGIN)`: the land circle plus the shallows, so the beach and shallows stay clear.
   - **District:** `layerArea` (the district's rounded box); the rest of the island lies under cloud.
-- `type Deck = { hole: Area | null; strength: number }` (strength 0–1 scales the deck's opacity). `DECK_OFF`, `deckFor(hole)`, `deckLeg(current, target)`, `deckAt(from, to, t)` and `sameDeck(a, b)` behave as 20.3's spotlight tween did: from off it fades in on the new hole; hole to hole it slides at full strength (box and rounding lerped, ease in-out cubic); to the archipelago it fades out in place. `holeKey(area)` is a value key: a refetch that rebuilds the same hole does nothing.
+- `type Deck = { hole: Area | null; strength: number }` (strength 0–1 scales the deck's opacity). `DECK_OFF`, `deckFor(hole)`, `deckLeg(current, target)`, `deckAt(from, to, t)` and `sameDeck(a, b)` behave as 20.3's spotlight tween did: from off it fades in on the new hole; hole to hole it slides at full strength (box and rounding lerped, ease in-out cubic); to the archipelago it fades out in place. The hole's value key is the existing `areaKey` (`scene/model/spotlight.ts`): a refetch that rebuilds the same hole does nothing.
 
 ### 23.2 Texture (`scene/model/cloud-noise.ts`, pure)
 
@@ -1130,7 +1130,7 @@ The owner wanted the cloud to stay with the world instead of the camera. The scr
 ### 23.3 The deck (`scene/cloud-deck.tsx`)
 
 - One horizontal plane at ground level covering `model.bounds` grown by `FOG_MARGIN + FOG_DEPTH` on every side. `renderOrder` above every other mesh; `depthTest` and `depthWrite` off, transparent, no fog: it draws over everything outside the hole. Raycast disabled, so taps pass through. Not frustum-culled.
-- A custom shader material (`cloudDeckMaterial` in `scene/materials.ts`), uniforms `uMap`, `uBox` (vec4 minX, minZ, maxX, maxZ), `uRound`, `uFeather`, `uOpacity`, `uTile`, `uOffset` (vec2), `uColor`. Per fragment, at world x/z: `d` = signed distance to the hole (the maths of `areaDistance`); `edge = smoothstep(0, CLOUD_DECK_FEATHER, d)`; `a = texture(uMap, (xz + uOffset) / uTile).r · edge · uOpacity`; colour `uColor` = `scenePalette.cloud`. With no hole (`uOpacity` 0) nothing shows.
+- A custom shader material (`cloudDeckMaterial` in `scene/cloud-deck-material.ts`, with its uniforms and `writeDeck`), uniforms `uMap`, `uBox` (vec4 minX, minZ, maxX, maxZ), `uRound`, `uFeather`, `uOpacity`, `uTile`, `uOffset` (vec2), `uColor`. Per fragment, at world x/z: `d` = signed distance to the hole (the maths of `areaDistance`); `edge = smoothstep(0, CLOUD_DECK_FEATHER, d)`; `a = texture(uMap, (xz + uOffset) / uTile).r · edge · uOpacity`; colour `uColor` = `scenePalette.cloud`. With no hole (`uOpacity` 0) nothing shows.
 - `uOpacity = CLOUD_DECK_ALPHA · strength`. The deck component tweens the `Deck` over `CLOUD_MS` (600) and holds a `clouds` ticker demand only while a leg runs; the first mount shows its deck at once; reduced motion is instant.
 - **Drift:** on the `high` tier only (the sea wave already ticks), `uOffset` advances by `CLOUD_DECK_DRIFT` world units per second along (1, 1), wrapping at `CLOUD_DECK_TILE`. On `low` and under reduced motion it stays still.
 - Labels (drei `Html`) stay above the canvas; those outside the layer keep 0.6 opacity (22.7).
@@ -1147,7 +1147,7 @@ The owner wanted the cloud to stay with the world instead of the camera. The scr
 
 ### 23.6 Testing
 
-- Pure: `growArea`; `deckHole` per layer kind and its fallbacks; `deckLeg`/`deckAt` fade in, slide, fade out, endpoints exact; `sameDeck`/`holeKey`; the noise tests of 22.6 move with `cloudNoise`/`wispAlpha`.
+- Pure: `growArea`; `deckHole` per layer kind and its fallbacks; `deckLeg`/`deckAt` fade in, slide, fade out, endpoints exact; `sameDeck`; the noise tests of 22.6 move with `cloudNoise`/`wispAlpha`.
 - Shader: the fragment's distance matches `areaDistance` (same constants and maths, checked by a test reading the shader source); the material compiles in the headless Chromium harness.
 - Deck (test renderer): one mesh, raycast disabled, renderOrder above the rest; opacity 0 on the archipelago, `CLOUD_DECK_ALPHA` once a leg ends; `uBox` reaches the new hole after `CLOUD_MS`; the ticker demand is held only during a leg; a refetch with the same hole starts nothing; no drift on `low`; instant under reduced motion.
 - Removal: nothing references `CloudFrame`, `cloud-texture`, `CLOUD_FRAME_` or `cloud-drift`.
