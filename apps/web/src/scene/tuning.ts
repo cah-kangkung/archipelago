@@ -1,3 +1,5 @@
+import type { Relief } from '@archipelago/shared'
+
 /**
  * Every value worth tuning on a real device (spec 16.5), with the values shipped in 4a–5a.
  * Three-free: the app shell imports the marker look from here.
@@ -124,6 +126,13 @@ export const SHORE_FILL = 0.5
 export const HILL_STEP = 0.15
 /** Tallest hill above LAND_HEIGHT, per stage. */
 export const HILL_MAX = [0.15, 0.3, 0.4, 0.5, 0.6] as const
+/** Each relief profile's share of the stage's hill cap (spec 24.3). */
+export const RELIEF_FACTOR: Readonly<Record<Relief, number>> = {
+  flattened: 0.5,
+  spherical: 1,
+  conical: 1.5,
+  cylindrical: 1,
+}
 /** World units across one hill of the noise lattice. */
 export const HILL_SCALE = 4
 /** Meadow share of interior grass, per stage. */

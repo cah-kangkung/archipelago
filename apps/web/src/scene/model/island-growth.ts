@@ -1,7 +1,7 @@
 import {
   COMMONS_CENTER,
+  HEX_DIRECTIONS,
   type Hex,
-  hexDistance,
   hexKey,
   hexLine,
   SHORE_RINGS,
@@ -33,7 +33,7 @@ export type SceneryPiece = {
   /** Kept on the `low` tier: a fixed half of the hexes, whole clusters at a time. */
   low: boolean
 }
-/** A jetty; its model faces +x, and `turn` points it away from the island centre. */
+/** A jetty; its model faces +x, and `turn` points it at open water. */
 export type Dock = { position: Spot; turn: number }
 
 /** From this stage an island has a dock (spec 18.4). */
@@ -65,15 +65,37 @@ function pick<K extends string>(weights: Readonly<Partial<Record<K, number>>>, u
   return (entries.at(-1) as [K, number])[0]
 }
 
-function dockTile(seed: number, radius: number, tiles: readonly TerrainTile[]): TerrainTile | null {
+/** A seeded depth-1 tile: the jetty's footing (spec 24.3). */
+function dockTile(seed: number, tiles: readonly TerrainTile[]): TerrainTile | null {
   let best: TerrainTile | null = null
   let bestHash = Number.POSITIVE_INFINITY
   for (const t of tiles) {
-    if (hexDistance(COMMONS_CENTER, t) !== radius) continue
+    if (t.depth !== 1) continue
     const h = hashInts(seed, t.q, t.r, DOCK_SALT)
     if (h < bestHash) {
       best = t
       bestHash = h
+    }
+  }
+  return best
+}
+
+/** Faces the dock's tileless neighbour nearest the outward direction from the island centre. */
+function dockTurn(dock: Hex, tiles: readonly TerrainTile[]): number {
+  const present = new Set(tiles.map(hexKey))
+  const at = hexToWorld(dock)
+  const out = Math.atan2(-at.z, at.x)
+  let best = out
+  let bestGap = Number.POSITIVE_INFINITY
+  for (const d of HEX_DIRECTIONS) {
+    const n = { q: dock.q + d.q, r: dock.r + d.r }
+    if (present.has(hexKey(n))) continue
+    const c = hexToWorld(n)
+    const turn = Math.atan2(-(c.z - at.z), c.x - at.x)
+    const gap = Math.abs(Math.atan2(Math.sin(turn - out), Math.cos(turn - out)))
+    if (gap < bestGap) {
+      best = turn
+      bestGap = gap
     }
   }
   return best
@@ -86,29 +108,26 @@ function dockTile(seed: number, radius: number, tiles: readonly TerrainTile[]): 
  */
 export function islandGrowth({
   seed,
-  radius,
   stage,
   tiles,
   occupied,
   paths,
 }: {
   seed: number
-  radius: number
   stage: Stage
   tiles: readonly TerrainTile[]
   occupied: readonly Hex[]
   paths: readonly Hex[]
 }): { scenery: SceneryPiece[]; dock: Dock | null } {
-  const dockAt = dockTile(seed, radius, tiles)
+  const dockAt = dockTile(seed, tiles)
   const blocked = new Set([...occupied, ...paths, COMMONS_CENTER].map(hexKey))
   // Blocked at every stage so the dock never takes a hex scenery already grew on.
   if (dockAt) blocked.add(hexKey(dockAt))
-  const edge = radius - SHORE_RINGS
   const scenery: SceneryPiece[] = []
   for (const tile of tiles) {
     if (blocked.has(hexKey(tile))) continue
-    const ring = hexDistance(COMMONS_CENTER, tile)
-    const zone = ring > edge ? 'shore' : ring === edge ? 'edge' : 'inland'
+    const zone =
+      tile.depth <= SHORE_RINGS ? 'shore' : tile.depth === SHORE_RINGS + 1 ? 'edge' : 'inland'
     const fill = GROWTH_FILL[stage] * (zone === 'shore' ? SHORE_FILL : 1)
     if (hashInts(seed, tile.q, tile.r, RANK_SALT) / UNIT >= fill) continue
     const random = mulberry32(hashInts(seed, tile.q, tile.r, CLUSTER_SALT))
@@ -135,7 +154,7 @@ export function islandGrowth({
   }
   if (!dockAt || stage < DOCK_STAGE) return { scenery, dock: null }
   const { x, z } = hexToWorld(dockAt)
-  return { scenery, dock: { position: { x, y: dockAt.height, z }, turn: Math.atan2(-z, x) } }
+  return { scenery, dock: { position: { x, y: dockAt.height, z }, turn: dockTurn(dockAt, tiles) } }
 }
 
 /** Ease-out cubic over [0, 1], clamped: the grow-in's scale curve (spec 18.5). */

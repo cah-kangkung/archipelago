@@ -1,14 +1,15 @@
 import {
   type Hex,
-  hexDistance,
   hexKey,
   islandLand,
   islandRadius,
+  islandShape,
   islandSize,
+  type Relief,
 } from '@archipelago/shared'
 import { colors } from '@archipelago/ui-tokens'
 import { describe, expect, test } from 'vitest'
-import { HILL_MAX, HILL_STEP } from '../tuning'
+import { HILL_MAX, HILL_STEP, RELIEF_FACTOR } from '../tuning'
 import { hexToWorld, islandExtent, LAND_HEIGHT, SQRT3 } from './hex-space'
 import { mix, scenePalette } from './palette'
 import { mulberry32 } from './random'
@@ -96,50 +97,72 @@ describe('islandRadius', () => {
 })
 
 describe('islandTerrain', () => {
+  const SIZE = 7
+  const seedWith = (relief: Relief) =>
+    Array.from({ length: 300 }, (_, i) => i).find((s) => islandShape(s).relief === relief) as number
+
   test('is deterministic per seed', () => {
-    expect(islandTerrain(42, 6)).toEqual(islandTerrain(42, 6))
-    expect(islandTerrain(42, 6)).not.toEqual(islandTerrain(43, 6))
+    expect(islandTerrain(42, SIZE)).toEqual(islandTerrain(42, SIZE))
+    expect(islandTerrain(42, SIZE)).not.toEqual(islandTerrain(43, SIZE))
   })
 
-  test('the interior is complete land at or above LAND_HEIGHT, with a flat plaza at the origin', () => {
-    const tiles = islandTerrain(7, 6, 4)
-    const at = (q: number, r: number) => tiles.find((t) => t.q === q && t.r === r)
-    expect(at(0, 0)).toEqual({ q: 0, r: 0, height: LAND_HEIGHT, tone: 'plaza' })
-    const interior = tiles.filter((t) => hexDistance(origin, t) <= 4)
-    expect(interior).toHaveLength(1 + 3 * 4 * 5) // hexes within 4 rings
-    for (const t of interior) expect(t.height).toBeGreaterThanOrEqual(LAND_HEIGHT)
-  })
-
-  test('the shore is lower, never beyond the radius, and the outer ring is ragged', () => {
+  test('one tile per land hex, less the ragged depth-1 dropout; depth comes from the land', () => {
     let dropped = 0
     for (let seed = 1; seed <= 10; seed++) {
-      const tiles = islandTerrain(seed, 6)
-      const shore = tiles.filter((t) => hexDistance(origin, t) > 4)
-      for (const t of shore) {
-        expect(hexDistance(origin, t)).toBeLessThanOrEqual(6)
-        expect(t.height).toBeGreaterThan(0.5)
-        expect(t.height).toBeLessThan(LAND_HEIGHT)
-        expect(['shore', 'rock']).toContain(t.tone)
+      const { land, depth } = islandLand(seed, SIZE)
+      const tiles = islandTerrain(seed, SIZE)
+      const byKey = new Map(tiles.map((t) => [hexKey(t), t]))
+      for (const h of land) {
+        const t = byKey.get(hexKey(h))
+        const d = depth.get(hexKey(h)) ?? 0
+        if (!t) {
+          expect(d).toBe(1)
+          dropped++
+          continue
+        }
+        expect(t.depth).toBe(d)
       }
-      expect(shore.filter((t) => hexDistance(origin, t) === 5)).toHaveLength(30)
-      const outer = shore.filter((t) => hexDistance(origin, t) === 6).length
-      expect(outer).toBeGreaterThan(18)
-      dropped += 36 - outer
+      expect(tiles.length).toBeLessThanOrEqual(land.length)
     }
     expect(dropped).toBeGreaterThan(0)
   })
 
+  test('the shore (depth 1–2) is lower sand or rock and the stage never changes it', () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const shore = (stage: Stage) => islandTerrain(seed, SIZE, stage).filter((t) => t.depth <= 2)
+      for (const t of shore(0)) {
+        expect(t.height).toBeGreaterThan(0.5)
+        expect(t.height).toBeLessThan(LAND_HEIGHT)
+        expect(['shore', 'rock']).toContain(t.tone)
+      }
+      expect(shore(4)).toEqual(shore(0))
+    }
+  })
+
+  test('the plaza is the centre, flat at its relief height; interior is at or above LAND_HEIGHT', () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const tiles = islandTerrain(seed, SIZE, 4)
+      const plaza = tiles.filter((t) => t.tone === 'plaza')
+      expect(plaza).toHaveLength(1)
+      expect(plaza[0]).toMatchObject({ q: 0, r: 0 })
+      for (const t of tiles.filter((x) => x.depth > 2)) {
+        expect(t.height).toBeGreaterThanOrEqual(LAND_HEIGHT)
+      }
+    }
+  })
+
   const STAGES: Stage[] = [0, 1, 2, 3, 4]
 
-  test('hills rise in steps, never past their stage cap, and grow with the stage', () => {
+  test('hills rise in whole steps under the stage cap times the relief factor', () => {
     const tallest = STAGES.map(() => 0)
-    for (let seed = 1; seed <= 10; seed++) {
+    for (let seed = 1; seed <= 20; seed++) {
+      const factor = RELIEF_FACTOR[islandShape(seed).relief]
       for (const stage of STAGES) {
-        for (const t of islandTerrain(seed, 6, stage)) {
-          if (hexDistance(origin, t) > 4) continue
+        for (const t of islandTerrain(seed, SIZE, stage)) {
+          if (t.depth <= 2) continue
           const rise = t.height - LAND_HEIGHT
           expect(rise).toBeGreaterThanOrEqual(0)
-          expect(rise).toBeLessThanOrEqual(HILL_MAX[stage] + 1e-9)
+          expect(rise).toBeLessThanOrEqual(HILL_MAX[stage] * factor + 1e-9)
           expect(Math.abs(rise / HILL_STEP - Math.round(rise / HILL_STEP))).toBeLessThan(1e-9)
           tallest[stage] = Math.max(tallest[stage] ?? 0, rise)
         }
@@ -148,38 +171,68 @@ describe('islandTerrain', () => {
     expect(tallest[4]).toBeGreaterThan(tallest[0] ?? 0)
   })
 
-  test('the stage leaves the shore exactly as it was', () => {
-    const shore = (stage: Stage) =>
-      islandTerrain(3, 6, stage).filter((t) => hexDistance(origin, t) > 4)
-    expect(shore(4)).toEqual(shore(0))
+  test('conical rises with depth: the deepest tiles are the tallest', () => {
+    const seed = seedWith('conical')
+    const tiles = islandTerrain(seed, 9, 4).filter((t) => t.depth > 2)
+    const deepest = Math.max(...tiles.map((t) => t.depth))
+    const top = Math.max(...tiles.map((t) => t.height))
+    expect(tiles.filter((t) => t.depth === deepest).every((t) => t.height === top)).toBe(true)
+    expect(Math.min(...tiles.filter((t) => t.depth === 3).map((t) => t.height))).toBeLessThan(top)
+  })
+
+  test('cylindrical is a mesa: the edge zone stays at LAND_HEIGHT, inland stands above it', () => {
+    const seed = seedWith('cylindrical')
+    const tiles = islandTerrain(seed, 9, 4).filter((t) => t.depth > 2)
+    for (const t of tiles.filter((x) => x.depth === 3)) expect(t.height).toBe(LAND_HEIGHT)
+    for (const t of tiles.filter((x) => x.depth > 3)) {
+      expect(t.height).toBeGreaterThan(LAND_HEIGHT)
+    }
+  })
+
+  test('spherical is a dome: deeper tiles are never lower on average, within one hill step of noise', () => {
+    const seed = seedWith('spherical')
+    const tiles = islandTerrain(seed, 9, 4).filter((t) => t.depth > 2)
+    const mean = (d: number) => {
+      const at = tiles.filter((t) => t.depth === d)
+      return at.reduce((s, t) => s + t.height, 0) / at.length
+    }
+    const depths = [...new Set(tiles.map((t) => t.depth))].sort((a, b) => a - b)
+    for (let i = 1; i < depths.length; i++) {
+      expect(mean(depths[i] as number)).toBeGreaterThanOrEqual(
+        mean(depths[i - 1] as number) - HILL_STEP,
+      )
+    }
+  })
+
+  test('flattened stays within half the cap', () => {
+    const seed = seedWith('flattened')
+    for (const t of islandTerrain(seed, 9, 4)) {
+      expect(t.height - LAND_HEIGHT).toBeLessThanOrEqual(HILL_MAX[4] * 0.5 + 1e-9)
+    }
   })
 
   test('grass is dry on a bare island and full grass when overgrown, with more meadow', () => {
     let meadow0 = 0
     let meadow4 = 0
     for (let seed = 1; seed <= 10; seed++) {
-      const bare = islandTerrain(seed, 6, 0).filter(
-        (t) => t.tone !== 'plaza' && hexDistance(origin, t) <= 4,
-      )
-      const lush = islandTerrain(seed, 6, 4).filter(
-        (t) => t.tone !== 'plaza' && hexDistance(origin, t) <= 4,
-      )
-      for (const t of bare) expect(['grassDry', 'meadow']).toContain(t.tone)
-      for (const t of lush) expect(['grass', 'meadow']).toContain(t.tone)
-      meadow0 += bare.filter((t) => t.tone === 'meadow').length
-      meadow4 += lush.filter((t) => t.tone === 'meadow').length
+      const inland = (stage: Stage) =>
+        islandTerrain(seed, SIZE, stage).filter((t) => t.tone !== 'plaza' && t.depth > 2)
+      for (const t of inland(0)) expect(['grassDry', 'meadow']).toContain(t.tone)
+      for (const t of inland(4)) expect(['grass', 'meadow']).toContain(t.tone)
+      meadow0 += inland(0).filter((t) => t.tone === 'meadow').length
+      meadow4 += inland(4).filter((t) => t.tone === 'meadow').length
     }
     expect(meadow4).toBeGreaterThan(meadow0)
     expect(GRASS_TONES).toEqual(['grassDry', 'grassSprout', 'grassGreen', 'grassLush', 'grass'])
   })
 
-  test('path hexes get the path tone and no other hex does', () => {
+  test('path hexes on interior get the path tone and no other hex does', () => {
     const paths: Hex[] = [
       { q: 1, r: 0 },
       { q: 2, r: 0 },
     ]
     const keys = new Set(paths.map(hexKey))
-    for (const t of islandTerrain(5, 6, 2, paths)) {
+    for (const t of islandTerrain(5, SIZE, 2, paths)) {
       expect(t.tone === 'path').toBe(keys.has(hexKey(t)))
     }
   })
@@ -188,7 +241,7 @@ describe('islandTerrain', () => {
     const tiles = islandTerrain(9, 5, 3)
     const heights = tileHeights(tiles)
     for (const t of tiles) expect(heightAt(heights, t)).toBe(t.height)
-    expect(heightAt(heights, { q: 40, r: 0 })).toBe(LAND_HEIGHT)
+    expect(heightAt(heights, { q: 400, r: 0 })).toBe(LAND_HEIGHT)
   })
 })
 

@@ -1,16 +1,16 @@
 import { type Hex, hexDistance, hexKey, SHORE_RINGS } from '@archipelago/shared'
 import { describe, expect, test } from 'vitest'
 import { CLUSTER_OFFSET, GROWTH_FILL, SCENERY_SCALE, SCENERY_WEIGHTS, SHORE_FILL } from '../tuning'
-import { hexToWorld } from './hex-space'
+import { hexToWorld, SQRT3 } from './hex-space'
 import { DOCK_STAGE, growEase, islandGrowth, pathHexes, type SceneryPiece } from './island-growth'
 import { islandTerrain, type Stage } from './terrain'
 
 const ORIGIN = { q: 0, r: 0 }
 const STAGES: Stage[] = [0, 1, 2, 3, 4]
 
-function grow(seed: number, stage: Stage, occupied: Hex[] = [], paths: Hex[] = [], radius = 7) {
-  const tiles = islandTerrain(seed, radius, stage, paths)
-  return { tiles, ...islandGrowth({ seed, radius, stage, tiles, occupied, paths }) }
+function grow(seed: number, stage: Stage, occupied: Hex[] = [], paths: Hex[] = [], size = 7) {
+  const tiles = islandTerrain(seed, size, stage, paths)
+  return { tiles, ...islandGrowth({ seed, stage, tiles, occupied, paths }) }
 }
 const hexOf = (p: SceneryPiece) => p.id.split(':')[0] ?? ''
 const flat = ({ position, ...rest }: SceneryPiece) => ({ ...rest, x: position.x, z: position.z })
@@ -70,13 +70,11 @@ describe('islandGrowth', () => {
       let shore = 0
       let shoreHit = 0
       for (let seed = 1; seed <= 30; seed++) {
-        const radius = 8
-        const { tiles, scenery } = grow(seed, stage, [], [], radius)
+        const { tiles, scenery } = grow(seed, stage, [], [], 8)
         const hit = new Set(scenery.map(hexOf))
         for (const t of tiles) {
-          const ring = hexDistance(ORIGIN, t)
-          if (ring === 0) continue
-          if (ring > radius - SHORE_RINGS) {
+          if (t.q === 0 && t.r === 0) continue
+          if (t.depth <= SHORE_RINGS) {
             shore++
             if (hit.has(hexKey(t))) shoreHit++
           } else {
@@ -90,13 +88,13 @@ describe('islandGrowth', () => {
     }
   })
 
-  test('types follow the place: shore, the ring next to it, and inland', () => {
-    const radius = 7
-    const edge = radius - SHORE_RINGS
+  test('types follow the place: shore by depth, the edge at depth 3, deeper inland', () => {
     for (let seed = 1; seed <= 10; seed++) {
-      for (const p of grow(seed, 4, [], [], radius).scenery) {
-        const ring = hexDistance(ORIGIN, parse(hexOf(p)))
-        const zone = ring > edge ? 'shore' : ring === edge ? 'edge' : 'inland'
+      const { tiles, scenery } = grow(seed, 4)
+      const depth = new Map(tiles.map((t) => [hexKey(t), t.depth]))
+      for (const p of scenery) {
+        const d = depth.get(hexOf(p)) ?? 0
+        const zone = d <= SHORE_RINGS ? 'shore' : d === SHORE_RINGS + 1 ? 'edge' : 'inland'
         expect(Object.keys(SCENERY_WEIGHTS[zone])).toContain(p.type)
       }
     }
@@ -115,7 +113,6 @@ describe('islandGrowth', () => {
         expect(Math.hypot(p.position.x - c.x, p.position.z - c.z)).toBeLessThanOrEqual(
           CLUSTER_OFFSET + 1e-9,
         )
-        expect(hexDistance(ORIGIN, tile)).toBeLessThanOrEqual(7)
         expect(p.scale).toBeGreaterThanOrEqual(SCENERY_SCALE[0])
         expect(p.scale).toBeLessThanOrEqual(SCENERY_SCALE[1])
       }
@@ -144,7 +141,7 @@ describe('islandGrowth', () => {
     expect(low / all).toBeLessThan(0.6)
   })
 
-  test('no dock before the green stage; from then on one, on a present outer hex, turned out to sea', () => {
+  test('no dock before the green stage; from then on one, on a depth-1 tile facing open water', () => {
     for (let seed = 1; seed <= 10; seed++) {
       for (const stage of STAGES) {
         const { tiles, dock } = grow(seed, stage)
@@ -157,11 +154,18 @@ describe('islandGrowth', () => {
           const c = hexToWorld(t)
           return Math.hypot(c.x - dock.position.x, c.z - dock.position.z) < 1e-9
         })
-        expect(tile && hexDistance(ORIGIN, tile)).toBe(7)
+        expect(tile?.depth).toBe(1)
         expect(dock.position.y).toBe(tile?.height)
-        const d = Math.hypot(dock.position.x, dock.position.z)
-        expect(Math.cos(dock.turn)).toBeCloseTo(dock.position.x / d)
-        expect(-Math.sin(dock.turn)).toBeCloseTo(dock.position.z / d)
+        // One hex along the dock's facing there is no tile.
+        const ahead = {
+          x: dock.position.x + Math.cos(dock.turn) * SQRT3,
+          z: dock.position.z - Math.sin(dock.turn) * SQRT3,
+        }
+        const blocked = tiles.some((t) => {
+          const c = hexToWorld(t)
+          return Math.hypot(c.x - ahead.x, c.z - ahead.z) < 1e-6
+        })
+        expect(blocked).toBe(false)
         expect(dock).toEqual(grow(seed, DOCK_STAGE).dock)
       }
     }

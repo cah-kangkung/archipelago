@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { SEA_DEEP_DISTANCE } from '../tuning'
 import { shallowsRadius } from './hex-space'
-import { depthShade, shoreDistance, UNCHARTED_RADIUS } from './sea-depth'
+import { depthShade, shoreDistance, UNCHARTED_SIZE } from './sea-depth'
 
 const a = { origin: { x: 0, z: 0 }, radius: 4 }
 const b = { origin: { x: 40, z: 0 }, radius: 4 }
@@ -14,7 +14,7 @@ describe('sea depth', () => {
   })
 
   test('an empty world measures from the uncharted island at the origin', () => {
-    expect(shoreDistance({ x: shallowsRadius(UNCHARTED_RADIUS) + 5, z: 0 }, [])).toBeCloseTo(5)
+    expect(shoreDistance({ x: shallowsRadius(UNCHARTED_SIZE) + 5, z: 0 }, [])).toBeCloseTo(5)
   })
 
   test('shade runs from 0 at the shallows to 1 at the deep distance, then stays', () => {

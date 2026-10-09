@@ -1,6 +1,5 @@
 import {
   type Hex,
-  hexDistance,
   hexKey,
   hexRing,
   islandLand,
@@ -222,12 +221,12 @@ describe('buildSceneModel', () => {
     }
   })
 
-  test('every task plot lies within its island radius', () => {
+  test('every task plot is interior land', () => {
     const p = fakeProject()
     const t = fakeTask({ projectId: p.id, plotX: 3, plotY: -6 })
     const [island] = buildSceneModel(world({ projects: [p], tasks: [t] }), today).islands
-    expect(hexDistance({ q: 0, r: 0 }, { q: 3, r: -6 })).toBeLessThanOrEqual(
-      (island?.radius ?? 0) - 2,
+    expect(islandLand(p.islandSeed, island?.size ?? 0).interior.has(hexKey({ q: 3, r: -6 }))).toBe(
+      true,
     )
   })
 })
@@ -332,13 +331,13 @@ describe('decorations', () => {
     ])
   })
 
-  test('decoration plots, known or not, count toward the island radius', () => {
+  test('decoration plots, known or not, count toward the island size', () => {
     const beta = fakeProject()
     const edge = fakeBuilding({ projectId: beta.id, type: 'tree', plotX: 5, plotY: -1 })
     const model = buildSceneModel(world({ projects: [beta], buildings: [edge] }), today)
-    expect(model.islands[0]?.radius).toBe(
-      islandLand(beta.islandSeed, islandSize(beta.islandSeed, [{ q: 5, r: -1 }])).radius,
-    )
+    const size = islandSize(beta.islandSeed, [{ q: 5, r: -1 }])
+    expect(model.islands[0]?.size).toBe(size)
+    expect(model.islands[0]?.radius).toBe(islandLand(beta.islandSeed, size).radius)
   })
 })
 

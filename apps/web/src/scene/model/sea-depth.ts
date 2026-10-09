@@ -4,11 +4,11 @@ import { type Point, shallowsRadius } from './hex-space'
 /** What the sea needs to know about an island; `SceneIsland` satisfies it. */
 export type Shore = { origin: Point; radius: number }
 
-/** The empty world's ghost island (spec 17.4): this radius, at the origin. */
-export const UNCHARTED_RADIUS = 1
+/** The empty world's ghost island (spec 17.4): this size, at the origin. */
+export const UNCHARTED_SIZE = 1
 export const UNCHARTED_SEED = 7
 
-const UNCHARTED: readonly Shore[] = [{ origin: { x: 0, z: 0 }, radius: UNCHARTED_RADIUS }]
+const UNCHARTED: readonly Shore[] = [{ origin: { x: 0, z: 0 }, radius: UNCHARTED_SIZE }]
 
 /**
  * World distance from `p` to the nearest shallows edge, 0 inside one. Shallows are measured as

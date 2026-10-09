@@ -1,9 +1,11 @@
 import {
   type DecorationType,
   type Hex,
+  hexKey,
   hexScale,
   isDecorationType,
-  islandRadius,
+  islandLand,
+  islandSize,
   type LandmarkType,
   type WorldDto,
 } from '@archipelago/shared'
@@ -47,9 +49,12 @@ export type SceneIsland = {
   name: string
   /** The project's slot in the archipelago grid; sea routes join near slots (spec 17.5). */
   slot: Hex
-  /** The project's terrain seed; with `radius` it fully determines `tiles`. */
+  /** The project's terrain seed; with `size` it fully determines `tiles`. */
   seed: number
   origin: Point
+  /** The island's growth size (spec 24.1); with `seed` it fully determines its land. */
+  size: number
+  /** The ring enclosing all land. */
   radius: number
   tiles: TerrainTile[]
   /** Growth stage from the island's finished tasks (spec 18.1). */
@@ -78,15 +83,18 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
     const tasks = world.tasks.filter((t) => t.projectId === project.id)
     const buildings = world.buildings.filter((b) => b.projectId === project.id)
     const occupied = islandOccupied(world, project.id)
-    const radius = islandRadius(project.islandSeed, occupied)
+    const size = islandSize(project.islandSeed, occupied)
+    const { radius, land } = islandLand(project.islandSeed, size)
+    const onLand = new Set(land.map(hexKey))
     const stage = stageFor(tasks.filter((t) => t.status === 'done').length)
+    // A path that crosses a bay keeps only its land hexes (spec 24.3).
     const paths = pathHexes(
       milestones
         .filter((m) => tasks.some((t) => t.milestoneId === m.id && t.status === 'done'))
         .map((m) => ({ q: m.districtQ, r: m.districtR })),
-    )
-    const tiles = islandTerrain(project.islandSeed, radius, stage, paths)
-    return { project, milestones, tasks, buildings, occupied, radius, stage, paths, tiles }
+    ).filter((h) => onLand.has(hexKey(h)))
+    const tiles = islandTerrain(project.islandSeed, size, stage, paths)
+    return { project, milestones, tasks, buildings, occupied, size, radius, stage, paths, tiles }
   })
   // Slots are one hex apart; scaling them by the largest island's diameter plus a gap means no
   // two islands can touch, however big one grows.
@@ -94,12 +102,11 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
   const spacing = 2 * largest + ISLAND_GAP
 
   const islands = prepared.map(
-    ({ project, milestones, tasks, buildings, occupied, radius, stage, paths, tiles }) => {
+    ({ project, milestones, tasks, buildings, occupied, size, radius, stage, paths, tiles }) => {
       const heights = tileHeights(tiles)
       const spot = (h: Hex): Spot => ({ ...hexToWorld(h), y: heightAt(heights, h) })
       const growth = islandGrowth({
         seed: project.islandSeed,
-        radius,
         stage,
         tiles,
         occupied,
@@ -111,6 +118,7 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
         slot: { q: project.archipelagoX, r: project.archipelagoY },
         seed: project.islandSeed,
         origin: hexToWorld(hexScale({ q: project.archipelagoX, r: project.archipelagoY }, spacing)),
+        size,
         radius,
         tiles,
         stage,
