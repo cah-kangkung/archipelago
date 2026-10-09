@@ -12,6 +12,7 @@ import { createPerfStore } from '../scene/perf-store'
 import { hasWebGL } from '../scene/webgl'
 import type { Placement } from '../scene/world-contents'
 import { CardWorld } from './card-world'
+import { CloudFrame } from './cloud-frame'
 import { EdgeIndicatorLayer } from './edge-indicators'
 import { createLazyWorldScene } from './load-world-scene'
 import { perfEnabled } from './perf-flag'
@@ -143,6 +144,7 @@ export function WorldView({
           </Suspense>
         </div>
         <Vignette />
+        <CloudFrame focus={resolved.focus} coveredBottom={coveredBottom} />
         <EdgeIndicatorLayer store={indicators} onOpen={openIsland} />
         {perf && <PerfOverlay store={perf} />}
         <WorldHud

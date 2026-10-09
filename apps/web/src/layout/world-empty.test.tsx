@@ -10,6 +10,7 @@ describe('empty world without WebGL', () => {
     expect(await screen.findByRole('heading', { name: 'Uncharted waters' })).toBeInTheDocument()
     expect(screen.queryByText('No islands yet. Create one to start building.')).toBeNull()
     expect(screen.queryByTestId('vignette')).toBeNull()
+    expect(screen.queryByTestId('cloud-frame')).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Create your first island' }))
     expect(
       within(screen.getByRole('dialog')).getByRole('heading', { name: 'New island' }),

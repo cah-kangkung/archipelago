@@ -18,3 +18,10 @@
   --color-error: #dc2626;
   --color-info: #0069d2;
 }
+
+/* The cloud frame's drift (spec 22.4): one tile per loop, so the loop has no seam. */
+@keyframes cloud-drift {
+  to {
+    transform: translate(var(--cloud-tile), var(--cloud-tile));
+  }
+}

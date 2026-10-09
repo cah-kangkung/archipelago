@@ -130,6 +130,31 @@ describe('World screen with the 3D scene', () => {
     expect(vignette).toHaveAttribute('aria-hidden', 'true')
   })
 
+  test('a cloud frame shows inside an island and district, not on the archipelago', async () => {
+    const { api, beta, mvp } = seeded()
+    const { router } = renderApp({ api, path: '/' })
+    await screen.findByTestId('scene')
+    expect(screen.getByTestId('cloud-frame').style.opacity).toBe('0')
+    await act(() => router.navigate({ to: '/p/$projectId', params: { projectId: beta.id } }))
+    await waitFor(() => expect(screen.getByTestId('cloud-frame').style.opacity).not.toBe('0'))
+    await act(() =>
+      router.navigate({
+        to: '/p/$projectId/m/$milestoneId',
+        params: { projectId: beta.id, milestoneId: mvp.id },
+      }),
+    )
+    await waitFor(() => expect(screen.getByTestId('cloud-frame').style.transform).toBe('scale(1)'))
+  })
+
+  test('the cloud frame sits above the vignette and below the HUD', async () => {
+    const { api } = seeded()
+    renderApp({ api, path: '/' })
+    await screen.findByTestId('scene')
+    const vignette = screen.getByTestId('vignette')
+    const cloud = screen.getByTestId('cloud-frame')
+    expect(vignette.nextElementSibling).toBe(cloud)
+  })
+
   test('recent progress reaches the scene as boats and gulls', async () => {
     const beta = fakeProject({ name: 'Beta' })
     const justNow = new Date().toISOString()
