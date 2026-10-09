@@ -20,7 +20,6 @@ import {
   CLOUD_DECK_ALPHA,
   CLOUD_DECK_DRIFT,
   CLOUD_DECK_FEATHER,
-  CLOUD_DECK_TILE,
   CLOUD_MS,
   CLOUD_VEIL,
   SEA_MARGIN,
@@ -213,30 +212,20 @@ describe('CloudDeck', () => {
   })
 
   test('a fresh mount resets the drift left by an earlier one', async () => {
-    cloudDeckUniforms.uOffA.value.set(0.4, 0.4)
+    cloudDeckUniforms.uDrift.value.set(40, 40)
     await ReactThreeTestRenderer.create(tree({ model, focus: onBeta }))
-    expect(cloudDeckUniforms.uOffA.value.toArray()).toEqual([0, 0])
+    expect(cloudDeckUniforms.uDrift.value.toArray()).toEqual([0, 0])
   })
 
-  test('drifts only while drifting is on, every layer offset in [0, 1)', async () => {
+  test('drifts only while drifting is on', async () => {
     const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta }))
     await r.advanceFrames(5, 0.1)
-    expect(cloudDeckUniforms.uOffA.value.toArray()).toEqual([0, 0])
+    expect(cloudDeckUniforms.uDrift.value.toArray()).toEqual([0, 0])
     await r.update(tree({ model, focus: onBeta, drifting: true }))
     await r.advanceFrames(5, 0.1)
-    const [u] = cloudDeckUniforms.uOffA.value.toArray()
-    expect(u).toBeGreaterThan(0)
-    expect(u).toBeLessThanOrEqual((5 * 0.1 * CLOUD_DECK_DRIFT) / CLOUD_DECK_TILE + 1e-9)
-    for (const off of [
-      cloudDeckUniforms.uOffA,
-      cloudDeckUniforms.uOffB,
-      cloudDeckUniforms.uOffCover,
-      cloudDeckUniforms.uWarpOff,
-    ]) {
-      for (const x of off.value.toArray()) {
-        expect(x).toBeGreaterThanOrEqual(0)
-        expect(x).toBeLessThan(1)
-      }
-    }
+    const [x, z] = cloudDeckUniforms.uDrift.value.toArray()
+    expect(x).toBeGreaterThan(0)
+    expect(x).toBeLessThanOrEqual(5 * 0.1 * CLOUD_DECK_DRIFT + 1e-9)
+    expect(z).toBe(x)
   })
 })

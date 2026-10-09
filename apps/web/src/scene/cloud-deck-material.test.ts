@@ -8,26 +8,23 @@ import {
   writeDrift,
 } from './cloud-deck-material'
 import type { Area } from './model/area'
-import { COVER_TURN, DECK_OFF, LAYER_B_TURN, layerOffset, VEIL } from './model/cloud-deck'
-import { cloudNoise, wispAlpha } from './model/cloud-noise'
+import { DECK_OFF, VEIL } from './model/cloud-deck'
 import { scenePalette } from './model/palette'
 import {
-  CLOUD_COVER_SEED,
   CLOUD_DECK_ALPHA,
-  CLOUD_DECK_COVER_HI,
-  CLOUD_DECK_COVER_LO,
-  CLOUD_DECK_COVER_SCALE,
+  CLOUD_DECK_BANK,
+  CLOUD_DECK_BANK_SCALE,
+  CLOUD_DECK_DRIFT_WRAP,
   CLOUD_DECK_FEATHER,
-  CLOUD_DECK_TILE,
-  CLOUD_DECK_TILE_B,
+  CLOUD_DECK_OCTAVES,
+  CLOUD_DECK_SCALE,
+  CLOUD_DECK_SOFT,
   CLOUD_DECK_WARP,
-  CLOUD_DECK_WARP_SCALE,
-  CLOUD_TEXTURE_SEED,
-  CLOUD_TEXTURE_SIZE,
+  CLOUD_THRESHOLD,
   CLOUD_VEIL,
-  CLOUD_WISP_HI,
-  CLOUD_WISP_LO,
 } from './tuning'
+
+const g = (n: number) => n.toFixed(4)
 
 describe('cloud deck material', () => {
   test('draws over everything, untouched by depth or fog', () => {
@@ -44,64 +41,47 @@ describe('cloud deck material', () => {
     expect(CLOUD_DECK_FRAGMENT).toContain(
       'return length( max( q, 0.0 ) ) + min( max( q.x, q.y ), 0.0 ) - uRound;',
     )
-    expect(CLOUD_DECK_FRAGMENT).toContain('smoothstep( 0.0, uFeather, holeDistance( p ) )')
+    expect(CLOUD_DECK_FRAGMENT).toContain('smoothstep( 0.0, uFeather, holeDistance( vWorldXZ ) )')
   })
 
-  test('the shader warps two wisp layers and thins them by the coverage map', () => {
-    const g = (n: number) => n.toFixed(4)
-    expect(CLOUD_DECK_FRAGMENT).toContain(`p / ${g(CLOUD_DECK_WARP_SCALE)} + uWarpOff`)
-    expect(CLOUD_DECK_FRAGMENT).toContain('warpUv + vec2( 0.5, 0.21 )')
-    expect(CLOUD_DECK_FRAGMENT).toContain(`vec2 q = p + bend * ${g(CLOUD_DECK_WARP)};`)
-    expect(CLOUD_DECK_FRAGMENT).toContain(`q / ${g(CLOUD_DECK_TILE)} + uOffA`)
+  test('the clouds are procedural: hashed noise, fbm, a warp, banks and a soft threshold', () => {
+    expect(CLOUD_DECK_FRAGMENT).not.toContain('sampler2D')
+    expect(CLOUD_DECK_FRAGMENT).toContain('vec2 w = fract( v * vec2( 123.34, 456.21 ) );')
+    expect(CLOUD_DECK_FRAGMENT).toContain('w += dot( w, w + 45.32 );')
+    expect(CLOUD_DECK_FRAGMENT).toContain('mat2 turn = mat2( 1.6, 1.2, -1.2, 1.6 );')
+    expect(CLOUD_DECK_FRAGMENT).toContain(`for ( int i = 0; i < ${CLOUD_DECK_OCTAVES}; i++ )`)
+    expect(CLOUD_DECK_FRAGMENT).toContain('vec2 world = vWorldXZ + uDrift;')
+    expect(CLOUD_DECK_FRAGMENT).toContain(`vec2 s = world / ${g(CLOUD_DECK_SCALE)};`)
     expect(CLOUD_DECK_FRAGMENT).toContain(
-      `turn( q, vec4( ${LAYER_B_TURN.map(g).join(', ')} ) ) / ${g(CLOUD_DECK_TILE_B)} + vec2( 0.37, 0.71 ) + uOffB`,
+      `s += ${g(CLOUD_DECK_WARP)} * vec2( fbm( s * 0.5 + 3.1 ), fbm( s * 0.5 - 7.7 ) );`,
     )
     expect(CLOUD_DECK_FRAGMENT).toContain(
-      `turn( p, vec4( ${COVER_TURN.map(g).join(', ')} ) ) / ${g(CLOUD_DECK_COVER_SCALE)} + uOffCover`,
+      `float bank = fbm( world / ${g(CLOUD_DECK_BANK_SCALE)} + 11.0 );`,
     )
     expect(CLOUD_DECK_FRAGMENT).toContain(
-      `smoothstep( ${g(CLOUD_DECK_COVER_LO)}, ${g(CLOUD_DECK_COVER_HI)}, cover )`,
+      `float t = uThreshold - ${g(CLOUD_DECK_BANK)} * ( bank - 0.5 );`,
     )
+    expect(CLOUD_DECK_FRAGMENT).toContain(
+      `float cloud = smoothstep( t, t + ${g(CLOUD_DECK_SOFT)}, d );`,
+    )
+    expect(CLOUD_DECK_FRAGMENT).toContain('gl_FragColor = vec4( uColor, cloud * edge * uOpacity );')
   })
 
-  test('starts with the feather, the cloud colour and a two-channel texture', () => {
+  test('starts with the feather, the threshold and the cloud colour; no texture', () => {
     expect(cloudDeckUniforms.uFeather.value).toBe(CLOUD_DECK_FEATHER)
-    const [r, g, b] = [1, 3, 5].map(
+    expect(cloudDeckUniforms.uThreshold.value).toBe(CLOUD_THRESHOLD)
+    const [r, gr, b] = [1, 3, 5].map(
       (i) => Number.parseInt(scenePalette.cloud.slice(i, i + 2), 16) / 255,
     )
-    expect(cloudDeckUniforms.uColor.value.toArray()).toEqual([r, g, b])
-    const map = cloudDeckUniforms.uMap.value
-    expect(map.wrapS).toBe(THREE.RepeatWrapping)
-    expect(map.wrapT).toBe(THREE.RepeatWrapping)
-    expect(map.format).toBe(THREE.RGFormat)
-    expect(map.minFilter).toBe(THREE.LinearFilter)
-    expect(map.magFilter).toBe(THREE.LinearFilter)
-    expect(map.generateMipmaps).toBe(false)
-    const data = map.image.data as Uint8Array
-    const wisps = wispAlpha(
-      cloudNoise(CLOUD_TEXTURE_SIZE, CLOUD_TEXTURE_SEED),
-      CLOUD_WISP_LO,
-      CLOUD_WISP_HI,
-    )
-    const cover = cloudNoise(CLOUD_TEXTURE_SIZE, CLOUD_COVER_SEED)
-    expect(data).toHaveLength(CLOUD_TEXTURE_SIZE * CLOUD_TEXTURE_SIZE * 2)
-    expect([...data.filter((_, i) => i % 2 === 0)]).toEqual([...wisps])
-    expect([...data.filter((_, i) => i % 2 === 1)]).toEqual([...cover])
+    expect(cloudDeckUniforms.uColor.value.toArray()).toEqual([r, gr, b])
+    expect('uMap' in cloudDeckUniforms).toBe(false)
   })
 
-  test('writeDrift gives every layer its own offset in [0, 1)', () => {
-    writeDrift(123.4)
-    expect(cloudDeckUniforms.uOffA.value.toArray()).toEqual(layerOffset(123.4, CLOUD_DECK_TILE))
-    expect(cloudDeckUniforms.uOffB.value.toArray()).toEqual(
-      layerOffset(123.4, CLOUD_DECK_TILE_B, LAYER_B_TURN),
-    )
-    expect(cloudDeckUniforms.uOffCover.value.toArray()).toEqual(
-      layerOffset(123.4, CLOUD_DECK_COVER_SCALE, COVER_TURN),
-    )
-    expect(cloudDeckUniforms.uWarpOff.value.toArray()).toEqual(
-      layerOffset(123.4, CLOUD_DECK_WARP_SCALE),
-    )
+  test('writeDrift writes the wrapped drift along (1, 1)', () => {
+    writeDrift(CLOUD_DECK_DRIFT_WRAP + 12.5)
+    expect(cloudDeckUniforms.uDrift.value.toArray()).toEqual([12.5, 12.5])
     writeDrift(0)
+    expect(cloudDeckUniforms.uDrift.value.toArray()).toEqual([0, 0])
   })
 
   test('writeDeck sets the hole and scales the opacity by strength', () => {

@@ -3,11 +3,10 @@ import { describe, expect, test } from 'vitest'
 import { fakeMilestone, fakeProject, fakeTask } from '../../test/fake-api'
 import { quietEconomy } from '../../test/sea-worlds'
 import type { Focus } from '../../world/selectors'
-import { CLOUD_DECK_DRIFT, CLOUD_DECK_FEATHER, CLOUD_VEIL } from '../tuning'
+import { CLOUD_DECK_DRIFT, CLOUD_DECK_DRIFT_WRAP, CLOUD_DECK_FEATHER, CLOUD_VEIL } from '../tuning'
 import { type Area, areaDistance } from './area'
 import { layerArea } from './camera'
 import {
-  COVER_TURN,
   closeHole,
   DECK_OFF,
   deckAt,
@@ -15,9 +14,8 @@ import {
   deckHole,
   deckLeg,
   driftStep,
+  driftWrap,
   isOpen,
-  LAYER_B_TURN,
-  layerOffset,
   sameDeck,
   VEIL,
 } from './cloud-deck'
@@ -148,25 +146,13 @@ describe('drift', () => {
     expect(driftStep(1000, 1)).toBeCloseTo(1000 + CLOUD_DECK_DRIFT)
   })
 
-  test('layerOffset is the fractional texture offset of one layer', () => {
-    expect(layerOffset(11, 22)).toEqual([0.5, 0.5])
-    const [u, v] = layerOffset(10, 37, LAYER_B_TURN)
-    expect(u).toBeCloseTo((((0.8 - 0.6) * 10) / 37) % 1)
-    expect(v).toBeCloseTo((((0.6 + 0.8) * 10) / 37) % 1)
-  })
-
-  test('layerOffset stays in [0, 1) for any along, including a turn with negative terms', () => {
-    for (const along of [0, 0.3, 123.4, 1e6 + 0.7]) {
-      for (const [scale, turn] of [
-        [22, undefined],
-        [37, LAYER_B_TURN],
-        [140, COVER_TURN],
-      ] as const) {
-        for (const x of layerOffset(along, scale, turn)) {
-          expect(x).toBeGreaterThanOrEqual(0)
-          expect(x).toBeLessThan(1)
-        }
-      }
+  test('driftWrap keeps the shader offset in [0, CLOUD_DECK_DRIFT_WRAP)', () => {
+    expect(driftWrap(12.5)).toBe(12.5)
+    expect(driftWrap(CLOUD_DECK_DRIFT_WRAP)).toBe(0)
+    expect(driftWrap(CLOUD_DECK_DRIFT_WRAP + 12.5)).toBe(12.5)
+    for (const along of [0, 0.3, 4499.9, 1e7 + 0.7]) {
+      expect(driftWrap(along)).toBeGreaterThanOrEqual(0)
+      expect(driftWrap(along)).toBeLessThan(CLOUD_DECK_DRIFT_WRAP)
     }
   })
 })

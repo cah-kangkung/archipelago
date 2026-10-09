@@ -150,32 +150,23 @@ export const CLOUD_DECK_ALPHA = 0.85
 export const CLOUD_VEIL = 0.4
 /** From the hole's edge to full cloud, in world units: two hexes. */
 export const CLOUD_DECK_FEATHER = 2 * Math.sqrt(3)
-/** World units per tile of the first wisp layer. */
-export const CLOUD_DECK_TILE = 22
-/** World units per tile of the second, rotated wisp layer. */
-export const CLOUD_DECK_TILE_B = 37
-/** How far, in world units, the raw noise bends the wisps' shapes. */
-export const CLOUD_DECK_WARP = 10
-/** World units per tile of the bending noise. */
-export const CLOUD_DECK_WARP_SCALE = 45
-/** World units per tile of the coverage map: thick banks and clear sky. */
-export const CLOUD_DECK_COVER_SCALE = 140
-/** Coverage below LO is clear sky, above HI full cloud (0–1 of the raw noise). */
-export const CLOUD_DECK_COVER_LO = 0.45
-export const CLOUD_DECK_COVER_HI = 0.7
-/** Seeds the raw noise in the texture's second channel. */
-export const CLOUD_COVER_SEED = 11
+/** World units per base noise cell of the clouds (spec 23.8). */
+export const CLOUD_DECK_SCALE = 9
+/** Noise octaves summed per fbm. */
+export const CLOUD_DECK_OCTAVES = 5
+/** How far, in noise cells, a coarser fbm bends the cloud shapes. */
+export const CLOUD_DECK_WARP = 0.6
+/** World units per noise cell of the slow density banks. */
+export const CLOUD_DECK_BANK_SCALE = 60
+/** How far the banks shift the threshold either way: thicker banks, thinner sky. */
+export const CLOUD_DECK_BANK = 0.25
+/** The width of a cloud's soft edge, in fbm units. */
+export const CLOUD_DECK_SOFT = 0.18
+/** Density threshold on an island and in a district: higher is sparser. */
+export const CLOUD_THRESHOLD = 0.5
+/** The drift wraps here (world units), keeping the noise inputs small for float precision. */
+export const CLOUD_DECK_DRIFT_WRAP = 4500
 /** Drift speed along (1, 1), world units per second (`high` tier only). */
 export const CLOUD_DECK_DRIFT = 0.2
 /** The deck fading or its hole sliding between layers, in ms. */
 export const CLOUD_MS = 600
-/** The noise tile, in texture pixels. */
-export const CLOUD_TEXTURE_SIZE = 128
-/** Fixes the texture's pattern. */
-export const CLOUD_TEXTURE_SEED = 7
-/**
- * Noise below the low edge is clear sky and above the high edge solid cloud (0–1 of the noise),
- * which turns the even haze into puffs with gaps.
- */
-export const CLOUD_WISP_LO = 0.45
-export const CLOUD_WISP_HI = 0.75
