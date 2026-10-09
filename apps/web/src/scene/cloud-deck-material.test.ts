@@ -8,7 +8,7 @@ import {
   writeDrift,
 } from './cloud-deck-material'
 import type { Area } from './model/area'
-import { COVER_TURN, DECK_OFF, LAYER_B_TURN, layerOffset } from './model/cloud-deck'
+import { COVER_TURN, DECK_OFF, LAYER_B_TURN, layerOffset, VEIL } from './model/cloud-deck'
 import { cloudNoise, wispAlpha } from './model/cloud-noise'
 import { scenePalette } from './model/palette'
 import {
@@ -24,6 +24,7 @@ import {
   CLOUD_DECK_WARP_SCALE,
   CLOUD_TEXTURE_SEED,
   CLOUD_TEXTURE_SIZE,
+  CLOUD_VEIL,
   CLOUD_WISP_HI,
   CLOUD_WISP_LO,
 } from './tuning'
@@ -108,6 +109,14 @@ describe('cloud deck material', () => {
     expect(cloudDeckUniforms.uBox.value.toArray()).toEqual([1, -2, 3, 4])
     expect(cloudDeckUniforms.uRound.value).toBe(0.5)
     expect(cloudDeckUniforms.uOpacity.value).toBeCloseTo(CLOUD_DECK_ALPHA * 0.5)
+  })
+
+  test('with no hole the whole deck shows at the veil, the box left in place', () => {
+    writeDeck({ hole: { minX: 1, maxX: 3, minZ: -2, maxZ: 4, round: 0.5 }, strength: 1 })
+    writeDeck(VEIL)
+    expect(cloudDeckUniforms.uRound.value).toBe(-CLOUD_DECK_FEATHER)
+    expect(cloudDeckUniforms.uBox.value.toArray()).toEqual([1, -2, 3, 4])
+    expect(cloudDeckUniforms.uOpacity.value).toBeCloseTo(CLOUD_DECK_ALPHA * CLOUD_VEIL)
     writeDeck(DECK_OFF)
     expect(cloudDeckUniforms.uOpacity.value).toBe(0)
   })

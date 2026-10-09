@@ -1,45 +1,62 @@
 import type { Focus } from '../../world/selectors'
-import { CLOUD_DECK_DRIFT } from '../tuning'
+import { CLOUD_DECK_DRIFT, CLOUD_DECK_FEATHER, CLOUD_VEIL } from '../tuning'
 import type { Area } from './area'
 import { layerArea } from './camera'
 import { easeInOutCubic } from './camera-motion'
-import { SHALLOWS_MARGIN } from './hex-space'
 import type { SceneModel } from './scene-model'
 import { areaKey } from './spotlight'
 
-/** The rounded rectangle offset outward by `by`: the same box with a larger rounding. */
-export function growArea(area: Area, by: number): Area {
-  return { ...area, round: (area.round ?? 0) + by }
-}
-
 /**
- * The deck's hole (spec 23.1): none on the archipelago; an island's land plus its shallows; a
- * district's rounded box. A district that falls back to its island takes the island's hole.
+ * The deck's hole (spec 23.7): a district's rounded box, and nothing elsewhere. A district that
+ * falls back to its island (an unknown milestone) shows the veil.
  */
 export function deckHole(model: SceneModel, focus: Focus): Area | null {
+  if (focus.kind !== 'district') return null
   const area = layerArea(model, focus)
-  if (!area || focus.kind === 'archipelago') return area
   const island = layerArea(model, { kind: 'island', projectId: focus.projectId })
-  return island && areaKey(island) === areaKey(area) ? growArea(area, SHALLOWS_MARGIN) : area
+  if (!area || !island || areaKey(area) === areaKey(island)) return null
+  return area
 }
 
 /** What the deck shows: its hole and how strongly it covers the rest (0–1). */
 export type Deck = { hole: Area | null; strength: number }
 
+/** Before the first mount writes anything. */
 export const DECK_OFF: Deck = { hole: null, strength: 0 }
 
+/** The archipelago and island layers: a light veil with no hole. */
+export const VEIL: Deck = { hole: null, strength: CLOUD_VEIL }
+
 export function deckFor(hole: Area | null): Deck {
-  return hole ? { hole, strength: 1 } : DECK_OFF
+  return hole ? { hole, strength: 1 } : VEIL
+}
+
+/** The hole shrunk to its centre and rounded inward by the feather: it shows nothing. */
+export function closeHole(area: Area): Area {
+  const x = (area.minX + area.maxX) / 2
+  const z = (area.minZ + area.maxZ) / 2
+  return { minX: x, maxX: x, minZ: z, maxZ: z, round: -CLOUD_DECK_FEATHER }
+}
+
+/** The deck cuts a visible hole: one is set and not closed. */
+export function isOpen(d: Deck): boolean {
+  return d.hole !== null && (d.hole.round ?? 0) > -CLOUD_DECK_FEATHER
 }
 
 /**
- * The tween between what is shown and the new layer's deck: from off it fades in on the new hole,
- * hole to hole it slides at full strength, and to the archipelago it fades out in place.
+ * The tween between what is shown and the new layer's deck (spec 23.7): into a district the hole
+ * opens from its centre as the cloud thickens; out of one it closes in place as the cloud thins to
+ * the veil; district to district it slides at full strength.
  */
 export function deckLeg(current: Deck, target: Deck): { from: Deck; to: Deck } {
-  if (!target.hole) return { from: current, to: { hole: current.hole, strength: 0 } }
-  if (!current.hole || current.strength === 0) {
-    return { from: { hole: target.hole, strength: current.strength }, to: target }
+  if (!target.hole) {
+    if (current.hole && isOpen(current)) {
+      return { from: current, to: { hole: closeHole(current.hole), strength: target.strength } }
+    }
+    return { from: current, to: target }
+  }
+  if (!isOpen(current)) {
+    return { from: { hole: closeHole(target.hole), strength: current.strength }, to: target }
   }
   return { from: current, to: target }
 }
@@ -66,11 +83,13 @@ export function deckAt(from: Deck, to: Deck, t: number): Deck {
   return { hole, strength: lerp(from.strength, to.strength, e) }
 }
 
-/** Two decks that look the same: both off, or the same hole at the same strength. */
+/** Two decks that look the same: equal strength, and both closed or the same open hole. */
 export function sameDeck(a: Deck, b: Deck): boolean {
-  const shown = (d: Deck) => (d.hole ? d.strength : 0)
-  if (shown(a) === 0 && shown(b) === 0) return true
-  return shown(a) === shown(b) && areaKey(a.hole) === areaKey(b.hole)
+  if (a.strength !== b.strength) return false
+  const openA = isOpen(a)
+  const openB = isOpen(b)
+  if (!openA && !openB) return true
+  return openA && openB && areaKey(a.hole) === areaKey(b.hole)
 }
 
 /** A 2×2 rotation, row-major: `[[a, b], [c, d]]` as `[a, b, c, d]`. */

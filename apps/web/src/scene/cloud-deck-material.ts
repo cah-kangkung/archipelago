@@ -120,12 +120,14 @@ export const cloudDeckMaterial = new THREE.ShaderMaterial({
 
 export function writeDeck(deck: Deck): void {
   const { hole } = deck
-  // With no hole the box is left as it was on purpose, so a fade-out keeps its hole.
   if (hole) {
     cloudDeckUniforms.uBox.value.set(hole.minX, hole.minZ, hole.maxX, hole.maxZ)
     cloudDeckUniforms.uRound.value = hole.round ?? 0
+  } else {
+    // No hole: round inward by the feather so the whole deck shows; the box stays where it was.
+    cloudDeckUniforms.uRound.value = -CLOUD_DECK_FEATHER
   }
-  cloudDeckUniforms.uOpacity.value = hole ? CLOUD_DECK_ALPHA * deck.strength : 0
+  cloudDeckUniforms.uOpacity.value = CLOUD_DECK_ALPHA * deck.strength
 }
 
 /** Writes each layer's offset for a drift of `along` world units along (1, 1). */

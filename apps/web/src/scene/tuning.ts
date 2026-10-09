@@ -142,6 +142,8 @@ export const SPOTLIGHT_LABEL_OPACITY = 0.6
 // Cloud deck (spec 23): a cloud layer over the world with a hole the shape of the current layer.
 /** The deck's opacity at full strength. */
 export const CLOUD_DECK_ALPHA = 0.85
+/** The deck's strength on the archipelago and island layers: a light veil, no hole (spec 23.7). */
+export const CLOUD_VEIL = 0.4
 /** From the hole's edge to full cloud, in world units: two hexes. */
 export const CLOUD_DECK_FEATHER = 2 * Math.sqrt(3)
 /** World units per tile of the first wisp layer. */

@@ -26,8 +26,9 @@ import { CLOUD_MS, clampDelta, FOG_DEPTH, FOG_MARGIN } from './tuning'
 const noRaycast = () => null
 
 /**
- * The cloud deck (spec 23.3): one plane over the world with a hole for the current layer. It fades
- * and slides with the route; a refetch with the same hole is still. Drifts while `drifting`.
+ * The cloud deck (spec 23.7): one plane over the world, a veil on the archipelago and island layers
+ * and a hole in a district. It opens, closes and slides with the route; a refetch with the same
+ * hole is still. Drifts while `drifting`.
  */
 export function CloudDeck({
   model,
@@ -60,8 +61,8 @@ export function CloudDeck({
   const show = (d: Deck) => {
     shown.current = d
     writeDeck(d)
-    // A deck without a hole or strength shows nothing: skip its full-screen blended pass.
-    if (mesh.current) mesh.current.visible = d.hole !== null && d.strength > 0
+    // A deck with no strength shows nothing: skip its full-screen blended pass.
+    if (mesh.current) mesh.current.visible = d.strength > 0
   }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the hole's value is the trigger

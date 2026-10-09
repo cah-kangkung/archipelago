@@ -2,7 +2,7 @@ import type { WorldDto } from '@archipelago/shared'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import type * as THREE from 'three'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
-import { fakeProject, fakeTask } from '../test/fake-api'
+import { fakeMilestone, fakeProject, fakeTask } from '../test/fake-api'
 import { quietEconomy } from '../test/sea-worlds'
 import type { Focus } from '../world/selectors'
 import { CloudDeck } from './cloud-deck'
@@ -19,8 +19,10 @@ import { buildSceneModel, type SceneModel } from './model/scene-model'
 import {
   CLOUD_DECK_ALPHA,
   CLOUD_DECK_DRIFT,
+  CLOUD_DECK_FEATHER,
   CLOUD_DECK_TILE,
   CLOUD_MS,
+  CLOUD_VEIL,
   FOG_DEPTH,
   FOG_MARGIN,
 } from './tuning'
@@ -28,17 +30,21 @@ import {
 const today = '2026-10-09'
 const beta = fakeProject({ name: 'Beta', archipelagoX: 0, archipelagoY: 0 })
 const gamma = fakeProject({ name: 'Gamma', archipelagoX: 1, archipelagoY: 0 })
+const mvp = fakeMilestone({ projectId: beta.id, districtQ: 5, districtR: 0 })
+const later = fakeMilestone({ projectId: beta.id, districtQ: -5, districtR: 5 })
 const world: WorldDto = {
   projects: [beta, gamma],
-  milestones: [],
-  tasks: [],
+  milestones: [mvp, later],
+  tasks: [fakeTask({ projectId: beta.id, milestoneId: mvp.id, plotX: 6, plotY: 0 })],
   buildings: [],
   economy: quietEconomy,
 }
 const model = buildSceneModel(world, today)
 const archipelago: Focus = { kind: 'archipelago' }
 const onBeta: Focus = { kind: 'island', projectId: beta.id }
-const onGamma: Focus = { kind: 'island', projectId: gamma.id }
+const onMvp: Focus = { kind: 'district', projectId: beta.id, milestoneId: mvp.id }
+const onLater: Focus = { kind: 'district', projectId: beta.id, milestoneId: later.id }
+const veil = CLOUD_DECK_ALPHA * CLOUD_VEIL
 
 type Props = {
   model: SceneModel
@@ -86,38 +92,67 @@ describe('CloudDeck', () => {
     expect(size?.max.y).toBeCloseTo(LAND_HEIGHT)
   })
 
-  test('the first mount shows its deck at once, even on a deep link', async () => {
+  test('the archipelago and an island show the veil; between them nothing runs', async () => {
     const onRunning = vi.fn()
-    await ReactThreeTestRenderer.create(tree({ model, focus: onBeta, onRunning }))
-    expect(opacity()).toBe(CLOUD_DECK_ALPHA)
-    const h = deckHole(model, onBeta)
-    expect(box()).toEqual([h?.minX, h?.minZ, h?.maxX, h?.maxZ])
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: archipelago, onRunning }))
+    const mesh = r.scene.findAllByType('Mesh')[0]?.instance as THREE.Mesh
+    expect(mesh.visible).toBe(true)
+    expect(opacity()).toBeCloseTo(veil)
+    expect(cloudDeckUniforms.uRound.value).toBe(-CLOUD_DECK_FEATHER)
+    await r.update(tree({ model, focus: onBeta, onRunning }))
+    await r.advanceFrames(2, 0.1)
+    expect(opacity()).toBeCloseTo(veil)
     expect(onRunning).not.toHaveBeenCalledWith(true)
   })
 
-  test('hidden on the archipelago; entering an island fades it in over CLOUD_MS', async () => {
+  test('the first mount in a district shows its hole at once', async () => {
     const onRunning = vi.fn()
-    const r = await ReactThreeTestRenderer.create(tree({ model, focus: archipelago, onRunning }))
-    expect(opacity()).toBe(0)
-    await r.update(tree({ model, focus: onBeta, onRunning }))
+    await ReactThreeTestRenderer.create(tree({ model, focus: onMvp, onRunning }))
+    expect(opacity()).toBe(CLOUD_DECK_ALPHA)
+    const h = deckHole(model, onMvp)
+    expect(box()).toEqual([h?.minX, h?.minZ, h?.maxX, h?.maxZ])
+    expect(cloudDeckUniforms.uRound.value).toBe(h?.round)
+    expect(onRunning).not.toHaveBeenCalledWith(true)
+  })
+
+  test('island to district opens the hole from its centre over CLOUD_MS', async () => {
+    const onRunning = vi.fn()
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta, onRunning }))
+    await r.update(tree({ model, focus: onMvp, onRunning }))
     expect(onRunning).toHaveBeenLastCalledWith(true)
-    // The first frame after the route change doesn't advance the fade.
+    const h = deckHole(model, onMvp)
+    if (!h) throw new Error('no district hole')
+    // The first frame after the route change doesn't advance the leg: the hole is still closed.
     await r.advanceFrames(1, 0.1)
-    expect(opacity()).toBe(0)
+    expect(cloudDeckUniforms.uRound.value).toBe(-CLOUD_DECK_FEATHER)
+    expect(box()[0]).toBeCloseTo((h.minX + h.maxX) / 2)
     await r.advanceFrames(1, 0.1)
-    expect(opacity()).toBeGreaterThan(0)
+    expect(opacity()).toBeGreaterThan(veil)
     expect(opacity()).toBeLessThan(CLOUD_DECK_ALPHA)
     await r.advanceFrames(frames, 0.1)
     expect(opacity()).toBe(CLOUD_DECK_ALPHA)
+    expect(box()).toEqual([h.minX, h.minZ, h.maxX, h.maxZ])
     expect(onRunning).toHaveBeenLastCalledWith(false)
   })
 
-  test('island to island slides the hole at full strength', async () => {
-    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta }))
-    await r.update(tree({ model, focus: onGamma }))
+  test('district to island closes the hole in place and thins to the veil', async () => {
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onMvp }))
+    const h = deckHole(model, onMvp)
+    if (!h) throw new Error('no district hole')
+    await r.update(tree({ model, focus: onBeta }))
+    await r.advanceFrames(frames + 1, 0.1)
+    expect(opacity()).toBeCloseTo(veil)
+    expect(cloudDeckUniforms.uRound.value).toBe(-CLOUD_DECK_FEATHER)
+    expect(box()[0]).toBeCloseTo((h.minX + h.maxX) / 2)
+  })
+
+  test('district to district slides the hole at full strength', async () => {
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onMvp }))
+    await r.update(tree({ model, focus: onLater }))
     await r.advanceFrames(2, 0.1)
-    const from = deckHole(model, onBeta)?.minX ?? 0
-    const to = deckHole(model, onGamma)?.minX ?? 0
+    const from = deckHole(model, onMvp)?.minX ?? 0
+    const to = deckHole(model, onLater)?.minX ?? 0
+    expect(from).not.toBe(to)
     expect(opacity()).toBe(CLOUD_DECK_ALPHA)
     expect(box()[0]).toBeGreaterThan(Math.min(from, to))
     expect(box()[0]).toBeLessThan(Math.max(from, to))
@@ -125,66 +160,32 @@ describe('CloudDeck', () => {
     expect(box()[0]).toBeCloseTo(to)
   })
 
-  test('back to the archipelago mid-slide fades out from where the hole is', async () => {
-    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta }))
-    await r.update(tree({ model, focus: onGamma }))
-    await r.advanceFrames(3, 0.1)
-    const mid = box()[0]
-    await r.update(tree({ model, focus: archipelago }))
-    await r.advanceFrames(2, 0.1)
-    expect(box()[0]).toBe(mid)
-    await r.advanceFrames(frames, 0.1)
-    expect(opacity()).toBe(0)
-  })
-
   test('reduced motion switches at once and never runs', async () => {
     const onRunning = vi.fn()
     const r = await ReactThreeTestRenderer.create(
       tree({ model, focus: archipelago, animate: false, onRunning }),
     )
-    await r.update(tree({ model, focus: onBeta, animate: false, onRunning }))
+    await r.update(tree({ model, focus: onMvp, animate: false, onRunning }))
     expect(opacity()).toBe(CLOUD_DECK_ALPHA)
     expect(onRunning).not.toHaveBeenCalledWith(true)
   })
 
-  test('a refetch that keeps the hole neither replays the fade nor runs', async () => {
+  test('a refetch that keeps the hole neither replays the leg nor runs', async () => {
     const onRunning = vi.fn()
-    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta, onRunning }))
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onMvp, onRunning }))
     const refetched = buildSceneModel(
-      { ...world, tasks: [fakeTask({ projectId: gamma.id, plotX: 1, plotY: 0 })] },
+      { ...world, tasks: [...world.tasks, fakeTask({ projectId: gamma.id, plotX: 1, plotY: 0 })] },
       today,
     )
-    await r.update(tree({ model: refetched, focus: onBeta, onRunning }))
+    await r.update(tree({ model: refetched, focus: onMvp, onRunning }))
     expect(opacity()).toBe(CLOUD_DECK_ALPHA)
     expect(onRunning).not.toHaveBeenCalledWith(true)
-  })
-
-  test('the mesh is hidden while the deck shows nothing', async () => {
-    const r = await ReactThreeTestRenderer.create(tree({ model, focus: archipelago }))
-    const mesh = r.scene.findAllByType('Mesh')[0]?.instance as THREE.Mesh
-    expect(mesh.visible).toBe(false)
-    await r.update(tree({ model, focus: onBeta }))
-    await r.advanceFrames(2, 0.1)
-    expect(mesh.visible).toBe(true)
-    await r.advanceFrames(frames, 0.1)
-    expect(mesh.visible).toBe(true)
-    await r.update(tree({ model, focus: archipelago }))
-    await r.advanceFrames(2, 0.1)
-    expect(mesh.visible).toBe(true)
-    await r.advanceFrames(frames, 0.1)
-    expect(mesh.visible).toBe(false)
-  })
-
-  test('a deep link to an island is visible from the first render', async () => {
-    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta }))
-    const mesh = r.scene.findAllByType('Mesh')[0]?.instance as THREE.Mesh
-    expect(mesh.visible).toBe(true)
   })
 
   test('unmounting mid-leg releases the ticker demand', async () => {
     const onRunning = vi.fn()
-    const r = await ReactThreeTestRenderer.create(tree({ model, focus: archipelago, onRunning }))
-    await r.update(tree({ model, focus: onBeta, onRunning }))
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta, onRunning }))
+    await r.update(tree({ model, focus: onMvp, onRunning }))
     expect(onRunning).toHaveBeenLastCalledWith(true)
     await r.unmount()
     expect(onRunning).toHaveBeenLastCalledWith(false)
@@ -192,11 +193,11 @@ describe('CloudDeck', () => {
 
   test('turning animation off mid-leg finishes the leg at once', async () => {
     const onRunning = vi.fn()
-    const r = await ReactThreeTestRenderer.create(tree({ model, focus: archipelago, onRunning }))
-    await r.update(tree({ model, focus: onBeta, onRunning }))
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta, onRunning }))
+    await r.update(tree({ model, focus: onMvp, onRunning }))
     await r.advanceFrames(2, 0.1)
     expect(opacity()).toBeLessThan(CLOUD_DECK_ALPHA)
-    await r.update(tree({ model, focus: onBeta, animate: false, onRunning }))
+    await r.update(tree({ model, focus: onMvp, animate: false, onRunning }))
     expect(opacity()).toBe(CLOUD_DECK_ALPHA)
     expect(onRunning).toHaveBeenLastCalledWith(false)
   })
