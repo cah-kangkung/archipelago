@@ -1269,14 +1269,14 @@ Amplitudes stay small enough that the commons centre and ring 1 are always insid
 
 **Land.** `islandLand(seed, size): IslandLand`:
 
-- `land`: hexes whose centre (axial → cartesian, hex units) satisfies `distance(p / size) ≤ 0`, plus the centre and ring 1 always, keeping only the component connected to the centre;
+- `land`: hexes whose centre (axial → cartesian, hex units) satisfies `distance(p / size · norm) ≤ 0` at this or any smaller whole size from `MIN_ISLAND_SIZE` (so land only grows, even for shapes that are not star-shaped), plus rings 0 to `min(3, size − 1)` always (so from size 4 the centre and ring 1 are always interior), keeping only the component connected to the centre. `norm` scales each footprint so its unit-size area equals a unit disc's;
 - `interior`: land hexes with land on every hex within two steps (`SHORE_RINGS`), so the shore is always two rings;
 - `depth`: per land hex, hex steps to the nearest non-land hex (breadth-first from the coast); 1–2 is shore;
 - `radius`: the largest hex distance from the centre to any land hex (the enclosing ring).
 
 The candidate hexes searched are those within `ceil(size · footprint extent) + 1` rings, so a size-20 elongated island tests about 3k hexes.
 
-**Size.** `islandSize(seed, occupied)`: the smallest integer `size ≥ MIN_ISLAND_SIZE` (4) whose interior holds every occupied hex, stepping up by one. It replaces the old `islandRadius` growth rule; growth only ever adds land, because each footprint's distance is scaled uniformly.
+**Size.** `islandSize(seed, occupied)`: the smallest integer `size ≥ MIN_ISLAND_SIZE` (4) whose interior holds every occupied hex and at least `MIN_INTERIOR` (19, the old radius-4 disc's interior) hexes, stepping up by one. It replaces the old `islandRadius` growth rule; growth only ever adds land, because each footprint's distance is scaled uniformly.
 
 ### 24.2 Placement and growth (`packages/shared`)
 
@@ -1284,9 +1284,8 @@ Every rule takes the seed; the API already has `project.islandSeed` wherever it 
 
 - `islandRadius(seed, occupied)` = `islandLand(seed, islandSize(seed, occupied)).radius`. Island spacing (`2 · largest radius + ISLAND_GAP`), gulls, boat loops, sea props and the cloud plane keep using it: a generous bound for long islands.
 - `placeablePlots(seed, occupied)` and `isPlaceable(seed, occupied, plot)`: free interior hexes at the current size, never the commons centre. The building service validates with it; the web's placement mode and the fake API use the same calls.
-- `sizeNeeded(seed, hex)`: the smallest size at which `hex` is interior (searched upward from `MIN_ISLAND_SIZE`, capped at `MAX_ISLAND_SIZE` 60; beyond the cap it is never chosen).
-- `nextDistrictCenter(seed, taken)`: among free spots on the `DISTRICT_SPACING` lattice (`hexScale(unit, DISTRICT_SPACING)` for spiral units), the one with the smallest `sizeNeeded`; ties go by spiral order. Districts thereby fill an elongated island along its axis, a crescent along its arc, a spiral along its arm, lobes one each. A centre that needs a larger size grows the island through `islandSize`.
-- `nearestFreePlot(seed, centre, startDirection, occupied)`: spiral from the district centre (or `COMMONS_CENTER` for a task with no milestone) and take the first free hex that is interior at the current size; if none lies within `DISTRICT_SPACING` rings, retry at size + 1, and so on. Tasks hug their district; the island grows only when the district is boxed in.
+- `nextDistrictCenter(seed, occupied)`: from the current size upward (to `MAX_ISLAND_SIZE` 60), the first free spot on the `DISTRICT_SPACING` lattice (`hexScale(unit, DISTRICT_SPACING)` for spiral units) that is interior at that size, in spiral order: the spot needing the smallest size, ties by spiral order. Districts thereby fill an elongated island along its axis, a crescent along its arc, a spiral along its arm, lobes one each. A centre that needs a larger size grows the island through `islandSize`.
+- `nearestFreePlot(seed, centre, startDirection, occupied)` (hexes, not a taken-key set): spiral from the district centre (or `COMMONS_CENTER` for a task with no milestone) and take the first free hex that is interior at the current size; if none lies within `DISTRICT_SPACING` rings, retry at size + 1, and so on. Tasks hug their district; the island grows only when the district is boxed in.
 - The API's `assignTaskPlot`, `createMilestone`, building validation and `cli/demo-world.ts` move to these signatures. `land.ts`'s disc rule is deleted.
 
 ### 24.3 Terrain and relief (`apps/web/src/scene/model/terrain.ts`)
