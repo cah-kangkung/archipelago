@@ -10,3 +10,16 @@ export function perfEnabled(): boolean {
 export function resetPerfFlag(): void {
   cached = null
 }
+
+let noBlur: boolean | null = null
+
+/** True when the page was loaded with `?noblur`: glass turns solid (spec 25.5). */
+export function noBlurEnabled(): boolean {
+  if (noBlur === null) noBlur = new URLSearchParams(window.location.search).has('noblur')
+  return noBlur
+}
+
+/** Test seam: forget the cached flag. */
+export function resetNoBlurFlag(): void {
+  noBlur = null
+}

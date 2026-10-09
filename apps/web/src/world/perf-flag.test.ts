@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import { perfEnabled, resetPerfFlag } from './perf-flag'
+import { noBlurEnabled, perfEnabled, resetNoBlurFlag, resetPerfFlag } from './perf-flag'
 
 afterEach(() => {
   window.history.replaceState(null, '', '/')
@@ -29,5 +29,21 @@ describe('perfEnabled', () => {
     expect(at('?perf')).toBe(true)
     window.history.replaceState(null, '', '/')
     expect(perfEnabled()).toBe(true)
+  })
+})
+
+describe('noBlurEnabled', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/')
+    resetNoBlurFlag()
+  })
+
+  test('is false without ?noblur', () => {
+    expect(noBlurEnabled()).toBe(false)
+  })
+
+  test('reads ?noblur, alone or beside ?perf', () => {
+    window.history.replaceState(null, '', '/?perf&noblur')
+    expect(noBlurEnabled()).toBe(true)
   })
 })
