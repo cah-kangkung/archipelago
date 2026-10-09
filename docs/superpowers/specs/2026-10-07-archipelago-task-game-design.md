@@ -973,6 +973,8 @@ Phase 5f finishes the "each layer is a room" idea of section 19. Entering an isl
 
 ### 20.3 Spotlight
 
+> **Removed in Phase 5h (22.7).** The haze is gone; only the label fade below survives.
+
 Amended 2026-10-09: the grey-and-darken look was too strong; the haze replaced it.
 
 - Shared spotlight uniforms: the area's box (`vec4`), its `round`, a feather width and a strength 0..1. The shared scene materials (`solidMaterial`, `seaMaterial`, `shadowMaterial`, `foamMaterial`, `splashMaterial`, `plotMaterial`, the ghost materials) are patched once (`onBeforeCompile`) to pass the world x/z to the fragment shader and, after the fog (so fogged sea hazes too) and outside the area, blend the colour toward `scenePalette.sea` by `SPOTLIGHT_HAZE` (0.2), with a smoothstep edge `SPOTLIGHT_FEATHER` wide (two hexes, `2 × SQRT3`), all scaled by the strength. Instanced meshes use their instance matrix. No new draw calls, no per-object work.
@@ -1057,7 +1059,7 @@ Phase 5g opens the light-and-mood phase with a cloud ring: soft low-poly clouds 
 
 ## 22. Phase 5h Design Addendum: Cloud Frame (approved 2026-10-09)
 
-Phase 5h replaces 21's in-scene cloud ring with a cloud frame drawn over the camera view: soft cloud wisps round the screen edges while you are inside an island or district, as if looking down through a gap in the clouds. It is a DOM overlay beside 17.3's vignette, not scene geometry, so it never covers tiles, costs WebGL nothing and lives outside the three.js chunk. Where it disagrees with section 21, this section wins. No API or DTO change. The spotlight haze (20.3), taps and panning are unchanged.
+Phase 5h replaces 21's in-scene cloud ring with a cloud frame drawn over the camera view: soft cloud wisps round the screen edges while you are inside an island or district, as if looking down through a gap in the clouds. It is a DOM overlay beside 17.3's vignette, not scene geometry, so it never covers tiles, costs WebGL nothing and lives outside the three.js chunk. Where it disagrees with sections 20 and 21, this section wins. No API or DTO change. Taps and panning are unchanged; the spotlight haze is removed (22.7).
 
 ### 22.1 Removal of the ring
 
@@ -1099,3 +1101,8 @@ Phase 5h replaces 21's in-scene cloud ring with a cloud frame drawn over the cam
 - Removal: the ticker demand has no `clouds`; `world-scene` mounts no `CloudLayer`; nothing in `src/` references `cloudMaterial`, `CloudLayer` or a `CLOUD_` value of 21.
 - Gate: tests, typecheck, lint, build; three.js only in the world-scene chunk.
 - Owner's check: `bun run seed:demo`, phone and desktop; archipelago → island → district tightens the frame; the drift is smooth; `?perf` shows no canvas frames while idle inside a layer and no tier drop; judge `CLOUD_FRAME_ALPHA` and `CLOUD_FRAME_CLEAR`.
+
+### 22.7 Removal of the sea haze
+
+- At the owner's request the cloud frame is the only layer cue: the spotlight haze of 20.3 is removed. Deleted: `scene/spotlight-material.ts` (the shader patch) and `scene/spotlight-rig.tsx` with their tests; every material is plain again; the background stays `scenePalette.seaDeep`; the `spotlight` ticker demand and `SPOTLIGHT_MS`, `SPOTLIGHT_HAZE`, `SPOTLIGHT_FEATHER` are gone.
+- Kept: labels anchored outside the current layer still show at `SPOTLIGHT_LABEL_OPACITY` (0.6) via `labelOpacity` in `scene/model/spotlight.ts`, alongside `areaKey`. Taps outside the layer (20.4) and the layer area for panning (20.1–20.2) are unchanged.
