@@ -11,6 +11,10 @@ const SPEC_CEILING_KB = BASELINE_KB + 60
 const dist = join(import.meta.dirname, '..', 'dist')
 const html = readFileSync(join(dist, 'index.html'), 'utf8')
 const files = [...html.matchAll(/(?:src|href)="\/(assets\/[^"]+\.js)"/g)].map((m) => m[1] ?? '')
+if (files.length === 0) {
+  console.error('no initial JS found in index.html')
+  process.exit(1)
+}
 const kb = files.reduce((sum, f) => sum + gzipSync(readFileSync(join(dist, f))).length / 1000, 0)
 
 console.log(`initial JS ${kb.toFixed(2)} kB gzip (${files.join(', ')})`)
