@@ -1310,9 +1310,9 @@ Every rule takes the seed; the API already has `project.islandSeed` wherever it 
 
 - **Shallows** follow the coast: `islandGeometry(tiles, land)` lays a `SHALLOWS_HEIGHT` prism on every non-land hex within one ring of land, instead of one hexagon of `shallowsRadius`.
 - **Foam** runs along the rim (the shallows hexes' sides facing open water), a `FOAM_WIDTH` strip per side, instead of a hexagonal band round the enclosing disc.
-- **Sea depth:** `Shore` gains `coast: Point[]` (island-local centres of depth-1 hexes). `shoreDistance` keeps the enclosing disc as a fast rejection, then measures to the nearest coast point less one hex and `SHALLOWS_MARGIN`. The uncharted island (17.4) is a round island of radius 1.
-- **Camera:** the island layer's area (`layerArea`, framing, pan bounds) is the bounding box of its tiles' world positions grown by `islandExtent`'s one-hex corner allowance, rounded by `AREA_MARGIN`, instead of the enclosing disc. Districts are unchanged.
-- `SceneIsland` gains `size`, `shape: IslandShape` and `coast`, and keeps `radius` (the enclosing ring) for the consumers listed in 24.2.
+- **Sea depth:** `Shore` gains `coast: Point[]` and `cover` (tile and shallows hex keys); `shoreDistance` is 0 over a covered hex, else the nearest coast centre less `SHALLOWS_REACH` (`SQRT3 + 1`), with the enclosing disc as a fast rejection. The uncharted island (17.4) is a round island of size 1.
+- **Camera:** the island layer's area (`layerArea`, framing, pan bounds) is the bounding box of its tiles' world positions grown by `islandExtent`'s one-hex corner allowance, rounded by one hex corner (`round: 1`), instead of the enclosing disc. Districts are unchanged.
+- `SceneIsland` gains `size`, `coast`, `shallows`, `rim`, `cover` and `box`, and keeps `radius` (the enclosing ring) for the consumers listed in 24.2.
 
 ### 24.5 The district ring (`apps/web/src/scene/model/district-ring.ts`, `scene/district-ring.tsx`)
 

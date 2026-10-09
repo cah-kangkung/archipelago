@@ -68,6 +68,8 @@ export type SceneIsland = {
   rim: RimSide[]
   /** Island-local bounds of the tile centres: the island layer's area. */
   box: Bounds
+  /** Hex keys of the tiles and the shallows: the sea is 0 over them. */
+  cover: ReadonlySet<string>
   /** Growth stage from the island's finished tasks (spec 18.1). */
   stage: Stage
   /** Hexes of the paths to districts with a finished task (spec 18.4). */
@@ -137,6 +139,7 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
         shallows,
         rim: shallowsRim(tiles, shallows),
         box: boxOf(tiles),
+        cover: new Set([...tiles, ...shallows].map(hexKey)),
         stage,
         paths,
         scenery: growth.scenery,

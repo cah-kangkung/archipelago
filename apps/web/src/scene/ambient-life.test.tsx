@@ -1,27 +1,14 @@
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import * as THREE from 'three'
 import { describe, expect, test } from 'vitest'
+import { shoreOf } from '../test/shore'
 import { AmbientLifeLayer } from './ambient-life'
 import { foamMaterial } from './materials'
 import { type AmbientLife, boatPose } from './model/ambient-life'
-import { hexToWorld } from './model/hex-space'
-import type { Shore } from './model/sea-depth'
-import { islandTerrain, shallowsHexes, shallowsRim } from './model/terrain'
 
 type Renderer = Awaited<ReturnType<typeof ReactThreeTestRenderer.create>>
 
-const shoreAt = (size: number): Shore => {
-  const tiles = islandTerrain(5, size)
-  return {
-    origin: { x: 0, z: 0 },
-    radius: Math.max(
-      ...tiles.map((t) => (Math.abs(t.q) + Math.abs(t.q + t.r) + Math.abs(t.r)) / 2),
-    ),
-    size,
-    coast: tiles.filter((t) => t.depth === 1).map(hexToWorld),
-    rim: shallowsRim(tiles, shallowsHexes(tiles)),
-  }
-}
+const shoreAt = (size: number) => shoreOf(5, size)
 const shore = shoreAt(4)
 const loop = { kind: 'loop' as const, key: 'loop|p0', center: { x: 0, z: 0 }, radius: 11 }
 const life: AmbientLife = {

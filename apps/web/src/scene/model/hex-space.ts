@@ -44,3 +44,19 @@ export function hexSide(h: Hex, i: number): [Point, Point] {
   const c = hexToWorld(h)
   return [corner(c, -60 * i - 30), corner(c, -60 * i + 30)]
 }
+
+/** The hex containing island-local `p`: fractional axial coordinates, cube-rounded. */
+export function worldToHex(p: Point): Hex {
+  const fr = p.z / 1.5
+  const fq = p.x / SQRT3 - fr / 2
+  const fs = -fq - fr
+  let q = Math.round(fq)
+  let r = Math.round(fr)
+  const s = Math.round(fs)
+  const dq = Math.abs(q - fq)
+  const dr = Math.abs(r - fr)
+  const ds = Math.abs(s - fs)
+  if (dq > dr && dq > ds) q = -r - s
+  else if (dr > ds) r = -q - s
+  return { q: q + 0, r: r + 0 }
+}

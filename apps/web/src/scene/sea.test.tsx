@@ -1,24 +1,11 @@
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import type * as THREE from 'three'
 import { describe, expect, test } from 'vitest'
-import { hexToWorld, SHALLOWS_REACH } from './model/hex-space'
-import type { Shore } from './model/sea-depth'
-import { islandTerrain, shallowsHexes, shallowsRim } from './model/terrain'
+import { shoreOf } from '../test/shore'
+import { SHALLOWS_REACH, worldToHex } from './model/hex-space'
 import { Sea } from './sea'
 
-const shoreAt = (size: number): Shore => {
-  const tiles = islandTerrain(5, size)
-  return {
-    origin: { x: 0, z: 0 },
-    radius: Math.max(
-      ...tiles.map((t) => (Math.abs(t.q) + Math.abs(t.q + t.r) + Math.abs(t.r)) / 2),
-    ),
-    size,
-    coast: tiles.filter((t) => t.depth === 1).map(hexToWorld),
-    rim: shallowsRim(tiles, shallowsHexes(tiles)),
-  }
-}
-const shore = shoreAt(4)
+const shore = shoreOf(5, 4)
 const bounds = { minX: -8, maxX: 8, minZ: -8, maxZ: 8 }
 
 async function seaMesh() {
@@ -52,5 +39,23 @@ describe('Sea', () => {
     }
     const brightness = (i: number) => color.getX(i) + color.getY(i) + color.getZ(i)
     expect(brightness(near.i)).toBeGreaterThan(brightness(far.i))
+  })
+
+  test('over the land the sea takes the shallow colour', async () => {
+    const geometry = (await seaMesh()).geometry
+    const position = geometry.getAttribute('position')
+    const color = geometry.getAttribute('color')
+    const covered: number[] = []
+    for (let i = 0; i < position.count; i++) {
+      const h = worldToHex({ x: position.getX(i), z: position.getZ(i) })
+      if (shore.cover.has(`${h.q},${h.r}`)) covered.push(i)
+    }
+    expect(covered.length).toBeGreaterThan(0)
+    const shallow = covered[0] as number
+    for (const i of covered) {
+      expect(color.getX(i)).toBeCloseTo(color.getX(shallow))
+      expect(color.getY(i)).toBeCloseTo(color.getY(shallow))
+      expect(color.getZ(i)).toBeCloseTo(color.getZ(shallow))
+    }
   })
 })

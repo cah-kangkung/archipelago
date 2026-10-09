@@ -1,24 +1,16 @@
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import type * as THREE from 'three'
 import { describe, expect, test } from 'vitest'
-import { hexToWorld } from './model/hex-space'
+import { shoreOf } from '../test/shore'
 import type { SceneModel } from './model/scene-model'
-import { islandTerrain } from './model/terrain'
 import { SeaScatter } from './sea-scatter'
 
-const island = (size: number): SceneModel['islands'][number] => {
-  const tiles = islandTerrain(5, size)
-  return {
+const island = (size: number): SceneModel['islands'][number] =>
+  ({
     projectId: 'p0',
     slot: { q: 0, r: 0 },
-    origin: { x: 0, z: 0 },
-    size,
-    radius: Math.max(
-      ...tiles.map((t) => (Math.abs(t.q) + Math.abs(t.q + t.r) + Math.abs(t.r)) / 2),
-    ),
-    coast: tiles.filter((t) => t.depth === 1).map(hexToWorld),
-  } as SceneModel['islands'][number]
-}
+    ...shoreOf(5, size),
+  }) as SceneModel['islands'][number]
 const model = (size: number): Pick<SceneModel, 'islands' | 'bounds'> => ({
   islands: [island(size)],
   bounds: { minX: -8, maxX: 8, minZ: -8, maxZ: 8 },

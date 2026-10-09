@@ -1,22 +1,10 @@
-import { islandShape } from '@archipelago/shared'
+import { hexKey, islandShape } from '@archipelago/shared'
 import { describe, expect, test } from 'vitest'
+import { shoreOf } from '../../test/shore'
 import { SEA_DEEP_DISTANCE } from '../tuning'
-import { hexToWorld, SHALLOWS_REACH } from './hex-space'
-import { depthShade, type Shore, shoreDistance, UNCHARTED_SHORE } from './sea-depth'
-import { islandTerrain } from './terrain'
-
-const shoreOf = (seed: number, size: number, origin = { x: 0, z: 0 }): Shore => {
-  const tiles = islandTerrain(seed, size)
-  return {
-    origin,
-    radius: Math.max(
-      ...tiles.map((t) => (Math.abs(t.q) + Math.abs(t.q + t.r) + Math.abs(t.r)) / 2),
-    ),
-    size,
-    coast: tiles.filter((t) => t.depth === 1).map(hexToWorld),
-    rim: [],
-  }
-}
+import { hexToWorld, SHALLOWS_REACH, SQRT3, worldToHex } from './hex-space'
+import { depthShade, shoreDistance, UNCHARTED_SHORE } from './sea-depth'
+import { islandTerrain, shallowsHexes } from './terrain'
 
 describe('sea depth', () => {
   test('0 on and near the land; measured from the nearest coast hex less SHALLOWS_REACH', () => {
@@ -30,6 +18,52 @@ describe('sea depth', () => {
     }
     const nearest = Math.min(...s.coast.map((p) => Math.hypot(far.x - p.x, far.z - p.z)))
     expect(shoreDistance(far, [s])).toBeCloseTo(nearest - SHALLOWS_REACH)
+  })
+
+  test('0 over every tile and shallows centre of a large island', () => {
+    const s = shoreOf(4, 10)
+    const tiles = islandTerrain(4, 10)
+    for (const h of [...tiles, ...shallowsHexes(tiles)]) {
+      expect(shoreDistance(hexToWorld(h), [s])).toBe(0)
+    }
+  })
+
+  test('open water in a crescent bay is not land: it measures from the coast', () => {
+    const findBay = () => {
+      for (let seed = 0; seed < 300; seed++) {
+        if (islandShape(seed).footprint !== 'crescent') continue
+        const size = 10
+        const s = shoreOf(seed, size)
+        const land = new Set(islandTerrain(seed, size).map(hexKey))
+        const reach = s.radius * SQRT3 + 1
+        const walled = (p: { x: number; z: number }, a: number) => {
+          const hits = (sign: number) => {
+            for (let d = 0.5; d < reach; d += 0.5) {
+              const q = { x: p.x + sign * d * Math.cos(a), z: p.z + sign * d * Math.sin(a) }
+              if (land.has(hexKey(worldToHex(q)))) return true
+            }
+            return false
+          }
+          return hits(1) && hits(-1)
+        }
+        for (let x = -reach; x <= reach; x += 0.5) {
+          for (let z = -reach; z <= reach; z += 0.5) {
+            const p = { x, z }
+            if (s.cover.has(hexKey(worldToHex(p)))) continue
+            const nearest = Math.min(...s.coast.map((c) => Math.hypot(x - c.x, z - c.z)))
+            if (nearest <= SHALLOWS_REACH + 1) continue
+            if ([0, 1, 2, 3, 4, 5].some((k) => walled(p, (k * Math.PI) / 6))) {
+              return { s, p, nearest }
+            }
+          }
+        }
+      }
+      return undefined
+    }
+    const bay = findBay()
+    if (!bay) throw new Error('no crescent seed in 0..299 has a walled-in bay point')
+    expect(shoreDistance(bay.p, [bay.s])).toBeGreaterThan(0)
+    expect(shoreDistance(bay.p, [bay.s])).toBeCloseTo(bay.nearest - SHALLOWS_REACH)
   })
 
   test('the nearest island wins', () => {
