@@ -1,5 +1,8 @@
+import { Trash } from '@phosphor-icons/react'
+import { Button } from '../ui/button'
+
 const bar =
-  'pointer-events-auto flex min-h-11 items-center justify-between gap-2 rounded-md bg-surface-primary/95 px-3 py-1 shadow'
+  'pointer-events-auto flex min-h-11 items-center justify-between gap-2 rounded-xl bg-surface-primary px-3 py-1 shadow-2'
 
 export function BuildingBar({
   name,
@@ -14,17 +17,18 @@ export function BuildingBar({
 }) {
   return (
     <div role="toolbar" aria-label={name} className={bar}>
-      <p className="text-sm text-text-primary">{name}</p>
-      <button
-        type="button"
+      <p className="text-label font-label text-text-primary">{name}</p>
+      <Button
+        variant="danger"
+        size="sm"
+        icon={Trash}
         disabled={pending}
         onClick={() => {
           if (window.confirm(`Remove ${name} for ${refund} Supplies back?`)) onRemove()
         }}
-        className="inline-flex min-h-11 items-center rounded-md px-3 text-error disabled:opacity-50"
       >
         Remove (+{refund})
-      </button>
+      </Button>
     </div>
   )
 }

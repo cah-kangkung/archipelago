@@ -1,5 +1,9 @@
 import type { TaskDto, WorldDto } from '@archipelago/shared'
+import { MagnifyingGlass, Plus } from '@phosphor-icons/react'
 import { type RefObject, useEffect, useState } from 'react'
+import { inputClass } from '../editors/fields'
+import { Button } from '../ui/button'
+import { Icon } from '../ui/icon'
 import { type Focus, panelTasks } from '../world/selectors'
 import { TaskRow } from './task-row'
 
@@ -37,32 +41,32 @@ export function TaskPanel({
   return (
     <div className="flex flex-col">
       <div className="px-4 pt-3">
-        <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+        <h2 className="text-heading font-heading text-text-primary">{title}</h2>
       </div>
       {focus.kind !== 'archipelago' && onNewTask && (
         <div className="flex items-center gap-2 px-4 pt-2">
-          <button
-            type="button"
-            onClick={onNewTask}
-            className="ml-auto min-h-11 shrink-0 rounded-md bg-brand px-3 text-sm font-medium text-text-on-brand"
-          >
+          <Button size="sm" icon={Plus} onClick={onNewTask} className="ml-auto">
             New task
-          </button>
+          </Button>
         </div>
       )}
-      <label className="block px-4 py-2">
+      <label className="relative block px-4 py-2">
         <span className="sr-only">Search tasks</span>
+        <Icon
+          icon={MagnifyingGlass}
+          className="pointer-events-none absolute top-1/2 left-7 -translate-y-1/2 text-text-tertiary"
+        />
         <input
           ref={searchRef}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search tasks"
-          className="min-h-11 w-full rounded-md border border-border-secondary px-3 text-base"
+          className={`${inputClass} pl-10`}
         />
       </label>
       {tasks.length === 0 ? (
-        <p className="px-4 py-6 text-center text-text-secondary">
+        <p className="px-4 py-6 text-center text-body text-text-secondary">
           {focus.kind === 'archipelago' ? 'Nothing due today. Nice work.' : 'No tasks here yet.'}
         </p>
       ) : (

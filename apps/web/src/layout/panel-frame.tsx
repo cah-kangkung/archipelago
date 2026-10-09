@@ -1,3 +1,4 @@
+import { CaretDoubleLeft, CaretDoubleRight } from '@phosphor-icons/react'
 import {
   type Dispatch,
   type KeyboardEvent,
@@ -10,6 +11,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Icon } from '../ui/icon'
 import { useIsDesktop } from './use-is-desktop'
 
 function storeWidth(width: number) {
@@ -262,7 +264,7 @@ function MobileSheet({
       data-testid="task-sheet"
       data-detent={detent}
       style={{ height: dragHeight ?? resting }}
-      className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[640px] flex-col rounded-t-lg border-t border-border-primary bg-surface-primary shadow-2xl"
+      className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[640px] flex-col rounded-t-2xl bg-surface-primary shadow-3"
     >
       {accessory && (
         <div
@@ -297,7 +299,7 @@ function MobileSheet({
 }
 
 const toggleButton =
-  'flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-surface-secondary'
+  'flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl text-text-secondary hover:bg-surface-secondary'
 
 function DesktopPanel({
   title,
@@ -356,7 +358,7 @@ function DesktopPanel({
       data-testid="task-side-panel"
       data-collapsed={!open}
       style={{ width: open ? width : COLLAPSED_WIDTH }}
-      className="relative flex h-full shrink-0 flex-col border-l border-border-primary bg-surface-primary"
+      className="relative flex h-full shrink-0 flex-col border-l border-border-primary bg-surface-primary shadow-1"
     >
       {open && (
         // biome-ignore lint/a11y/useSemanticElements: a focusable splitter needs button behaviour (pointer and key handling); the separator role carries the value
@@ -383,7 +385,7 @@ function DesktopPanel({
           onClick={() => setOpen((o) => !o)}
           className={`${toggleButton} ${open ? 'mt-2 ml-1' : 'mx-auto mt-2'}`}
         >
-          <span aria-hidden>{open ? '»' : '«'}</span>
+          <Icon icon={open ? CaretDoubleRight : CaretDoubleLeft} />
         </button>
         <div hidden={!open} className="min-w-0 flex-1">
           {accessory}
