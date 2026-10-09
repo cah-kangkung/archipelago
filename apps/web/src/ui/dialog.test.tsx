@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, test } from 'vitest'
@@ -42,5 +42,34 @@ describe('Dialog', () => {
     await user.click(screen.getByRole('button', { name: 'Edit island' }))
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  test('returns focus to the tapped opener, not a stale focused button', async () => {
+    const user = userEvent.setup()
+    function Two() {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <button type="button">B</button>
+          <button type="button" onClick={() => setOpen(true)}>
+            A
+          </button>
+          <Dialog open={open} onOpenChange={setOpen} title="T">
+            <input />
+          </Dialog>
+        </>
+      )
+    }
+    render(<Two />)
+    const a = screen.getByRole('button', { name: 'A' })
+    const b = screen.getByRole('button', { name: 'B' })
+    b.focus()
+    // A pointer tap that, like Safari, does not move focus to the tapped button.
+    fireEvent.pointerDown(a)
+    fireEvent.click(a)
+    await screen.findByRole('dialog')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(a).toHaveFocus()
   })
 })

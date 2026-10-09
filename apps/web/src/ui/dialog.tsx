@@ -1,6 +1,6 @@
 import { X } from '@phosphor-icons/react'
 import * as D from '@radix-ui/react-dialog'
-import { type ReactNode, useRef } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import { Icon } from './icon'
 
 /** A centred modal: focuses the first field, Escape and Close dismiss, focus returns (spec 25.1). */
@@ -19,6 +19,24 @@ export function Dialog({
 }) {
   const content = useRef<HTMLDivElement>(null)
   const opener = useRef<HTMLElement | null>(null)
+  const lastInteraction = useRef<HTMLElement | null>(null)
+  const isOpen = useRef(open)
+  isOpen.current = open
+
+  // Safari does not focus tapped buttons, so activeElement can be stale. Record the element the
+  // user actually pressed or typed on while the dialog is closed.
+  useEffect(() => {
+    const record = (event: Event) => {
+      if (isOpen.current || !(event.target instanceof Element)) return
+      lastInteraction.current = event.target.closest<HTMLElement>('button, a, [tabindex]')
+    }
+    document.addEventListener('pointerdown', record, true)
+    document.addEventListener('keydown', record, true)
+    return () => {
+      document.removeEventListener('pointerdown', record, true)
+      document.removeEventListener('keydown', record, true)
+    }
+  }, [])
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
@@ -29,15 +47,18 @@ export function Dialog({
           aria-describedby={undefined}
           onOpenAutoFocus={(event) => {
             // The dialog is controlled, with no Radix trigger, so remember the opener here.
-            opener.current = document.activeElement as HTMLElement | null
+            opener.current =
+              lastInteraction.current ?? (document.activeElement as HTMLElement | null)
             const field = content.current?.querySelector<HTMLElement>('input, textarea, select')
             if (!field) return
             event.preventDefault()
             field.focus()
           }}
           onCloseAutoFocus={(event) => {
+            const target = opener.current
+            if (!target?.isConnected || target === document.body) return
             event.preventDefault()
-            opener.current?.focus()
+            target.focus()
           }}
           className="fixed top-1/2 left-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-surface-primary p-6 shadow-3"
         >
