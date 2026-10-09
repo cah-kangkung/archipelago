@@ -5,6 +5,7 @@ import type { Focus } from '../world/selectors'
 import { AdaptiveQuality } from './adaptive-quality'
 import { CameraRig, ISO_DISTANCE } from './camera-rig'
 import { CloudDeck } from './cloud-deck'
+import { DistrictRing } from './district-ring'
 import { FogRig } from './fog-rig'
 import { Framing } from './framing'
 import { IndicatorProbe } from './indicator-probe'
@@ -58,6 +59,7 @@ export function WorldScene(props: WorldSceneProps) {
   const [cameraMoving, setCameraMoving] = useState(false)
   const [growing, setGrowing] = useState(false)
   const [clouding, setClouding] = useState(false)
+  const [ringing, setRinging] = useState(false)
   const cranes = useMemo(
     () => props.model.islands.some((i) => i.structures.some((s) => s.kind === 'crane')),
     [props.model],
@@ -73,6 +75,7 @@ export function WorldScene(props: WorldSceneProps) {
     life: seaWave && hasLife(props.life),
     growth: growing,
     clouds: clouding,
+    ring: ringing,
   })
   return (
     <Canvas
@@ -104,6 +107,12 @@ export function WorldScene(props: WorldSceneProps) {
         animate={animate}
         drifting={seaWave}
         onRunning={setClouding}
+      />
+      <DistrictRing
+        model={props.model}
+        focus={props.focus}
+        animate={animate}
+        onRunning={setRinging}
       />
       <Labels model={props.model} focus={props.focus} />
       <CameraRig

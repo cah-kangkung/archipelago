@@ -60,6 +60,7 @@ describe('tickerWanted', () => {
     life: false,
     growth: false,
     clouds: false,
+    ring: false,
   }
 
   test('runs while anything moves, each condition on its own', () => {
@@ -72,6 +73,7 @@ describe('tickerWanted', () => {
       'life',
       'growth',
       'clouds',
+      'ring',
     ] as const) {
       expect(tickerWanted({ ...still, [key]: true })).toBe(true)
     }
@@ -88,6 +90,7 @@ describe('tickerWanted', () => {
         life: true,
         growth: true,
         clouds: true,
+        ring: true,
       }),
     ).toBe(false)
   })

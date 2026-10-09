@@ -28,11 +28,14 @@ export type TickerDemand = {
   growth: boolean
   /** The cloud deck is fading or its hole sliding between layers (spec 23.3). */
   clouds: boolean
+  /** The district ring is drawing on or fading out (spec 24.5). */
+  ring: boolean
 }
 
 /** The ticker runs only while something moves (spec 16.4); otherwise frames come on change. */
 export function tickerWanted(d: TickerDemand): boolean {
   return (
-    d.animate && (d.seaWave || d.cranes || d.effects || d.camera || d.life || d.growth || d.clouds)
+    d.animate &&
+    (d.seaWave || d.cranes || d.effects || d.camera || d.life || d.growth || d.clouds || d.ring)
   )
 }

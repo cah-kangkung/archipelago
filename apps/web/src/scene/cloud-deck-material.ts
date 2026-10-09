@@ -18,7 +18,7 @@ export const CLOUD_DECK_RENDER_ORDER = 10
 
 // A ShaderMaterial without `colorspace_fragment` writes gl_FragColor unconverted, so the sRGB value
 // goes straight through.
-const rgb = (hex: string) =>
+export const shaderColor = (hex: string) =>
   new THREE.Vector3(...[1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255))
 
 const glsl = (n: number) => n.toFixed(4)
@@ -33,7 +33,7 @@ export const cloudDeckUniforms = {
   uThreshold: { value: CLOUD_THRESHOLD },
   /** The drift in world units along (1, 1), wrapped: see `driftWrap`. */
   uDrift: { value: new THREE.Vector2(0, 0) },
-  uColor: { value: rgb(scenePalette.cloud) },
+  uColor: { value: shaderColor(scenePalette.cloud) },
 }
 
 const VERTEX = `varying vec2 vWorldXZ;
