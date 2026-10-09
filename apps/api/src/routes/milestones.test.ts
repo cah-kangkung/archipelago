@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { MilestoneDto, ProjectDto } from '@archipelago/shared'
-import { hexDistance, hexKey } from '@archipelago/shared'
+import { DISTRICT_SPACING, hexDistance, hexKey, islandLand, islandSize } from '@archipelago/shared'
 import { eq } from 'drizzle-orm'
 import { authedApp, readJson } from '../../test/auth'
 import { withRollback } from '../../test/db'
@@ -22,9 +22,9 @@ async function setup(tx: Db) {
 }
 
 describe('POST /projects/:id/milestones', () => {
-  test('places districts 5 hexes from the commons, cycling landmarks and sort order', async () => {
+  test('places districts on the lattice and the island land, cycling landmarks and sort order', async () => {
     await withRollback(async (tx) => {
-      const { addMilestone } = await setup(tx)
+      const { project, addMilestone } = await setup(tx)
       const created: MilestoneDto[] = []
       for (const name of ['M1', 'M2', 'M3', 'M4', 'M5', 'M6'])
         created.push(await addMilestone(name))
@@ -39,7 +39,14 @@ describe('POST /projects/:id/milestones', () => {
       ])
       expect(created.map((m) => m.sortOrder)).toEqual([0, 1, 2, 3, 4, 5])
       const centres = created.map((m) => ({ q: m.districtQ, r: m.districtR }))
-      for (const c of centres) expect(hexDistance(c, origin)).toBe(5)
+      for (const c of centres) {
+        expect(
+          Math.abs(c.q % DISTRICT_SPACING) === 0 && Math.abs(c.r % DISTRICT_SPACING) === 0,
+        ).toBe(true)
+      }
+      const seed = project.islandSeed
+      const interior = islandLand(seed, islandSize(seed, centres)).interior
+      for (const c of centres) expect(interior.has(hexKey(c))).toBe(true)
       expect(new Set(centres.map(hexKey)).size).toBe(6)
       expect(created[0]?.completedAt).toBeNull()
     })

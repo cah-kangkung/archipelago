@@ -21,8 +21,8 @@ import { buildSceneModel } from './scene-model'
 import { toScreen } from './screen'
 
 const today = '2026-10-08'
-const beta = fakeProject({ name: 'Beta', archipelagoX: 0, archipelagoY: 0 })
-const gamma = fakeProject({ name: 'Gamma', archipelagoX: 1, archipelagoY: 0 })
+const beta = fakeProject({ name: 'Beta', archipelagoX: 0, archipelagoY: 0, islandSeed: 8 })
+const gamma = fakeProject({ name: 'Gamma', archipelagoX: 1, archipelagoY: 0, islandSeed: 8 })
 const mvp = fakeMilestone({ projectId: beta.id, districtQ: 5, districtR: 0 })
 const empty = fakeMilestone({ projectId: beta.id, districtQ: -5, districtR: 5 })
 const inMvp = [

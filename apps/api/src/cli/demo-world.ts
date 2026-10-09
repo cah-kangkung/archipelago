@@ -6,9 +6,11 @@ import {
   SHOP_ITEMS,
   type TaskSize,
 } from '@archipelago/shared'
+import { eq } from 'drizzle-orm'
 import { seedUser } from '../auth/seed-user'
 import { placeBuilding } from '../buildings/service'
 import type { Db } from '../db/client'
+import { projects } from '../db/schema'
 import { getBalance } from '../economy/ledger'
 import { claimDailyBonus } from '../economy/service'
 import { createMilestone } from '../milestones/service'
@@ -228,19 +230,43 @@ async function buildIslands(db: Db, user: AuthUser, islands: IslandSpec[], clock
   return { projectIds, decorate, archive }
 }
 
-/** Buys each decoration on a spread-out free plot of its island. */
+async function islandSeedOf(db: Db, projectId: string): Promise<number> {
+  const [row] = await db
+    .select({ islandSeed: projects.islandSeed })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+  if (!row) throw new Error(`no project ${projectId}`)
+  return row.islandSeed
+}
+
+type Island = { projectId: string; seed: number }
+
+async function islandOf(db: Db, projectId: string): Promise<Island> {
+  return { projectId, seed: await islandSeedOf(db, projectId) }
+}
+
+/**
+ * Buys each decoration on a spread-out free plot of the first island that has room. A decoration
+ * never grows its island, so a well-filled island hands the rest on to the next one in `islands`.
+ */
 async function placeDecorations(
   db: Db,
   userId: string,
-  projectId: string,
+  islands: Island[],
   types: DecorationType[],
   at: Date,
 ) {
   for (const [i, type] of types.entries()) {
-    const plots = placeablePlots(await occupiedHexes(db, projectId))
-    const plot = plots[(i * 7) % plots.length]
-    if (!plot) throw new Error(`no free plot for ${type}`)
-    await placeBuilding(db, userId, { projectId, type, plotX: plot.q, plotY: plot.r }, at)
+    let placed = false
+    for (const { projectId, seed } of islands) {
+      const plots = placeablePlots(seed, await occupiedHexes(db, projectId))
+      const plot = plots[(i * 7) % plots.length]
+      if (!plot) continue
+      await placeBuilding(db, userId, { projectId, type, plotX: plot.q, plotY: plot.r }, at)
+      placed = true
+      break
+    }
+    if (!placed) throw new Error(`no free plot for ${type}`)
   }
 }
 
@@ -262,21 +288,29 @@ export async function seedDemoWorld(db: Db, now: Date): Promise<void> {
   const demo = await account(db, DEMO_ACCOUNTS.demo)
   const built = await buildIslands(db, demo, DEMO_ISLANDS, clock)
   for (const d of [7, 6, 5, 4, 3, 2, 1]) await claimDailyBonus(db, demo, clock.at(d, 8))
-  for (const d of built.decorate)
-    await placeDecorations(db, demo.id, d.projectId, d.types, clock.at(0, 5))
+  const demoIslands = await Promise.all(built.projectIds.map((id) => islandOf(db, id)))
+  for (const d of built.decorate) {
+    const own = demoIslands.filter((i) => i.projectId === d.projectId)
+    const others = demoIslands.filter((i) => i.projectId !== d.projectId)
+    await placeDecorations(db, demo.id, [...own, ...others], d.types, clock.at(0, 5))
+  }
   for (const id of built.archive)
     await updateProject(db, demo.id, id, { archived: true }, clock.at(0, 4))
 
   const lapsed = await account(db, DEMO_ACCOUNTS.lapsed)
-  const [questId] = (await buildIslands(db, lapsed, LAPSED_ISLANDS, clock)).projectIds
+  const lapsedIslands = await Promise.all(
+    (await buildIslands(db, lapsed, LAPSED_ISLANDS, clock)).projectIds.map((id) =>
+      islandOf(db, id),
+    ),
+  )
   for (const d of [2, 0]) await claimDailyBonus(db, lapsed, clock.at(d, 8))
   // Spend down to below the cheapest item: the shop shows everything unaffordable.
   const cheapest = Math.min(...SHOP_ITEMS.map((item) => item.price))
-  while (questId && (await getBalance(db, lapsed.id)) >= cheapest) {
+  while (lapsedIslands.length > 0 && (await getBalance(db, lapsed.id)) >= cheapest) {
     const balance = await getBalance(db, lapsed.id)
     const item = [...SHOP_ITEMS].reverse().find((s) => s.price <= balance)
     if (!item) break
-    await placeDecorations(db, lapsed.id, questId, [item.type], clock.at(0, 3))
+    await placeDecorations(db, lapsed.id, lapsedIslands, [item.type], clock.at(0, 3))
   }
 
   await account(db, DEMO_ACCOUNTS.empty)

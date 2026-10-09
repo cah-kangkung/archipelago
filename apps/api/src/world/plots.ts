@@ -1,10 +1,4 @@
-import {
-  COMMONS_CENTER,
-  type Hex,
-  hexKey,
-  nearestFreePlot,
-  seedDirection,
-} from '@archipelago/shared'
+import { COMMONS_CENTER, type Hex, nearestFreePlot, seedDirection } from '@archipelago/shared'
 import { and, eq } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { buildings, milestones, projects, tasks } from '../db/schema'
@@ -55,20 +49,14 @@ export async function occupiedHexes(tx: Db, projectId: string): Promise<Hex[]> {
   return [...taskPlots, ...buildingPlots, ...centres]
 }
 
-export async function takenPlots(tx: Db, projectId: string): Promise<Set<string>> {
-  const taken = new Set((await occupiedHexes(tx, projectId)).map(hexKey))
-  taken.add(hexKey(COMMONS_CENTER))
-  return taken
-}
-
 export async function assignTaskPlot(
   tx: Db,
   project: ProjectRow,
   milestone: MilestoneRow | null,
 ): Promise<Hex> {
-  const taken = await takenPlots(tx, project.id)
+  const occupied = await occupiedHexes(tx, project.id)
   const centre = milestone ? { q: milestone.districtQ, r: milestone.districtR } : COMMONS_CENTER
-  return nearestFreePlot(centre, seedDirection(project.islandSeed), (h) => taken.has(hexKey(h)))
+  return nearestFreePlot(project.islandSeed, centre, seedDirection(project.islandSeed), occupied)
 }
 
 /** A milestone is complete iff it has at least one task and every task is done. */

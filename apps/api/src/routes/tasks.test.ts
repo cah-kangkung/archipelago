@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { ErrorBody, MilestoneDto, ProjectDto, TaskDto } from '@archipelago/shared'
-import { hexDistance, hexKey } from '@archipelago/shared'
+import { DISTRICT_SPACING, hexDistance, hexKey, islandLand, islandSize } from '@archipelago/shared'
 import { eq } from 'drizzle-orm'
 import { authedApp, readJson } from '../../test/auth'
 import { withRollback } from '../../test/db'
@@ -52,17 +52,21 @@ describe('POST /tasks', () => {
     })
   })
 
-  test('tasks fill ring 1 around their district before ring 2, never the centre', async () => {
+  test('tasks gather around their district, on interior land, never the centre', async () => {
     await withRollback(async (tx) => {
-      const { milestone, addTask } = await setup(tx)
+      const { project, milestone, addTask } = await setup(tx)
       const centre = { q: milestone.districtQ, r: milestone.districtR }
       const created: TaskDto[] = []
       for (let i = 0; i < 7; i++)
         created.push(await addTask({ title: `T${i}`, milestoneId: milestone.id }))
       const plots = created.map((t) => ({ q: t.plotX, r: t.plotY }))
       expect(new Set(plots.map(hexKey)).size).toBe(7)
-      for (const p of plots.slice(0, 6)) expect(hexDistance(p, centre)).toBe(1)
-      expect(hexDistance(plots[6] ?? centre, centre)).toBe(2)
+      expect(plots.map(hexKey)).not.toContain(hexKey(centre))
+      const seed = project.islandSeed
+      const interior = islandLand(seed, islandSize(seed, [centre, ...plots])).interior
+      for (const p of plots) expect(interior.has(hexKey(p))).toBe(true)
+      expect(Math.min(...plots.map((p) => hexDistance(p, centre)))).toBe(1)
+      for (const p of plots) expect(hexDistance(p, centre)).toBeLessThanOrEqual(DISTRICT_SPACING)
     })
   })
 
@@ -105,7 +109,12 @@ describe('POST /tasks', () => {
   test('adding a todo task to a completed milestone reopens it', async () => {
     await withRollback(async (tx) => {
       const { project, milestone, addTask } = await setup(tx)
-      await insertTask(tx, project.id, { milestoneId: milestone.id, status: 'done' })
+      await insertTask(tx, project.id, {
+        milestoneId: milestone.id,
+        status: 'done',
+        plotX: milestone.districtQ + 1,
+        plotY: milestone.districtR,
+      })
       await tx
         .update(milestones)
         .set({ completedAt: new Date() })
@@ -236,7 +245,12 @@ describe('PATCH /tasks/:id', () => {
     await withRollback(async (tx) => {
       const { me, project, milestone, newMilestone, addTask } = await setup(tx)
       const other = await newMilestone(project.id, 'Launch')
-      await insertTask(tx, project.id, { milestoneId: milestone.id, status: 'done' })
+      await insertTask(tx, project.id, {
+        milestoneId: milestone.id,
+        status: 'done',
+        plotX: milestone.districtQ + 1,
+        plotY: milestone.districtR,
+      })
       const open = await addTask({ title: 'Leaver', milestoneId: milestone.id })
       const res = await me.patch(`${TASKS}/${open.id}`, { milestoneId: other.id })
       expect(res.status).toBe(200)
@@ -263,7 +277,12 @@ describe('DELETE /tasks/:id', () => {
   test('deletes the task and re-evaluates its milestone', async () => {
     await withRollback(async (tx) => {
       const { me, project, milestone, addTask } = await setup(tx)
-      await insertTask(tx, project.id, { milestoneId: milestone.id, status: 'done' })
+      await insertTask(tx, project.id, {
+        milestoneId: milestone.id,
+        status: 'done',
+        plotX: milestone.districtQ + 1,
+        plotY: milestone.districtR,
+      })
       const open = await addTask({ title: 'Last open one', milestoneId: milestone.id })
       expect((await me.del(`${TASKS}/${open.id}`)).status).toBe(204)
       expect(await tx.select().from(tasks).where(eq(tasks.id, open.id))).toHaveLength(0)

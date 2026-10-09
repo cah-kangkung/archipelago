@@ -78,7 +78,7 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
     const tasks = world.tasks.filter((t) => t.projectId === project.id)
     const buildings = world.buildings.filter((b) => b.projectId === project.id)
     const occupied = islandOccupied(world, project.id)
-    const radius = islandRadius(occupied)
+    const radius = islandRadius(project.islandSeed, occupied)
     const stage = stageFor(tasks.filter((t) => t.status === 'done').length)
     const paths = pathHexes(
       milestones

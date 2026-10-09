@@ -3,6 +3,8 @@ import {
   hexDistance,
   hexKey,
   hexRing,
+  islandLand,
+  islandSize,
   nextArchipelagoSlot,
   type WorldDto,
 } from '@archipelago/shared'
@@ -128,7 +130,15 @@ describe('buildSceneModel', () => {
     ).islands
     expect(island?.name).toBe('Beta')
     expect(island?.seed).toBe(9)
-    expect(island?.radius).toBe(7)
+    expect(island?.radius).toBe(
+      islandLand(
+        9,
+        islandSize(9, [
+          { q: 5, r: 0 },
+          { q: 4, r: 1 },
+        ]),
+      ).radius,
+    )
     expect(island?.origin).toEqual({ x: 0, z: 0 })
     expect(island?.districts).toEqual([
       {
@@ -326,7 +336,9 @@ describe('decorations', () => {
     const beta = fakeProject()
     const edge = fakeBuilding({ projectId: beta.id, type: 'tree', plotX: 5, plotY: -1 })
     const model = buildSceneModel(world({ projects: [beta], buildings: [edge] }), today)
-    expect(model.islands[0]?.radius).toBe(7)
+    expect(model.islands[0]?.radius).toBe(
+      islandLand(beta.islandSeed, islandSize(beta.islandSeed, [{ q: 5, r: -1 }])).radius,
+    )
   })
 })
 

@@ -6,7 +6,15 @@ import type {
   ShopItemDto,
   WorldDto,
 } from '@archipelago/shared'
-import { SHOP_ITEMS } from '@archipelago/shared'
+import {
+  type Hex,
+  hexDistance,
+  hexKey,
+  islandLand,
+  islandSize,
+  placeablePlots,
+  SHOP_ITEMS,
+} from '@archipelago/shared'
 import { and, eq } from 'drizzle-orm'
 import { authedApp, readJson } from '../../test/auth'
 import { testDb, withRollback } from '../../test/db'
@@ -122,11 +130,14 @@ describe('POST /buildings', () => {
   test('422 for unknown types and plots that are not free flat land', async () => {
     await withRollback(async (tx) => {
       const s = await setup(tx)
+      const seed = s.project.islandSeed
+      const { land, interior } = islandLand(seed, islandSize(seed, []))
+      const shore = land.find((h) => !interior.has(hexKey(h))) as Hex
       for (const body of [
         { type: 'tree' },
         { plotX: 0, plotY: 0 }, // commons centre
-        { plotX: 3, plotY: 0 }, // shore of a radius-4 island
-        { plotX: 9, plotY: 0 }, // open sea
+        { plotX: shore.q, plotY: shore.r }, // shore of this island
+        { plotX: 90, plotY: 0 }, // open sea
       ]) {
         const res = await s.place(body)
         expect(res.status).toBe(422)
@@ -172,10 +183,14 @@ describe('POST /buildings', () => {
   test('a decoration at the interior edge keeps the island when its task is deleted', async () => {
     await withRollback(async (tx) => {
       const s = await setup(tx)
-      const task = await insertTask(tx, s.project.id, { plotX: 5, plotY: 0 })
-      expect((await s.place({ plotX: 5, plotY: -1 })).status).toBe(201)
+      const seed = s.project.islandSeed
+      const far = placeablePlots(seed, []).at(-1) as Hex
+      const task = await insertTask(tx, s.project.id, { plotX: far.q, plotY: far.r })
+      const neighbour = placeablePlots(seed, [far]).find((h) => hexDistance(h, far) === 1) as Hex
+      expect((await s.place({ plotX: neighbour.q, plotY: neighbour.r })).status).toBe(201)
       expect((await s.me.del(`/api/v1/tasks/${task.id}`)).status).toBe(204)
-      expect((await s.place({ plotX: 5, plotY: -2 })).status).toBe(201)
+      const next = placeablePlots(seed, [neighbour])[0] as Hex
+      expect((await s.place({ plotX: next.q, plotY: next.r })).status).toBe(201)
     })
   })
 

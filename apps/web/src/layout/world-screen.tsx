@@ -90,19 +90,17 @@ export function WorldScreen() {
 
   const resolvedMilestoneId = resolved?.milestone?.id
   // Only the current layer's plots (spec 20.4): the shop, the ghost and the scene share one list.
-  const plots = useMemo(
-    () =>
-      world.data && resolvedProjectId
-        ? plotsInLayer(
-            world.data,
-            resolvedMilestoneId
-              ? { kind: 'district', projectId: resolvedProjectId, milestoneId: resolvedMilestoneId }
-              : { kind: 'island', projectId: resolvedProjectId },
-            placeablePlots(islandOccupied(world.data, resolvedProjectId)),
-          )
-        : [],
-    [world.data, resolvedProjectId, resolvedMilestoneId],
-  )
+  const plots = useMemo(() => {
+    if (!world.data || !resolvedProjectId) return []
+    const seed = world.data.projects.find((p) => p.id === resolvedProjectId)?.islandSeed
+    return plotsInLayer(
+      world.data,
+      resolvedMilestoneId
+        ? { kind: 'district', projectId: resolvedProjectId, milestoneId: resolvedMilestoneId }
+        : { kind: 'island', projectId: resolvedProjectId },
+      seed === undefined ? [] : placeablePlots(seed, islandOccupied(world.data, resolvedProjectId)),
+    )
+  }, [world.data, resolvedProjectId, resolvedMilestoneId])
   // Placement belongs to the island it started on; until the route-change reset lands, another
   // island shows none.
   const activePlacing = placing && placing.projectId === resolvedProjectId ? placing : null

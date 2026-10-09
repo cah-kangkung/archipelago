@@ -23,7 +23,7 @@ const world: WorldDto = {
   buildings: [],
   economy: quietEconomy,
 }
-const plots: Hex[] = placeablePlots(islandOccupied(world, beta.id))
+const plots: Hex[] = placeablePlots(beta.islandSeed, islandOccupied(world, beta.id))
 const model = buildSceneModel(world, '2026-10-08')
 const island = model.islands[0]
 if (!island) throw new Error('no island')
@@ -35,7 +35,7 @@ describe('plotsInLayer', () => {
   })
 
   test('a district keeps exactly the plots inside its layer area', () => {
-    expect(islandRadius(islandOccupied(world, beta.id))).toBeGreaterThan(0)
+    expect(islandRadius(beta.islandSeed, islandOccupied(world, beta.id))).toBeGreaterThan(0)
     const focus = { kind: 'district', projectId: beta.id, milestoneId: mvp.id } as const
     const area = layerArea(model, focus)
     if (!area) throw new Error('no area')

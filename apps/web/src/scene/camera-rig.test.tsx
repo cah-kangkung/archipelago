@@ -27,8 +27,8 @@ const economy: WorldDto['economy'] = {
   streak: { days: 0, activeToday: false, next: null },
   daily: { amount: 15, claimedToday: false },
 }
-const beta = fakeProject({ name: 'Beta', archipelagoX: 0, archipelagoY: 0 })
-const gamma = fakeProject({ name: 'Gamma', archipelagoX: 3, archipelagoY: 0 })
+const beta = fakeProject({ name: 'Beta', archipelagoX: 0, archipelagoY: 0, islandSeed: 21 })
+const gamma = fakeProject({ name: 'Gamma', archipelagoX: 3, archipelagoY: 0, islandSeed: 21 })
 const worldOf = (projects: WorldDto['projects']): WorldDto => ({
   projects,
   milestones: [],
@@ -39,7 +39,7 @@ const worldOf = (projects: WorldDto['projects']): WorldDto => ({
 const both = buildSceneModel(worldOf([beta, gamma]), today)
 const archipelago: Focus = { kind: 'archipelago' }
 const onGamma: Focus = { kind: 'island', projectId: gamma.id }
-const delta = fakeProject({ name: 'Delta', archipelagoX: 0, archipelagoY: 3 })
+const delta = fakeProject({ name: 'Delta', archipelagoX: 0, archipelagoY: 3, islandSeed: 21 })
 const tall = buildSceneModel(worldOf([beta, delta]), today)
 const onBeta: Focus = { kind: 'island', projectId: beta.id }
 const onDelta: Focus = { kind: 'island', projectId: delta.id }

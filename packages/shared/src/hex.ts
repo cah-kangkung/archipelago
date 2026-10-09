@@ -49,32 +49,11 @@ export function* hexSpiral(center: Hex, startDirection = 0): Generator<Hex> {
   }
 }
 
-export function nextDistrictCenter(taken: ReadonlySet<string>): Hex {
-  for (const unit of hexSpiral(COMMONS_CENTER)) {
-    if (unit.q === 0 && unit.r === 0) continue
-    const centre = hexScale(unit, DISTRICT_SPACING)
-    if (!taken.has(hexKey(centre))) return centre
-  }
-  throw new Error('No free district centre')
-}
-
 export function nextArchipelagoSlot(taken: ReadonlySet<string>): Hex {
   for (const slot of hexSpiral({ q: 0, r: 0 })) {
     if (!taken.has(hexKey(slot))) return slot
   }
   throw new Error('No free archipelago slot')
-}
-
-export function nearestFreePlot(
-  center: Hex,
-  startDirection: number,
-  isTaken: (h: Hex) => boolean,
-): Hex {
-  for (const hex of hexSpiral(center, startDirection)) {
-    if (hex.q === center.q && hex.r === center.r) continue
-    if (!isTaken(hex)) return hex
-  }
-  throw new Error('No free plot near district centre')
 }
 
 export const seedDirection = (seed: number): number => mod(seed, 6)

@@ -10,7 +10,7 @@ import type { Db } from '../db/client'
 import { milestones, projects, tasks } from '../db/schema'
 import { AppError } from '../errors'
 import { toMilestoneDto } from '../http/serialize'
-import { assignTaskPlot, lockOwnedProject, type MilestoneRow, takenPlots } from '../world/plots'
+import { assignTaskPlot, lockOwnedProject, type MilestoneRow, occupiedHexes } from '../world/plots'
 
 const notFound = () => new AppError('not_found', 'Milestone not found')
 
@@ -43,7 +43,7 @@ export async function createMilestone(
         .where(eq(milestones.projectId, projectId))
     ).length
     // Avoid every occupied hex, not only other centres, so a centre never lands on a task.
-    const centre = nextDistrictCenter(await takenPlots(tx, projectId))
+    const centre = nextDistrictCenter(project.islandSeed, await occupiedHexes(tx, projectId))
     const [row] = await tx
       .insert(milestones)
       .values({

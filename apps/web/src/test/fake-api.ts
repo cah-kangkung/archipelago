@@ -360,7 +360,7 @@ export function createFakeApi(seed: Partial<FakeState> = {}) {
       if (occupied.some((h) => h.q === plot.q && h.r === plot.r)) {
         throw new ApiError(409, 'conflict', 'That plot is taken')
       }
-      if (!isPlaceable(occupied, plot)) {
+      if (!isPlaceable(project.islandSeed, occupied, plot)) {
         throw new ApiError(422, 'validation_failed', 'Request body is invalid', {
           plot: ['Plot is not free land on this island'],
         })

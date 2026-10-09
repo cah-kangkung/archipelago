@@ -1,21 +1,20 @@
 import { describe, expect, test } from 'bun:test'
-import { hexDistance, hexKey } from '@archipelago/shared'
+import {
+  hexDistance,
+  hexKey,
+  islandLand,
+  islandSize,
+  nextDistrictCenter,
+} from '@archipelago/shared'
 import { eq } from 'drizzle-orm'
 import { withRollback } from '../../test/db'
-import {
-  insertBuilding,
-  insertMilestone,
-  insertProject,
-  insertTask,
-  insertUser,
-} from '../../test/fixtures'
+import { insertMilestone, insertProject, insertTask, insertUser } from '../../test/fixtures'
 import { milestones } from '../db/schema'
 import {
   assignTaskPlot,
   findMilestoneInProject,
   lockOwnedProject,
   syncMilestoneCompletion,
-  takenPlots,
 } from './plots'
 
 describe('lockOwnedProject / findMilestoneInProject', () => {
@@ -34,30 +33,25 @@ describe('lockOwnedProject / findMilestoneInProject', () => {
   })
 })
 
-describe('takenPlots', () => {
-  test('includes tasks, buildings, district centres and the commons centre', async () => {
-    await withRollback(async (tx) => {
-      const user = await insertUser(tx)
-      const project = await insertProject(tx, user.id)
-      await insertMilestone(tx, project.id, { districtQ: 5, districtR: 0 })
-      await insertTask(tx, project.id, { plotX: 1, plotY: 0 })
-      await insertBuilding(tx, project.id, { plotX: 0, plotY: 1 })
-      const taken = await takenPlots(tx, project.id)
-      for (const key of ['0,0', '5,0', '1,0', '0,1']) expect(taken.has(key)).toBe(true)
-    })
-  })
-})
-
 describe('assignTaskPlot', () => {
   test('loose tasks go next to the commons centre, milestone tasks next to their district', async () => {
     await withRollback(async (tx) => {
       const user = await insertUser(tx)
       const project = await insertProject(tx, user.id, { islandSeed: 3 })
-      const milestone = await insertMilestone(tx, project.id, { districtQ: -5, districtR: 5 })
+      const centre = nextDistrictCenter(project.islandSeed, [])
+      const milestone = await insertMilestone(tx, project.id, {
+        districtQ: centre.q,
+        districtR: centre.r,
+      })
       const loose = await assignTaskPlot(tx, project, null)
       const inDistrict = await assignTaskPlot(tx, project, milestone)
       expect(hexDistance(loose, { q: 0, r: 0 })).toBe(1)
-      expect(hexDistance(inDistrict, { q: -5, r: 5 })).toBe(1)
+      expect(hexDistance(inDistrict, centre)).toBeLessThanOrEqual(2)
+      const { interior } = islandLand(
+        project.islandSeed,
+        islandSize(project.islandSeed, [centre, inDistrict]),
+      )
+      expect(interior.has(hexKey(inDistrict))).toBe(true)
     })
   })
 

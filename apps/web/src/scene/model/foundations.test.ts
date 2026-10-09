@@ -1,4 +1,11 @@
-import { type Hex, hexDistance, hexKey, islandRadius } from '@archipelago/shared'
+import {
+  type Hex,
+  hexDistance,
+  hexKey,
+  islandLand,
+  islandRadius,
+  islandSize,
+} from '@archipelago/shared'
 import { colors } from '@archipelago/ui-tokens'
 import { describe, expect, test } from 'vitest'
 import { HILL_MAX, HILL_STEP } from '../tuning'
@@ -78,11 +85,13 @@ describe('palette', () => {
 })
 
 describe('islandRadius', () => {
-  test('is at least 4 and keeps two shore rings beyond the furthest occupied hex', () => {
-    expect(islandRadius([])).toBe(4)
-    expect(islandRadius([{ q: 1, r: 0 }])).toBe(4)
-    expect(islandRadius([{ q: 5, r: 0 }])).toBe(7)
-    expect(islandRadius([{ q: -10, r: 5 }])).toBe(12)
+  test('is the enclosing ring of the island land at its current size', () => {
+    const seed = 1
+    for (const occupied of [[], [{ q: 1, r: 0 }], [{ q: 5, r: 0 }], [{ q: -10, r: 5 }]]) {
+      const { radius, interior } = islandLand(seed, islandSize(seed, occupied))
+      expect(islandRadius(seed, occupied)).toBe(radius)
+      for (const h of occupied) expect(interior.has(hexKey(h))).toBe(true)
+    }
   })
 })
 

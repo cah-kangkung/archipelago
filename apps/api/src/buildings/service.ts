@@ -43,7 +43,7 @@ export async function placeBuilding(
       const plot = { q: input.plotX, r: input.plotY }
       const occupied = await occupiedHexes(tx, project.id)
       if (occupied.some((h) => hexKey(h) === hexKey(plot))) throw plotTaken()
-      if (!isPlaceable(occupied, plot)) throw notLand()
+      if (!isPlaceable(project.islandSeed, occupied, plot)) throw notLand()
 
       await lockUser(tx, userId)
       const balance = await getBalance(tx, userId)
