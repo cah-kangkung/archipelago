@@ -1111,6 +1111,8 @@ Phase 5h replaces 21's in-scene cloud ring with a cloud frame drawn over the cam
 
 ## 23. Phase 5h Revision: Cloud Deck (approved 2026-10-09)
 
+> **Revised by 23.7** (a veil on the archipelago and island layers, a hole only in a district, and a more spread-out, random pattern). Where 23.1–23.6 disagree with 23.7, 23.7 wins.
+
 The owner wanted the cloud to stay with the world instead of the camera. The screen-space frame of 22.2–22.6 is replaced by a cloud deck: one flat cloud layer over the world with a hole in the shape of the current layer. Panning and zooming move it with the tiles. It is in the scene again, but as a single textured plane, not puffs. Where it disagrees with section 22, this section wins. 22.1 (ring removed) and 22.7 (haze removed) stand. No API or DTO change.
 
 ### 23.1 The hole (`scene/model/cloud-deck.ts`, pure)
@@ -1153,3 +1155,41 @@ The owner wanted the cloud to stay with the world instead of the camera. The scr
 - Removal: nothing references `CloudFrame`, `cloud-texture`, `CLOUD_FRAME_` or `cloud-drift`.
 - Preview: the controller renders the deck over a real screenshot before calling it done.
 - Owner's check: `bun run seed:demo`; archipelago → island → district → pan; the cloud stays with the world; `?perf` one more draw call and no tier drop.
+
+### 23.7 Revision: veil, district-only hole, spread (approved 2026-10-09)
+
+The owner wanted cloud on every layer and a less regular pattern.
+
+**Layers.**
+- **Archipelago and island:** a veil, the deck at `CLOUD_VEIL` (0.4) strength with no hole, over everything, islands included. Archipelago ↔ island changes nothing.
+- **District:** full strength (1) with a hole: the district's rounded box (`layerArea`). The island hole of 23.1 (land + shallows, `SHALLOWS_MARGIN`) is dropped.
+- A district whose milestone is unknown falls back to its island, so it shows the veil.
+
+**Model (`scene/model/cloud-deck.ts`).**
+- `deckHole(model, focus): Area | null` returns `layerArea` only when the focus resolves to a district (its area differs from the island's), else `null`. `growArea` is no longer used by the deck and is removed with its test.
+- `closeHole(area: Area): Area` collapses the box to its centre with `round = -CLOUD_DECK_FEATHER`: the signed distance is then at least the feather everywhere, so the hole shows nothing. `isOpen(d: Deck)` is true when `d.hole` is set and its round is above `-CLOUD_DECK_FEATHER`.
+- `deckFor(hole)`: `{ hole, strength: 1 }` with a hole, else `VEIL = { hole: null, strength: CLOUD_VEIL }`. `DECK_OFF` stays only as the pre-mount value.
+- `deckLeg(current, target)`:
+  - to the veil from an open hole: `to = { hole: closeHole(current.hole), strength: CLOUD_VEIL }` (the hole closes in place as the cloud thins);
+  - to a hole from no open hole: `from = { hole: closeHole(target.hole), strength: current.strength }` (the hole opens from the district's centre as the cloud thickens);
+  - hole to hole: slide at full strength, as before;
+  - veil to veil: `{ from: current, to: target }`.
+- `sameDeck(a, b)`: equal strength, and either neither is open or both holes have the same `areaKey`.
+- The drift no longer wraps in the model (several layers at different scales and rotations share no common period). `driftStep(along, seconds)` returns `along + seconds · CLOUD_DECK_DRIFT` (unbounded; JS doubles keep it exact for any session), and `layerOffset(along, scale, rotation?)` returns the fractional texture offset `fract(R · (along, along) / scale)` for one layer, so each layer's uniform stays in [0, 1).
+
+**Texture.** Two channels (`RGFormat`): R = `wispAlpha(cloudNoise(CLOUD_TEXTURE_SIZE, CLOUD_TEXTURE_SEED), CLOUD_WISP_LO, CLOUD_WISP_HI)` (the wisps), G = `cloudNoise(CLOUD_TEXTURE_SIZE, CLOUD_COVER_SEED)` (raw noise for the warp and the coverage).
+
+**Fragment.** At world `p` (x/z):
+- warp: `w2 = (G(p / CLOUD_DECK_WARP_SCALE + uWarpOff), G(p / CLOUD_DECK_WARP_SCALE + (0.5, 0.21) + uWarpOff)) − 0.5`; `q = p + w2 · CLOUD_DECK_WARP`;
+- layer A: `a = R(q / CLOUD_DECK_TILE + uOffA)`; layer B, rotated by `R1 = [[0.8, −0.6], [0.6, 0.8]]`: `b = R(R1 · q / CLOUD_DECK_TILE_B + (0.37, 0.71) + uOffB)`; `wisp = 0.85 · max(a, b) + 0.15 · min(a, b)`;
+- coverage, rotated by `R2 = [[0.28, 0.96], [−0.96, 0.28]]`: `cov = G(R2 · p / CLOUD_DECK_COVER_SCALE + uOffCover)`; `wisp *= smoothstep(CLOUD_DECK_COVER_LO, CLOUD_DECK_COVER_HI, cov)`;
+- alpha = `wisp · edge · uOpacity` as before. The scales, warp and rotations are compile-time constants written from the tuning; `uTile` and `uOffset` are replaced by `uOffA`, `uOffB`, `uOffCover`, `uWarpOff` (vec2 each, from `layerOffset`). With no open hole, `writeDeck` sets `uRound = -CLOUD_DECK_FEATHER` (box left as it is), so the whole deck shows.
+- The mesh is visible whenever strength > 0, so the veil draws on the archipelago and island layers; the full-screen pass there is accepted.
+
+**Tuning.** `CLOUD_VEIL` 0.4; `CLOUD_DECK_TILE` 22 (was 12); `CLOUD_DECK_TILE_B` 37; `CLOUD_DECK_WARP` 10; `CLOUD_DECK_WARP_SCALE` 45; `CLOUD_DECK_COVER_SCALE` 140; `CLOUD_DECK_COVER_LO` 0.45; `CLOUD_DECK_COVER_HI` 0.7; `CLOUD_COVER_SEED` 11. Unchanged: `CLOUD_DECK_ALPHA` 0.85, `CLOUD_DECK_FEATHER`, `CLOUD_DECK_DRIFT` 0.2, `CLOUD_MS` 600. The look ("X") was previewed over real screenshots first.
+
+**Testing.**
+- Model: `deckHole` null on the archipelago and an island, the district box in a district, null for an unknown milestone; `closeHole` gives a distance of at least the feather everywhere (checked with `areaDistance` at the centre and far away); legs island → district (opens from the centre, strength veil → 1), district → island (closes in place, strength → veil), district → district (slides), archipelago ↔ island (same deck, nothing runs); `sameDeck` treats a closed hole as no hole; `driftStep` is linear; `layerOffset` stays in [0, 1) for large `along` and matches `fract` of the rotated offset.
+- Material: the texture is `RGFormat` with R = wisps and G = raw cover noise; the fragment contains the two layers, the warp and the coverage terms with the tuning constants; `writeDeck` with no hole sets `uRound` to `-CLOUD_DECK_FEATHER` and opacity `CLOUD_DECK_ALPHA · CLOUD_VEIL`.
+- Deck: on the archipelago and an island the mesh is visible at the veil's opacity; island → district runs one leg ending at full opacity with the district box; district → island ends at the veil; archipelago → island starts nothing; first mount instant; drift writes the four layer offsets only while drifting, each in [0, 1).
+- Owner's check: `bun run seed:demo`; the veil reads as clouds on the archipelago and island without hiding them; a district opens its hole; `?perf` on a phone with the veil's full-screen pass.
