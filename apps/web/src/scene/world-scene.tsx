@@ -1,9 +1,10 @@
 import { Canvas, useThree } from '@react-three/fiber'
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { RewardStore } from '../rewards/reward-store'
 import type { Focus } from '../world/selectors'
 import { AdaptiveQuality } from './adaptive-quality'
 import { CameraRig, ISO_DISTANCE } from './camera-rig'
+import { CanvasLeave } from './canvas-leave'
 import { CloudDeck } from './cloud-deck'
 import { DistrictRing } from './district-ring'
 import { FogRig } from './fog-rig'
@@ -79,6 +80,7 @@ export function WorldScene(props: WorldSceneProps) {
   useEffect(() => {
     if (hovered !== null && !hoveredExists) setHovered(null)
   }, [hovered, hoveredExists])
+  const clearHover = useCallback(() => setHovered(null), [])
   const seaWave = animate && quality.tier === 'high'
   // Reward floats do not invalidate themselves: a live event keeps the ticker running for them.
   const ticking = tickerWanted({
@@ -117,6 +119,7 @@ export function WorldScene(props: WorldSceneProps) {
         onGrowth={setGrowing}
         onHoverDistrict={setHovered}
       />
+      <CanvasLeave onLeave={clearHover} />
       <CloudDeck
         model={props.model}
         focus={props.focus}

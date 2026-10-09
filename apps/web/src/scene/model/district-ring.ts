@@ -149,7 +149,10 @@ export function districtHexMap(island: SceneIsland): ReadonlyMap<string, string>
   return map
 }
 
-/** The milestone whose drawn district tiles contain `hex` (island-local); null for any other hex. */
+/**
+ * The milestone whose drawn district tiles contain `hex` (island-local); null for any other hex.
+ * Rebuilds the map per call: the scene reads a memoised `districtHexMap` instead.
+ */
 export function districtAt(island: SceneIsland, hex: Hex): string | null {
   return districtHexMap(island).get(hexKey(hex)) ?? null
 }

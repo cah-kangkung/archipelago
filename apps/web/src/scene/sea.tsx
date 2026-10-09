@@ -19,11 +19,14 @@ export function Sea({
   islands,
   animate,
   onTapSea,
+  onPointerMove,
 }: {
   bounds: Bounds
   islands: readonly Shore[]
   animate: boolean
   onTapSea: () => void
+  /** The pointer moved over open sea (islands stop the event first). */
+  onPointerMove?: () => void
 }) {
   const { minX, maxX, minZ, maxZ } = bounds
   const geometry = useMemo(() => {
@@ -86,6 +89,7 @@ export function Sea({
       geometry={geometry}
       material={seaMaterial}
       onClick={onTap<MouseEvent>(onTapSea)}
+      onPointerMove={onPointerMove}
     />
   )
 }

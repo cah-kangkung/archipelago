@@ -339,12 +339,44 @@ describe('district hover and tap on the island view', () => {
     expect(onHoverDistrict.mock.calls).toEqual([[mvp.id], [mvp.id], [null]])
   })
 
-  test('the pointer leaving the island clears the hover', async () => {
+  test('R3F’s per-boundary pointerOut/pointerLeave never clears the hover', async () => {
+    const { world, beta, mvp } = seeded()
+    const onHoverDistrict = vi.fn()
+    const { renderer } = await render(world, focus(beta.id), null, { onHoverDistrict })
+    const island = one(renderer.scene, `island:${beta.id}`)
+    const scaffolds = one(island, 'scaffold')
+    // Structure instance to structure instance, then to terrain, all inside the district.
+    for (const target of [scaffolds, scaffolds, one(island, 'terrain')]) {
+      await renderer.fireEvent(island, 'pointerMove', over(world, beta.id, { q: 5, r: 0 }))
+      await renderer.fireEvent(target, 'pointerOut', {})
+      await renderer.fireEvent(island, 'pointerOut', {})
+      await renderer.fireEvent(island, 'pointerLeave', {})
+    }
+    expect(onHoverDistrict.mock.calls.every(([id]) => id === mvp.id)).toBe(true)
+    expect(onHoverDistrict).toHaveBeenCalledTimes(3)
+    expect(island.props.onPointerLeave).toBeUndefined()
+  })
+
+  test('a pointer move over open sea clears the hover', async () => {
     const { world, beta } = seeded()
     const onHoverDistrict = vi.fn()
     const { renderer } = await render(world, focus(beta.id), null, { onHoverDistrict })
-    await renderer.fireEvent(one(renderer.scene, `island:${beta.id}`), 'pointerLeave', {})
-    expect(onHoverDistrict).toHaveBeenLastCalledWith(null)
+    await renderer.fireEvent(one(renderer.scene, 'sea'), 'pointerMove', {})
+    expect(onHoverDistrict).toHaveBeenCalledWith(null)
+  })
+
+  test('the nearest hit decides: a structure in front of terrain behind it', async () => {
+    const { world, beta, mvp } = seeded()
+    const onHoverDistrict = vi.fn()
+    const { renderer } = await render(world, focus(beta.id), null, { onHoverDistrict })
+    const stopPropagation = vi.fn()
+    await renderer.fireEvent(one(renderer.scene, `island:${beta.id}`), 'pointerMove', {
+      point: over(world, beta.id, { q: 1, r: 0 }).point,
+      intersections: [{ point: over(world, beta.id, { q: 6, r: 0 }).point }],
+      stopPropagation,
+    })
+    expect(onHoverDistrict).toHaveBeenCalledWith(mvp.id)
+    expect(stopPropagation).toHaveBeenCalled()
   })
 
   test('a touch pointer never hovers', async () => {

@@ -103,6 +103,7 @@ export function WorldContents({
         islands={model.islands}
         animate={seaWave}
         onTapSea={() => live.onSelect(null)}
+        onPointerMove={onHoverDistrict && (() => onHoverDistrict(null))}
       />
       <SeaScatter model={model} />
       <AmbientLifeLayer life={life} islands={model.islands} animate={seaWave} />

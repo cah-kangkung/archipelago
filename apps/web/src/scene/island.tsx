@@ -125,7 +125,10 @@ export function Island({
   // On the island view a district's tiles answer hover and tap (spec 24.5).
   const districtMap = useMemo(() => districtHexMap(island), [island])
   const districtUnder = (event: ThreeEvent<MouseEvent>) => {
-    const p = event.point as { x: number; z: number } | undefined
+    // The nearest hit decides, whichever hit's handler call this is.
+    const p = (event.intersections?.[0]?.point ?? event.point) as
+      | { x: number; z: number }
+      | undefined
     if (!p) return null
     const hex = worldToHex({ x: p.x - island.origin.x, z: p.z - island.origin.z })
     return districtMap.get(hexKey(hex)) ?? null
@@ -155,11 +158,13 @@ export function Island({
           ? (event: ThreeEvent<PointerEvent>) => {
               // Touch has no hover: its tap opens the district.
               if (event.nativeEvent?.pointerType === 'touch') return
+              // R3F calls this once per hit along the ray, nearest first; stopping the event
+              // makes the nearest hit the only one, and keeps the sea behind from clearing it.
+              event.stopPropagation()
               onHoverDistrict?.(districtUnder(event))
             }
           : undefined
       }
-      onPointerLeave={hoverable ? () => onHoverDistrict?.(null) : undefined}
     >
       <mesh
         name="terrain"
