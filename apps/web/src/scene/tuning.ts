@@ -183,3 +183,8 @@ export const CLOUD_DECK_DRIFT_WRAP = 4500
 export const CLOUD_DECK_DRIFT = 0.2
 /** The deck fading or its hole sliding between layers, in ms. */
 export const CLOUD_MS = 600
+
+/** The district ring's ribbon (spec 24.5): its width, its inset from the tile edge, its lift. */
+export const DISTRICT_RING_WIDTH = 0.15
+export const DISTRICT_RING_INSET = 0.05
+export const DISTRICT_RING_LIFT = 0.02
