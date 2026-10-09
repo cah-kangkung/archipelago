@@ -1,8 +1,7 @@
 import { COMMONS_CENTER, type Hex, hexDistance, hexKey, hexRing } from './hex'
+import { SHORE_RINGS } from './island-shape'
 
 export const MIN_ISLAND_RADIUS = 4
-/** Rings of lower shore around the flat interior. */
-export const SHORE_RINGS = 2
 
 /** Rings needed so every occupied hex is flat land with a two-ring shore beyond it. */
 export function islandRadius(occupied: readonly Hex[]): number {
