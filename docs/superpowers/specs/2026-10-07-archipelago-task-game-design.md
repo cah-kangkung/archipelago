@@ -1367,7 +1367,7 @@ Four phases, each with its own plan and branch, each green and shippable on its 
 | Group | Tokens |
 |---|---|
 | Accents | `gold #f5b82e`, `coral #ff7a59`, `leaf #2fb36f`, `lagoon #1fb5c4`, `sand #f3e3bf` |
-| Accent text (AA on white and on the accent's tint) | `goldText #8a5a00`, `coralText #c2410c`, `leafText #17784a`, `lagoonText #0b7480`, `sandText #7a5a1e` |
+| Accent text (AA on white, on the strong glass over `lagoon`, and on the accent's tint) | `goldText #6b4500`, `coralText #b03a0a`, `leafText #136b41`, `lagoonText #09656f`, `sandText #7a5a1e` |
 | Accent tints (chip backgrounds) | `goldTint #fdf0cf`, `coralTint #ffe1d8`, `leafTint #dcf5e6`, `lagoonTint #d6f4f6`, `sandTint #faf3e3` |
 | Glass | `glassFill` = white 62%, `glassFillStrong` = white 80%, `glassFillSolid` = white 92% (no `backdrop-filter`), `glassBorder` = white 70%; blur 14px, saturate 1.4 |
 | Elevation | `shadow1..3`: soft shadows tinted toward `brand` (`0 2px 8px`, `0 8px 24px`, `0 16px 40px` at 12–22% of `#00285a`) |
@@ -1376,7 +1376,7 @@ Four phases, each with its own plan and branch, each green and shippable on its 
 | Motion | durations `fast 120`, `base 200`, `slow 320` ms; `ease` cubic-bezier(.2,.8,.2,1); springs `sheet` (stiffness 400, damping 40) and `pop` (stiffness 600, damping 22) |
 
 - `toCssVariables`, `styles.css` `@theme` and `styles.test.ts` parity cover every new token. Section 13.2's rule becomes: **every UI and scene colour comes from `@archipelago/ui-tokens` or a blend of its tokens**; the district ring yellow (24.5) stays the one documented scene exception. The scene palette (`scene/model/palette.ts`) is unchanged in 5j.
-- **Glass legibility.** Every text token used on glass is checked by a test computing WCAG contrast of the text over the glass fill composited on white and on `lagoon` (the brightest and the most saturated backdrop): body text ≥ 4.5:1, large text and icons ≥ 3:1. `@supports not (backdrop-filter: blur(1px))` swaps every glass surface to `glassFillSolid`.
+- **Glass legibility.** Every text token used on glass is checked by a test computing WCAG contrast of the text over the glass fill composited on white and on `lagoon` (the brightest and the most saturated backdrop): body text ≥ 4.5:1, large text and icons ≥ 3:1. On the plain glass fill, text is only `textPrimary`, `textSecondary` or `brand`; accent and coral text sits on `glassFillStrong` or on its tint. Badges are `coralText` with white text. `@supports not (backdrop-filter: blur(1px))` swaps every glass surface to `glassFillSolid`.
 
 **Assets.** `@fontsource-variable/nunito` imported once in `main.tsx` with a metric-matched `system-ui` fallback (`size-adjust`), so a slow font shifts nothing. `@phosphor-icons/react` (named imports only). `ui/icons.tsx`: `SuppliesIcon` (gold coin) and `ChestIcon` (daily chest) as inline SVG, plus an `Icon` wrapper fixing Phosphor's weight (`duotone`, `fill` when active) and sizes (16, 20, 24, 32).
 
