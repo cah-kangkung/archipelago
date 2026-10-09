@@ -27,3 +27,20 @@ export const SHALLOWS_MARGIN = 1.2
 export function shallowsRadius(radius: number): number {
   return islandExtent(radius) + SHALLOWS_MARGIN
 }
+
+/** Coast hex centre to the far corner of the shallows hex beyond it (spec 24.4). */
+export const SHALLOWS_REACH = SQRT3 + 1
+
+const corner = (c: Point, degrees: number): Point => ({
+  x: c.x + Math.cos((degrees * Math.PI) / 180),
+  z: c.z + Math.sin((degrees * Math.PI) / 180),
+})
+
+/**
+ * The side of `h` facing `HEX_DIRECTIONS[i]`, island-local: direction `i` lies at -60° * i, and the
+ * side runs from the corner 30° before it to the corner 30° after.
+ */
+export function hexSide(h: Hex, i: number): [Point, Point] {
+  const c = hexToWorld(h)
+  return [corner(c, -60 * i - 30), corner(c, -60 * i + 30)]
+}

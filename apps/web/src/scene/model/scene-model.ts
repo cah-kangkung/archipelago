@@ -16,7 +16,10 @@ import { landmarkFor, type Marker, type StructureKind, structureFor } from './st
 import {
   heightAt,
   islandTerrain,
+  type RimSide,
   type Stage,
+  shallowsHexes,
+  shallowsRim,
   stageFor,
   type TerrainTile,
   tileHeights,
@@ -57,6 +60,14 @@ export type SceneIsland = {
   /** The ring enclosing all land. */
   radius: number
   tiles: TerrainTile[]
+  /** Centres of the depth-1 tiles: the sea measures from them (spec 24.4). */
+  coast: Point[]
+  /** The ring of shallows hexes round the tiles. */
+  shallows: Hex[]
+  /** The shallows' sides facing open water: the foam runs along them. */
+  rim: RimSide[]
+  /** Island-local bounds of the tile centres: the island layer's area. */
+  box: Bounds
   /** Growth stage from the island's finished tasks (spec 18.1). */
   stage: Stage
   /** Hexes of the paths to districts with a finished task (spec 18.4). */
@@ -104,6 +115,7 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
   const islands = prepared.map(
     ({ project, milestones, tasks, buildings, occupied, size, radius, stage, paths, tiles }) => {
       const heights = tileHeights(tiles)
+      const shallows = shallowsHexes(tiles)
       const spot = (h: Hex): Spot => ({ ...hexToWorld(h), y: heightAt(heights, h) })
       const growth = islandGrowth({
         seed: project.islandSeed,
@@ -121,6 +133,10 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
         size,
         radius,
         tiles,
+        coast: tiles.filter((t) => t.depth === 1).map(hexToWorld),
+        shallows,
+        rim: shallowsRim(tiles, shallows),
+        box: boxOf(tiles),
         stage,
         paths,
         scenery: growth.scenery,
@@ -157,6 +173,17 @@ export function buildSceneModel(world: WorldDto, today: string): SceneModel {
     },
   )
   return { islands, bounds: boundsOf(islands) }
+}
+
+/** Island-local bounds of the tile centres. */
+function boxOf(tiles: readonly Hex[]): Bounds {
+  const at = tiles.map(hexToWorld)
+  return {
+    minX: Math.min(...at.map((p) => p.x)),
+    maxX: Math.max(...at.map((p) => p.x)),
+    minZ: Math.min(...at.map((p) => p.z)),
+    maxZ: Math.max(...at.map((p) => p.z)),
+  }
 }
 
 function boundsOf(islands: readonly SceneIsland[]): Bounds {

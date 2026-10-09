@@ -1,10 +1,24 @@
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import type * as THREE from 'three'
 import { describe, expect, test } from 'vitest'
-import { shallowsRadius } from './model/hex-space'
+import { hexToWorld, SHALLOWS_REACH } from './model/hex-space'
+import type { Shore } from './model/sea-depth'
+import { islandTerrain, shallowsHexes, shallowsRim } from './model/terrain'
 import { Sea } from './sea'
 
-const shore = { origin: { x: 0, z: 0 }, radius: 4 }
+const shoreAt = (size: number): Shore => {
+  const tiles = islandTerrain(5, size)
+  return {
+    origin: { x: 0, z: 0 },
+    radius: Math.max(
+      ...tiles.map((t) => (Math.abs(t.q) + Math.abs(t.q + t.r) + Math.abs(t.r)) / 2),
+    ),
+    size,
+    coast: tiles.filter((t) => t.depth === 1).map(hexToWorld),
+    rim: shallowsRim(tiles, shallowsHexes(tiles)),
+  }
+}
+const shore = shoreAt(4)
 const bounds = { minX: -8, maxX: 8, minZ: -8, maxZ: 8 }
 
 async function seaMesh() {
@@ -29,7 +43,10 @@ describe('Sea', () => {
     let far = { i: 0, d: -Infinity }
     for (let i = 0; i < position.count; i++) {
       const d = Math.hypot(position.getX(i), position.getZ(i))
-      const gap = Math.abs(d - shallowsRadius(4))
+      const edge = Math.min(
+        ...shore.coast.map((c) => Math.hypot(position.getX(i) - c.x, position.getZ(i) - c.z)),
+      )
+      const gap = Math.abs(edge - SHALLOWS_REACH)
       if (gap < near.gap) near = { i, gap }
       if (d > far.d) far = { i, d }
     }

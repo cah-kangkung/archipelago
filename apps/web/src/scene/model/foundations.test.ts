@@ -1,4 +1,5 @@
 import {
+  HEX_DIRECTIONS,
   type Hex,
   hexKey,
   islandLand,
@@ -13,7 +14,16 @@ import { HILL_MAX, HILL_STEP, RELIEF_FACTOR } from '../tuning'
 import { hexToWorld, islandExtent, LAND_HEIGHT, SQRT3 } from './hex-space'
 import { mix, scenePalette } from './palette'
 import { mulberry32 } from './random'
-import { GRASS_TONES, heightAt, islandTerrain, type Stage, stageFor, tileHeights } from './terrain'
+import {
+  GRASS_TONES,
+  heightAt,
+  islandTerrain,
+  type Stage,
+  shallowsHexes,
+  shallowsRim,
+  stageFor,
+  tileHeights,
+} from './terrain'
 
 const origin = { q: 0, r: 0 }
 
@@ -259,5 +269,36 @@ describe('stageFor', () => {
     [500, 4],
   ])('%i finished tasks is stage %i', (finished, stage) => {
     expect(stageFor(finished)).toBe(stage)
+  })
+})
+
+describe('shallows', () => {
+  test('one ring of non-land hexes round the tiles, and a rim facing open water', () => {
+    const tiles = islandTerrain(3, 7)
+    const keys = new Set(tiles.map(hexKey))
+    const shallows = shallowsHexes(tiles)
+    const wet = new Set(shallows.map(hexKey))
+    for (const h of shallows) {
+      expect(keys.has(hexKey(h))).toBe(false)
+      expect(HEX_DIRECTIONS.some((d) => keys.has(hexKey({ q: h.q + d.q, r: h.r + d.r })))).toBe(
+        true,
+      )
+    }
+    for (const t of tiles) {
+      for (const d of HEX_DIRECTIONS) {
+        const n = { q: t.q + d.q, r: t.r + d.r }
+        expect(keys.has(hexKey(n)) || wet.has(hexKey(n))).toBe(true)
+      }
+    }
+    const rim = shallowsRim(tiles, shallows)
+    expect(rim.length).toBeGreaterThan(0)
+    for (const s of rim) {
+      expect(Math.hypot(s.out.x, s.out.z)).toBeCloseTo(1)
+      // One step outward from the side's middle is open water: neither tile nor shallows.
+      const p = { x: (s.a.x + s.b.x) / 2 + s.out.x * 0.9, z: (s.a.z + s.b.z) / 2 + s.out.z * 0.9 }
+      const r = Math.round(p.z / 1.5)
+      const q = Math.round(p.x / SQRT3 - r / 2)
+      expect(keys.has(hexKey({ q, r })) || wet.has(hexKey({ q, r }))).toBe(false)
+    }
   })
 })

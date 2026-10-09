@@ -50,7 +50,10 @@ type Layout = Pick<SceneModel, 'islands' | 'bounds'>
 
 const layoutKey = (islands: readonly Layout['islands'][number][]) =>
   islands
-    .map((i) => `${i.projectId},${i.slot.q},${i.slot.r},${i.origin.x},${i.origin.z},${i.radius}`)
+    .map(
+      (i) =>
+        `${i.projectId},${i.slot.q},${i.slot.r},${i.origin.x},${i.origin.z},${i.radius},${i.size}`,
+    )
     .join(';')
 
 /** Rocks, islets, sandbars and buoys in the open water (spec 17.2). */

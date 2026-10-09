@@ -4,10 +4,25 @@ import { describe, expect, test } from 'vitest'
 import { AmbientLifeLayer } from './ambient-life'
 import { foamMaterial } from './materials'
 import { type AmbientLife, boatPose } from './model/ambient-life'
+import { hexToWorld } from './model/hex-space'
+import type { Shore } from './model/sea-depth'
+import { islandTerrain, shallowsHexes, shallowsRim } from './model/terrain'
 
 type Renderer = Awaited<ReturnType<typeof ReactThreeTestRenderer.create>>
 
-const shore = { origin: { x: 0, z: 0 }, radius: 4 }
+const shoreAt = (size: number): Shore => {
+  const tiles = islandTerrain(5, size)
+  return {
+    origin: { x: 0, z: 0 },
+    radius: Math.max(
+      ...tiles.map((t) => (Math.abs(t.q) + Math.abs(t.q + t.r) + Math.abs(t.r)) / 2),
+    ),
+    size,
+    coast: tiles.filter((t) => t.depth === 1).map(hexToWorld),
+    rim: shallowsRim(tiles, shallowsHexes(tiles)),
+  }
+}
+const shore = shoreAt(4)
 const loop = { kind: 'loop' as const, key: 'loop|p0', center: { x: 0, z: 0 }, radius: 11 }
 const life: AmbientLife = {
   boats: [
@@ -108,7 +123,7 @@ describe('AmbientLifeLayer', () => {
     const geometry = foamGeometryOf(r)
     await r.update(<AmbientLifeLayer life={life} islands={[{ ...shore }]} animate />)
     expect(foamGeometryOf(r)).toBe(geometry)
-    await r.update(<AmbientLifeLayer life={life} islands={[{ ...shore, radius: 5 }]} animate />)
+    await r.update(<AmbientLifeLayer life={life} islands={[shoreAt(5)]} animate />)
     expect(foamGeometryOf(r)).not.toBe(geometry)
   })
 })

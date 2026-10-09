@@ -1,6 +1,6 @@
 import type { Focus } from '../../world/selectors'
 import type { Area } from './area'
-import { islandExtent, type Point, SQRT3, shallowsRadius } from './hex-space'
+import { type Point, SHALLOWS_REACH, SQRT3 } from './hex-space'
 import type { Bounds, SceneIsland, SceneModel } from './scene-model'
 import { toScreen } from './screen'
 
@@ -72,13 +72,14 @@ export function layerArea(model: SceneModel, focus: Focus): Area | null {
   const level = levelOf(model, focus)
   if (level.kind === 'archipelago') return null
   if (level.kind === 'island') {
-    const { origin, radius } = level.island
+    const { origin, box } = level.island
+    // Tile centres rounded by one hex corner: the land, edge to edge (spec 24.4).
     return {
-      minX: origin.x,
-      maxX: origin.x,
-      minZ: origin.z,
-      maxZ: origin.z,
-      round: islandExtent(radius),
+      minX: origin.x + box.minX,
+      maxX: origin.x + box.maxX,
+      minZ: origin.z + box.minZ,
+      maxZ: origin.z + box.maxZ,
+      round: 1,
     }
   }
   return { ...level.core, round: AREA_MARGIN }
@@ -89,16 +90,18 @@ export function panArea(model: SceneModel, focus: Focus): Area {
   return layerArea(model, focus) ?? model.bounds
 }
 
-/** What the opening zoom must show: the shallows circle of an island, else the bounds' corners. */
+/** What the opening zoom must show: an island's tile box grown by the shallows, else the bounds' corners. */
 export function focusOutline(model: SceneModel, focus: Focus): Point[] {
   const level = levelOf(model, focus)
   if (level.kind === 'island') {
-    const { origin, radius } = level.island
-    const s = shallowsRadius(radius)
-    return Array.from({ length: 12 }, (_, k) => ({
-      x: origin.x + s * Math.cos((k * Math.PI) / 6),
-      z: origin.z + s * Math.sin((k * Math.PI) / 6),
-    }))
+    const { origin, box } = level.island
+    const world = {
+      minX: origin.x + box.minX,
+      maxX: origin.x + box.maxX,
+      minZ: origin.z + box.minZ,
+      maxZ: origin.z + box.maxZ,
+    }
+    return corners(grow(world, SHALLOWS_REACH))
   }
   return corners(level.kind === 'district' ? grow(level.core, DISTRICT_MARGIN) : model.bounds)
 }

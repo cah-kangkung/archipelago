@@ -1,7 +1,7 @@
 import * as THREE from 'three'
-import { shallowsRadius } from '../model/hex-space'
 import type { Shore } from '../model/sea-depth'
 import type { ScatterType } from '../model/sea-scatter'
+import type { RimSide } from '../model/terrain'
 import { FOAM_WIDTH } from '../tuning'
 import { box, cone, merge, part, prism } from './build'
 import { decorationBuilders } from './decorations'
@@ -66,19 +66,54 @@ export function seaGeometry(kind: SeaKind): THREE.BufferGeometry {
   return geometry
 }
 
+/** A flat foam strip just outside one rim side, wound so its normal points up. */
+function foamStrip(s: RimSide): THREE.BufferGeometry {
+  const w = FOAM_WIDTH
+  const a2 = { x: s.a.x + s.out.x * w, z: s.a.z + s.out.z * w }
+  const b2 = { x: s.b.x + s.out.x * w, z: s.b.z + s.out.z * w }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(
+      [
+        s.a.x,
+        0,
+        s.a.z,
+        s.b.x,
+        0,
+        s.b.z,
+        b2.x,
+        0,
+        b2.z,
+        s.a.x,
+        0,
+        s.a.z,
+        b2.x,
+        0,
+        b2.z,
+        a2.x,
+        0,
+        a2.z,
+      ],
+      3,
+    ),
+  )
+  g.computeVertexNormals()
+  return g
+}
+
 /**
- * One hex ring of foam per island at its shallows edge, merged into one mesh. A six-sided ring
- * laid flat has its corners where the turned shallows prism has them. Caller disposes.
+ * Foam along every island's rim (spec 24.4): a strip per shallows side facing open water,
+ * merged into one mesh. Caller disposes.
  */
-export function foamGeometry(shores: readonly Shore[]): THREE.BufferGeometry {
+export function foamGeometry(
+  shores: readonly Pick<Shore, 'origin' | 'rim'>[],
+): THREE.BufferGeometry {
   return merge(
-    shores.map((s) => {
-      const inner = shallowsRadius(s.radius)
-      return part(flatRing(inner, inner + FOAM_WIDTH, 6), 'foam', [
-        s.origin.x,
-        SEA_LEVEL + 0.06,
-        s.origin.z,
-      ])
-    }),
+    shores.flatMap((s) =>
+      s.rim.map((side) =>
+        part(foamStrip(side), 'foam', [s.origin.x, SEA_LEVEL + 0.06, s.origin.z]),
+      ),
+    ),
   )
 }

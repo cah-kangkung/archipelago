@@ -63,11 +63,11 @@ export function Island({
   rewards: readonly RewardEvent[]
 }) {
   const pathKey = island.paths.map(hexKey).join(';')
-  // A refetch builds fresh tiles with the same content; seed, radius, stage and paths decide them.
+  // A refetch builds fresh tiles with the same content; seed, size, stage and paths decide them.
   // biome-ignore lint/correctness/useExhaustiveDependencies: these four determine the tiles
   const terrain = useMemo(
-    () => islandGeometry(island.tiles, island.radius),
-    [island.seed, island.radius, island.stage, pathKey],
+    () => islandGeometry(island.tiles, island.shallows),
+    [island.seed, island.size, island.stage, pathKey],
   )
   useEffect(() => () => terrain.dispose(), [terrain])
 

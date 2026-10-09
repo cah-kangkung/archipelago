@@ -4,7 +4,7 @@ import { UnchartedCard } from '../world/uncharted-card'
 import { ghostMaterial } from './materials'
 import { LAND_HEIGHT } from './model/hex-space'
 import { UNCHARTED_SEED, UNCHARTED_SIZE } from './model/sea-depth'
-import { islandTerrain } from './model/terrain'
+import { islandTerrain, shallowsHexes } from './model/terrain'
 import { islandGeometry } from './models/terrain-geometry'
 
 /** Same as the labels': the HUD (z-20) and sheet stay above the card. */
@@ -12,10 +12,10 @@ const CARD_Z: [number, number] = [10, 0]
 
 /** The empty world (spec 17.4): a still ghost island at the origin with the first-island prompt. */
 export function EmptySea({ onCreate }: { onCreate?: () => void }) {
-  const geometry = useMemo(
-    () => islandGeometry(islandTerrain(UNCHARTED_SEED, UNCHARTED_SIZE), UNCHARTED_SIZE),
-    [],
-  )
+  const geometry = useMemo(() => {
+    const tiles = islandTerrain(UNCHARTED_SEED, UNCHARTED_SIZE)
+    return islandGeometry(tiles, shallowsHexes(tiles))
+  }, [])
   useEffect(() => () => geometry.dispose(), [geometry])
   return (
     <group name="uncharted">

@@ -9,7 +9,7 @@ import { CameraRig, ISO_DISTANCE } from './camera-rig'
 import { type Area, clampToArea } from './model/area'
 import { cameraTarget, ISLAND_ZOOM, MAX_ZOOM_FACTOR, panArea } from './model/camera'
 import { flyDuration, flyFrame, hopZoom } from './model/camera-motion'
-import { islandExtent, shallowsRadius } from './model/hex-space'
+import { shallowsRadius } from './model/hex-space'
 import { buildSceneModel, type SceneModel } from './model/scene-model'
 import type { View } from './model/screen'
 
@@ -426,9 +426,11 @@ describe('CameraRig', () => {
     c.dispatchEvent({ type: 'end' })
     await r.advanceFrames(8, 0.1)
     const v = view()
+    // The tile box rounded by one hex corner: the far corner of the land, pushed out along the diagonal.
+    expect(v.x - island.origin.x).toBeCloseTo(island.box.maxX + Math.SQRT1_2)
+    expect(v.z - island.origin.z).toBeCloseTo(island.box.maxZ + Math.SQRT1_2)
     const reach = Math.hypot(v.x - island.origin.x, v.z - island.origin.z)
-    expect(reach).toBeCloseTo(islandExtent(island.radius))
     // 19.1's square let the centre reach √2 × the shallows radius on a diagonal.
-    expect(reach).toBeLessThan(shallowsRadius(island.radius))
+    expect(reach).toBeLessThan(Math.SQRT2 * shallowsRadius(island.radius))
   })
 })

@@ -23,7 +23,7 @@ import { pathHexes } from './island-growth'
 import { mulberry32 } from './random'
 import { buildSceneModel, ISLAND_GAP } from './scene-model'
 import { landmarkFor, solidSegments, structureFor } from './state'
-import { heightAt, tileHeights } from './terrain'
+import { heightAt, shallowsHexes, shallowsRim, tileHeights } from './terrain'
 
 const today = '2026-10-07'
 const world = (w: Partial<WorldDto>): WorldDto => ({
@@ -228,6 +228,17 @@ describe('buildSceneModel', () => {
     expect(islandLand(p.islandSeed, island?.size ?? 0).interior.has(hexKey({ q: 3, r: -6 }))).toBe(
       true,
     )
+  })
+
+  test('an island carries its coast, shallows, rim and tile box', () => {
+    const island = buildSceneModel(world({ projects: [fakeProject()] }), today).islands[0]
+    if (!island) throw new Error('no island')
+    expect(island.coast).toEqual(island.tiles.filter((t) => t.depth === 1).map(hexToWorld))
+    expect(island.shallows).toEqual(shallowsHexes(island.tiles))
+    expect(island.rim).toEqual(shallowsRim(island.tiles, island.shallows))
+    const xs = island.tiles.map((t) => hexToWorld(t).x)
+    expect(island.box.minX).toBe(Math.min(...xs))
+    expect(island.box.maxX).toBe(Math.max(...xs))
   })
 })
 

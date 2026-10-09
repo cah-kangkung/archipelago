@@ -16,7 +16,7 @@ import {
   layerArea,
   panArea,
 } from './camera'
-import { islandExtent, shallowsRadius } from './hex-space'
+import { SHALLOWS_REACH } from './hex-space'
 import { buildSceneModel } from './scene-model'
 import { toScreen } from './screen'
 
@@ -53,14 +53,15 @@ function span(outline: { x: number; z: number }[]) {
 }
 
 describe('focusOutline and fitZoom', () => {
-  test('an island outline is 12 points on its shallows circle', () => {
+  test('an island outline is its tile box grown by SHALLOWS_REACH', () => {
     const outline = focusOutline(model, onBeta)
-    expect(outline).toHaveLength(12)
-    for (const p of outline) {
-      expect(Math.hypot(p.x - island.origin.x, p.z - island.origin.z)).toBeCloseTo(
-        shallowsRadius(island.radius),
-      )
-    }
+    const b = island.box
+    const xs = outline.map((p) => p.x)
+    const zs = outline.map((p) => p.z)
+    expect(Math.min(...xs)).toBeCloseTo(island.origin.x + b.minX - SHALLOWS_REACH)
+    expect(Math.max(...xs)).toBeCloseTo(island.origin.x + b.maxX + SHALLOWS_REACH)
+    expect(Math.min(...zs)).toBeCloseTo(island.origin.z + b.minZ - SHALLOWS_REACH)
+    expect(Math.max(...zs)).toBeCloseTo(island.origin.z + b.maxZ + SHALLOWS_REACH)
   })
 
   test('a district outline is its area box grown by DISTRICT_MARGIN', () => {
@@ -121,14 +122,15 @@ describe('layerArea and panArea', () => {
     expect(panArea(model, { kind: 'archipelago' })).toEqual(model.bounds)
   })
 
-  test('an island is a circle out to its coastline', () => {
+  test('an island is its tile box, rounded by one hex corner', () => {
     const { x, z } = island.origin
+    const b = island.box
     expect(layerArea(model, onBeta)).toEqual({
-      minX: x,
-      maxX: x,
-      minZ: z,
-      maxZ: z,
-      round: islandExtent(island.radius),
+      minX: x + b.minX,
+      maxX: x + b.maxX,
+      minZ: z + b.minZ,
+      maxZ: z + b.maxZ,
+      round: 1,
     })
     expect(panArea(model, onBeta)).toEqual(layerArea(model, onBeta))
   })

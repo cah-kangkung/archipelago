@@ -1,9 +1,8 @@
 import { DECORATION_TYPES, LANDMARK_TYPES } from '@archipelago/shared'
 import * as THREE from 'three'
 import { describe, expect, test } from 'vitest'
-import { islandExtent } from '../model/hex-space'
 import { scenePalette } from '../model/palette'
-import { islandTerrain } from '../model/terrain'
+import { islandTerrain, shallowsHexes, shallowsRim } from '../model/terrain'
 import { landmarkSegments } from './landmarks'
 import { SCENERY_KINDS, sceneryGeometry } from './scenery'
 import { foamGeometry, SEA_KINDS, seaGeometry } from './sea-props'
@@ -73,15 +72,16 @@ describe('landmarks', () => {
 })
 
 describe('islandGeometry', () => {
-  test('merges every tile plus a shallows hexagon, within the shallows extent', () => {
-    const tiles = islandTerrain(5, 4)
-    const g = islandGeometry(tiles, 4)
+  test('merges every tile plus a shallows prism per shallows hex', () => {
+    const tiles = islandTerrain(5, 5)
+    const shallows = shallowsHexes(tiles)
+    const g = islandGeometry(tiles, shallows)
     expectPaletteColoured(g)
-    g.computeBoundingBox()
-    const limit = islandExtent(4) + 1.2 + 1e-6
-    expect(g.boundingBox?.max.x).toBeLessThanOrEqual(limit)
-    expect(g.boundingBox?.min.z).toBeGreaterThanOrEqual(-limit)
+    const one = islandGeometry(tiles.slice(0, 1), [])
+    const perPrism = one.getAttribute('position').count
+    expect(g.getAttribute('position').count).toBe(perPrism * (tiles.length + shallows.length))
     g.dispose()
+    one.dispose()
   })
 })
 
@@ -105,13 +105,18 @@ describe('sea props', () => {
     expectPaletteColoured(seaGeometry(kind))
   })
 
-  test('foam rings are palette-coloured, one ring per shore', () => {
-    const one = foamGeometry([{ origin: { x: 0, z: 0 }, radius: 4 }])
+  test('foam is a strip per rim side, palette-coloured, doubled for two shores', () => {
+    const tiles = islandTerrain(5, 5)
+    const rim = shallowsRim(tiles, shallowsHexes(tiles))
+    const one = foamGeometry([{ origin: { x: 0, z: 0 }, rim }])
     const two = foamGeometry([
-      { origin: { x: 0, z: 0 }, radius: 4 },
-      { origin: { x: 30, z: 0 }, radius: 4 },
+      { origin: { x: 0, z: 0 }, rim },
+      { origin: { x: 30, z: 0 }, rim },
     ])
     expectPaletteColoured(two)
+    expect(one.getAttribute('position').count).toBe(rim.length * 6)
+    const normal = one.getAttribute('normal')
+    for (let i = 0; i < normal.count; i++) expect(normal.getY(i)).toBeGreaterThan(0.99)
     expect(two.getAttribute('position').count).toBe(one.getAttribute('position').count * 2)
   })
 })

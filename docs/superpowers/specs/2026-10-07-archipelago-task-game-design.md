@@ -1309,6 +1309,7 @@ Every rule takes the seed; the API already has `project.islandSeed` wherever it 
 ### 24.4 Sea, shallows and camera (`apps/web`)
 
 - **Shallows** follow the coast: `islandGeometry(tiles, land)` lays a `SHALLOWS_HEIGHT` prism on every non-land hex within one ring of land, instead of one hexagon of `shallowsRadius`.
+- **Foam** runs along the rim (the shallows hexes' sides facing open water), a `FOAM_WIDTH` strip per side, instead of a hexagonal band round the enclosing disc.
 - **Sea depth:** `Shore` gains `coast: Point[]` (island-local centres of depth-1 hexes). `shoreDistance` keeps the enclosing disc as a fast rejection, then measures to the nearest coast point less one hex and `SHALLOWS_MARGIN`. The uncharted island (17.4) is a round island of radius 1.
 - **Camera:** the island layer's area (`layerArea`, framing, pan bounds) is the bounding box of its tiles' world positions grown by `islandExtent`'s one-hex corner allowance, rounded by `AREA_MARGIN`, instead of the enclosing disc. Districts are unchanged.
 - `SceneIsland` gains `size`, `shape: IslandShape` and `coast`, and keeps `radius` (the enclosing ring) for the consumers listed in 24.2.

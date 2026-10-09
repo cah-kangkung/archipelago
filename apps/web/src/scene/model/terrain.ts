@@ -1,4 +1,5 @@
 import {
+  HEX_DIRECTIONS,
   type Hex,
   hashInts,
   hexKey,
@@ -16,7 +17,7 @@ import {
   MEADOW_SHARE,
   RELIEF_FACTOR,
 } from '../tuning'
-import { hexToWorld, LAND_HEIGHT } from './hex-space'
+import { hexSide, hexToWorld, LAND_HEIGHT, type Point } from './hex-space'
 
 export type Stage = 0 | 1 | 2 | 3 | 4
 export type GrassTone = 'grassDry' | 'grassSprout' | 'grassGreen' | 'grassLush' | 'grass'
@@ -144,4 +145,44 @@ export function tileHeights(tiles: readonly TerrainTile[]): ReadonlyMap<string, 
 /** The land height at a hex; LAND_HEIGHT off the island (a valid plot is always on it). */
 export function heightAt(heights: ReadonlyMap<string, number>, h: Hex): number {
   return heights.get(hexKey(h)) ?? LAND_HEIGHT
+}
+
+/** A shallows side facing open water: `out` is its unit outward normal (spec 24.4). */
+export type RimSide = { a: Point; b: Point; out: Point }
+
+const step = (h: Hex, i: number): Hex => {
+  const d = HEX_DIRECTIONS[i] as Hex
+  return { q: h.q + d.q, r: h.r + d.r }
+}
+
+/** The hexes round the tiles that are not tiles: one ring of shallows, dropped coast included. */
+export function shallowsHexes(tiles: readonly Hex[]): Hex[] {
+  const land = new Set(tiles.map(hexKey))
+  const wet = new Map<string, Hex>()
+  for (const t of tiles) {
+    for (let i = 0; i < 6; i++) {
+      const n = step(t, i)
+      const k = hexKey(n)
+      if (!land.has(k)) wet.set(k, n)
+    }
+  }
+  return [...wet.values()]
+}
+
+/** The shallows' sides that face neither land nor shallows. Island-local. */
+export function shallowsRim(tiles: readonly Hex[], shallows: readonly Hex[]): RimSide[] {
+  const covered = new Set([...tiles, ...shallows].map(hexKey))
+  const rim: RimSide[] = []
+  for (const h of shallows) {
+    const c = hexToWorld(h)
+    for (let i = 0; i < 6; i++) {
+      if (covered.has(hexKey(step(h, i)))) continue
+      const [a, b] = hexSide(h, i)
+      const mx = (a.x + b.x) / 2 - c.x
+      const mz = (a.z + b.z) / 2 - c.z
+      const len = Math.hypot(mx, mz)
+      rim.push({ a, b, out: { x: mx / len, z: mz / len } })
+    }
+  }
+  return rim
 }
