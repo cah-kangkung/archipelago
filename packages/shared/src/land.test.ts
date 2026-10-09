@@ -165,3 +165,25 @@ describe('free plot headroom', () => {
     }
   })
 })
+
+describe('nearestFreePlot under load', () => {
+  const place = (seed: number, centre: Hex, extra: Hex[], count: number): Hex[] => {
+    const occupied = [...extra]
+    for (let i = 0; i < count; i++)
+      occupied.push(nearestFreePlot(seed, centre, seedDirection(seed), occupied))
+    return occupied
+  }
+
+  test('120 loose tasks and 120 tasks on one district place without throwing', () => {
+    for (const seed of [1, 4, 9, 21, 33]) {
+      const loose = place(seed, COMMONS_CENTER, [], 120)
+      const centre = nextDistrictCenter(seed, [])
+      const district = place(seed, centre, [centre], 120)
+      for (const occupied of [loose, district]) {
+        const interior = interiorAt(seed, occupied)
+        expect(new Set(occupied.map(hexKey)).size).toBe(occupied.length)
+        expect(occupied.every((h) => interior.has(hexKey(h)))).toBe(true)
+      }
+    }
+  })
+})

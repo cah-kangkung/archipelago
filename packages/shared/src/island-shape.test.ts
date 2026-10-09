@@ -168,3 +168,23 @@ describe('islandSize', () => {
     }
   })
 })
+
+describe('scan bound', () => {
+  test('no hex just outside the scanned ring lies inside the shape (size 20, seeds 0..99)', () => {
+    const size = 20
+    for (let seed = 0; seed < 100; seed++) {
+      const shape = islandShape(seed)
+      const rings = Math.ceil((size * shape.extent * 2) / Math.sqrt(3)) + 1
+      const cos = Math.cos(-shape.angle)
+      const sin = Math.sin(-shape.angle)
+      for (const h of hexRing(COMMONS_CENTER, rings + 1)) {
+        const c = cartesian(h)
+        const p = {
+          x: ((c.x * cos - c.y * sin) / size) * shape.norm,
+          y: ((c.x * sin + c.y * cos) / size) * shape.norm,
+        }
+        expect(shape.distance(p)).toBeGreaterThan(0)
+      }
+    }
+  })
+})

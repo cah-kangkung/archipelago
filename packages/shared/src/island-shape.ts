@@ -261,7 +261,7 @@ function buildShape(seed: number): IslandShape {
 
 export type IslandLand = {
   size: number
-  land: Hex[]
+  land: readonly Hex[]
   interior: ReadonlySet<string>
   /** Hex steps to the nearest non-land hex, per land hex key; 1–2 is shore. */
   depth: ReadonlyMap<string, number>
@@ -277,12 +277,16 @@ const cartesian = (h: Hex): P => ({
 
 const neighbours = (h: Hex): Hex[] => HEX_DIRECTIONS.map((d) => ({ q: h.q + d.q, r: h.r + d.r }))
 
-/** Memo caps: the API sees many seeds over its lifetime; the oldest entries go first. */
-const MEMO_LIMIT = 256
+/** Memo caps: the API sees many seeds over its lifetime; the least recently used go first. */
+const MEMO_LIMIT = 2048
 
 function remember<V>(memo: Map<string | number, V>, key: string | number, make: () => V): V {
   const hit = memo.get(key)
-  if (hit !== undefined) return hit
+  if (hit !== undefined) {
+    memo.delete(key)
+    memo.set(key, hit)
+    return hit
+  }
   const value = make()
   memo.set(key, value)
   if (memo.size > MEMO_LIMIT) memo.delete(memo.keys().next().value as string | number)
@@ -295,6 +299,7 @@ const shapes = new Map<string | number, IslandShape>()
 export function islandShape(seed: number): IslandShape {
   return remember(shapes, seed, () => buildShape(seed))
 }
+
 const raws = new Map<string | number, ReadonlySet<string>>()
 const lands = new Map<string | number, IslandLand>()
 
@@ -309,7 +314,8 @@ function rawLand(seed: number, size: number): ReadonlySet<string> {
     const inShape = new Set(size > MIN_ISLAND_SIZE ? rawLand(seed, size - 1) : [])
     const cos = Math.cos(-shape.angle)
     const sin = Math.sin(-shape.angle)
-    const rings = Math.ceil(size * shape.extent) + 1
+    // A hex at ring d sits only d·√3/2 from the centre, so the scan reaches 2/√3 further.
+    const rings = Math.ceil((size * shape.extent * 2) / Math.sqrt(3)) + 1
     for (let ring = 0; ring <= rings; ring++) {
       for (const h of hexRing(COMMONS_CENTER, ring)) {
         const k = hexKey(h)

@@ -1,4 +1,12 @@
-import { COMMONS_CENTER, DISTRICT_SPACING, type Hex, hexKey, hexRing, hexScale } from './hex'
+import {
+  COMMONS_CENTER,
+  DISTRICT_SPACING,
+  type Hex,
+  hexDistance,
+  hexKey,
+  hexRing,
+  hexScale,
+} from './hex'
 import { islandLand, islandSize, MAX_ISLAND_SIZE } from './island-shape'
 
 /** The ring enclosing all land (spec 24.2): island spacing, gulls, boat loops and the cloud plane. */
@@ -54,7 +62,9 @@ export function nextDistrictCenter(seed: number, occupied: readonly Hex[]): Hex 
 /**
  * A task's plot (spec 24.2): spiralling out from `centre` (starting towards `startDirection`), the
  * first free hex that is interior at the current size within DISTRICT_SPACING rings; failing that,
- * the same at the next size up, so the island grows only when the district is boxed in.
+ * the same at the next size up, so the island grows only when the district is boxed in. Growth is
+ * tried only while a size step still adds interior hexes inside those rings; after that the
+ * search spirals on beyond them, interior only, stepping the size as needed.
  */
 export function nearestFreePlot(
   seed: number,
@@ -63,14 +73,37 @@ export function nearestFreePlot(
   occupied: readonly Hex[],
 ): Hex {
   const taken = new Set([...occupied, COMMONS_CENTER].map(hexKey))
-  for (let size = islandSize(seed, occupied); size <= MAX_ISLAND_SIZE; size++) {
-    const { interior } = islandLand(seed, size)
-    for (let ring = 1; ring <= DISTRICT_SPACING; ring++) {
+  const first = islandSize(seed, occupied)
+  const freeIn = (interior: ReadonlySet<string>, from: number, to: number): Hex | null => {
+    for (let ring = from; ring <= to; ring++) {
       for (const h of hexRing(centre, ring, startDirection)) {
         const k = hexKey(h)
         if (interior.has(k) && !taken.has(k)) return h
       }
     }
+    return null
+  }
+  const nearCount = (interior: ReadonlySet<string>) => {
+    let n = 0
+    for (const k of interior) {
+      const [q, r] = k.split(',').map(Number) as [number, number]
+      if (hexDistance(centre, { q, r }) <= DISTRICT_SPACING) n++
+    }
+    return n
+  }
+  let before = -1
+  for (let size = first; size <= MAX_ISLAND_SIZE; size++) {
+    const { interior } = islandLand(seed, size)
+    const near = freeIn(interior, 1, DISTRICT_SPACING)
+    if (near) return near
+    const count = nearCount(interior)
+    if (count === before) break
+    before = count
+  }
+  for (let size = first; size <= MAX_ISLAND_SIZE; size++) {
+    const { interior, radius } = islandLand(seed, size)
+    const far = freeIn(interior, DISTRICT_SPACING + 1, radius + hexDistance(COMMONS_CENTER, centre))
+    if (far) return far
   }
   throw new Error('No free plot near district centre')
 }

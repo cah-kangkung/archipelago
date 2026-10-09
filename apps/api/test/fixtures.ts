@@ -98,8 +98,9 @@ export async function insertTask(
   projectId: string,
   overrides: Partial<typeof tasks.$inferInsert> = {},
 ) {
-  // Unless told otherwise, the nearest free hex around the commons: always inside any island, so
-  // a task the API creates afterwards never makes the island outgrow its size cap.
+  // Unless told otherwise, the nearest free hex around the commons. Only rings 0-1 are always
+  // interior (rings 2-3 are always land, but may be shore), so a test that fills these rings may
+  // have the API grow the island; none gets near its size cap.
   const near =
     overrides.plotX === undefined && overrides.plotY === undefined
       ? await nearHex(db, projectId)

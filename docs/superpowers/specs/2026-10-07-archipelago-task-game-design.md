@@ -1274,7 +1274,7 @@ Amplitudes stay small enough that the commons centre and ring 1 are always insid
 - `depth`: per land hex, hex steps to the nearest non-land hex (breadth-first from the coast); 1–2 is shore;
 - `radius`: the largest hex distance from the centre to any land hex (the enclosing ring).
 
-The candidate hexes searched are those within `ceil(size · footprint extent) + 1` rings, so a size-20 elongated island tests about 3k hexes.
+The candidate hexes searched are those within `ceil(2 · size · footprint extent / √3) + 1` rings (a hex at ring d sits only d·√3/2 from the centre), so a size-20 elongated island tests a few thousand hexes.
 
 **Size.** `islandSize(seed, occupied)`: the smallest integer `size ≥ MIN_ISLAND_SIZE` (4) whose interior holds every occupied hex and at least `MIN_INTERIOR` (19, the old radius-4 disc's interior) hexes, and at least `FREE_PLOTS` (12) free interior hexes beyond the occupied ones and the commons centre (so the shop never dead-ends; buying a decoration may grow the island a step), stepping up by one. It replaces the old `islandRadius` growth rule; growth only ever adds land, because each footprint's distance is scaled uniformly.
 
@@ -1311,7 +1311,7 @@ Every rule takes the seed; the API already has `project.islandSeed` wherever it 
 - **Shallows** follow the coast: `islandGeometry(tiles, land)` lays a `SHALLOWS_HEIGHT` prism on every non-land hex within one ring of land, instead of one hexagon of `shallowsRadius`.
 - **Foam** runs along the rim (the shallows hexes' sides facing open water), a `FOAM_WIDTH` strip per side, instead of a hexagonal band round the enclosing disc.
 - **Sea depth:** `Shore` gains `coast: Point[]` and `cover` (tile and shallows hex keys); `shoreDistance` is 0 over a covered hex, else the nearest coast centre less `SHALLOWS_REACH` (`SQRT3 + 1`), with the enclosing disc as a fast rejection. The uncharted island (17.4) is a round island of size 1.
-- **Camera:** the island layer's area (`layerArea`, framing, pan bounds) is the bounding box of its tiles' world positions grown by `islandExtent`'s one-hex corner allowance, rounded by one hex corner (`round: 1`), instead of the enclosing disc. Districts are unchanged.
+- **Camera:** the island layer's area (`layerArea`, framing, pan bounds) is the bounding box of its tile centres with `round: 1` (one hex corner), instead of the enclosing disc; focus framing grows that box by `SHALLOWS_REACH`. Districts are unchanged.
 - `SceneIsland` gains `size`, `coast`, `shallows`, `rim`, `cover` and `box`, and keeps `radius` (the enclosing ring) for the consumers listed in 24.2.
 
 ### 24.5 The district ring (`apps/web/src/scene/model/district-ring.ts`, `scene/district-ring.tsx`)
@@ -1324,7 +1324,7 @@ Every rule takes the seed; the API already has `project.islandSeed` wherever it 
 - sides chain into closed loops (one per blob, more for detached pieces), each a list of corners in order;
 - where consecutive sides belong to tiles at different heights, the loop holds two points at the shared corner, one at each height, so it drops straight down the terrace step.
 
-**Mesh.** `ringGeometry(loops)`: a flat ribbon on the tile tops, `DISTRICT_RING_WIDTH` (0.15) wide, inset `DISTRICT_RING_INSET` (0.05) from the edge, lifted `DISTRICT_RING_LIFT` (0.02); vertical segments at height steps become a vertical strip of the same width. Unlit, opaque, `scenePalette.districtRing` (a warm gold from the design tokens), depth test on (hills in front hide it), `renderOrder` `CLOUD_DECK_RENDER_ORDER + 1` so the hole's feather never veils it, raycast disabled.
+**Mesh.** `ringGeometry(loops)`: a flat ribbon on the tile tops, `DISTRICT_RING_WIDTH` (0.15) wide, inset `DISTRICT_RING_INSET` (0.05) from the edge, lifted `DISTRICT_RING_LIFT` (0.02); vertical segments at height steps become a vertical strip of the same width. Unlit, a transparent ShaderMaterial (`uReveal` reveals it along each loop, `uOpacity` fades it), full opacity when idle, `scenePalette.districtRing` (a warm gold from the design tokens), depth test on (hills in front hide it), `renderOrder` `CLOUD_DECK_RENDER_ORDER + 1` so the hole's feather never veils it, raycast disabled.
 
 **When it shows.**
 
