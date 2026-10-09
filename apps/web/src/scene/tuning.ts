@@ -144,30 +144,3 @@ export const SPOTLIGHT_HAZE = 0.2
 export const SPOTLIGHT_FEATHER = 2 * Math.sqrt(3)
 /** Labels whose anchor is outside the layer. */
 export const SPOTLIGHT_LABEL_OPACITY = 0.6
-
-// Cloud ring (spec 21): soft clouds just outside the current island or district.
-/** How deep the band of clouds is, in world units: two hexes. */
-export const CLOUD_BAND = 2 * Math.sqrt(3)
-/** Puffs per world unit of the band's length: 1 is a closed band, about 0.4 scattered puffs. */
-export const CLOUD_DENSITY = 1
-/** Most puffs in one ring; past it the ring thins evenly. */
-export const CLOUD_MAX = 120
-/** In a district: ring the district itself, or keep the island's coastal ring. */
-export const CLOUD_DISTRICT_RING: 'district' | 'coast' = 'district'
-/** How high puffs float, above the tallest landmark. */
-export const CLOUD_HEIGHT = 4
-/**
- * How far a puff's body rises above its base, per unit of scale: the drawn position shifts by this
- * on x and z so the body, not the base, sits over the ground point.
- */
-export const CLOUD_CENTRE = 0.45
-/** A ring gathering or parting, in ms. */
-export const CLOUD_MS = 600
-/** How far puffs glide in when gathering, or out when parting: one and a half hexes. */
-export const CLOUD_TRAVEL = 1.5 * Math.sqrt(3)
-/** Resting sway along the ring (world units) and its period (s), `high` tier only. */
-export const CLOUD_SWAY = 0.3
-export const CLOUD_SWAY_S = 20
-/** Resting bob (world units) and its period (s), `high` tier only. */
-export const CLOUD_BOB = 0.08
-export const CLOUD_BOB_S = 6

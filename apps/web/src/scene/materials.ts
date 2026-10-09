@@ -72,9 +72,3 @@ export const splashMaterial = withSpotlight(
     depthWrite: false,
   }),
 )
-
-/** Clouds sit outside the layer by design: not spotlight-patched, so they never haze (spec 21.2). */
-export const cloudMaterial = new THREE.MeshLambertMaterial({
-  vertexColors: true,
-  flatShading: true,
-})
