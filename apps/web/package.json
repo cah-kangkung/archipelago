@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bundle:check": "bun scripts/check-bundle.ts"
   },
   "devDependencies": {
     "@archipelago/api": "workspace:*",
