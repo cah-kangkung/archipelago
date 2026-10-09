@@ -1011,6 +1011,8 @@ Amended 2026-10-09: the grey-and-darken look was too strong; the haze replaced i
 
 ## 21. Phase 5g Design Addendum: Cloud Ring (approved 2026-10-09)
 
+> **Superseded by section 22 (Phase 5h).** The in-scene ring was built and then replaced by a screen-space cloud frame; this section is kept as a record.
+
 Phase 5g opens the light-and-mood phase with a cloud ring: soft low-poly clouds gather in a band just outside the current island or district, and part when you leave for the archipelago. It is the layer's main edge cue; the sea haze of 20.3 stays underneath at `SPOTLIGHT_HAZE` 0.2. It refines section 20; where they disagree, this section wins. No API or DTO change. Taps, panning and the haze are unchanged.
 
 ### 21.1 The ring (`scene/model/clouds.ts`, pure)
@@ -1052,3 +1054,46 @@ Phase 5g opens the light-and-mood phase with a cloud ring: soft low-poly clouds 
 - Scene: one instanced mesh with raycast disabled; its count follows the rings; the ticker demand is held only while transitioning; no drift on `low`; a refetch with the same cloud area does not restart the gather.
 - The headless WebGL compile check covers `cloudMaterial`.
 - Owner's check: `bun run seed:demo`; `?perf` shows at most one more draw call than 5f and no tier drop; judge the band (B) against scattered (A, `CLOUD_DENSITY` ≈ 0.4) and the district ring against `'coast'`.
+
+## 22. Phase 5h Design Addendum: Cloud Frame (approved 2026-10-09)
+
+Phase 5h replaces 21's in-scene cloud ring with a cloud frame drawn over the camera view: soft cloud wisps round the screen edges while you are inside an island or district, as if looking down through a gap in the clouds. It is a DOM overlay beside 17.3's vignette, not scene geometry, so it never covers tiles, costs WebGL nothing and lives outside the three.js chunk. Where it disagrees with section 21, this section wins. No API or DTO change. The spotlight haze (20.3), taps and panning are unchanged.
+
+### 22.1 Removal of the ring
+
+- Deleted: `scene/model/clouds.ts`, `scene/model/cloud-motion.ts` and their tests; `scene/clouds.tsx`; `scene/models/cloud.ts`.
+- Removed from shared files: `cloudMaterial` (`scene/materials.ts`) and its spotlight test; the `clouds` field of `TickerDemand` (`scene/ticker.ts`) and its tests; the `CloudLayer` mount and its `clouding` state in `world-scene.tsx`; every `CLOUD_*` value of 21 in `scene/tuning.ts`.
+- Kept: the palette key `cloud = mix(surfacePrimary, brandSecondary, 0.15)` (21.2), now the frame's colour.
+
+### 22.2 State (`world/cloud-frame-state.ts`, pure)
+
+- `cloudFrameState(focus: Focus): { shown: boolean; scale: number }`:
+  - **Archipelago:** `{ shown: false, scale: CLOUD_FRAME_ISLAND_SCALE }` (hidden; the scale stays at the island value so archipelago → island only fades).
+  - **Island:** `{ shown: true, scale: CLOUD_FRAME_ISLAND_SCALE }` (wisps pushed slightly outward).
+  - **District:** `{ shown: true, scale: 1 }` (wisps drawn in: each step inwards tightens the frame).
+
+### 22.3 Texture (`world/cloud-texture.ts`)
+
+- `cloudNoise(size: number, seed: number): Uint8ClampedArray` — pure, `size × size` alpha values (0–255) of fractal value noise (4 octaves) that wraps at the tile edges, so the tile repeats without a seam. Same size and seed → the same values.
+- `cloudTextureUrl(): string | null` — paints `cloudNoise(CLOUD_TEXTURE_SIZE, CLOUD_TEXTURE_SEED)` as the alpha of `scenePalette.cloud` onto a 2D canvas and returns its PNG data URL. Memoised at module level (built once per page). Returns `null` when no 2D context exists (jsdom, or a failure).
+
+### 22.4 Frame (`world/cloud-frame.tsx`)
+
+- `CloudFrame({ focus, coveredBottom }: { focus: Focus; coveredBottom: number })`, mounted in `world/world-view.tsx` directly after `<Vignette />`: above the canvas and vignette, below the edge markers and HUD (DOM order). Not rendered in the card view (no WebGL, or the scene failed), which has no world to frame.
+- **Outer div** (`data-testid="cloud-frame"`): `aria-hidden`, `pointer-events-none`, absolute with `top/left/right: 0` and `bottom: coveredBottom` px (it frames only the visible canvas, above the phone sheet; no transition on `bottom`, so it tracks a dragged sheet). Opacity `CLOUD_FRAME_ALPHA` when shown, 0 when hidden; `transform: scale(<scale>)`. Opacity and transform transition over `CLOUD_FRAME_MS` (600), ease-out. A radial mask (`mask-image: radial-gradient(ellipse at center, transparent <CLOUD_FRAME_CLEAR × 100>%, black 100%)`) keeps the centre clear and the edges cloudy; the ellipse follows the frame's aspect.
+- **Inner div:** extends `CLOUD_TEXTURE_PX` beyond the outer div on the top and left; `background-image` is the texture tiled at `CLOUD_TEXTURE_PX` (`background-size`). Without a texture its background is plain `scenePalette.cloud`, which the mask turns into a soft radial gradient.
+- **Drift:** the inner div runs `cloud-drift` (`@keyframes` in `src/styles.css`: translate by one tile, `CLOUD_TEXTURE_PX` in x and y, linear, infinite) over `CLOUD_FRAME_DRIFT_S` (60 s). One tile per loop, so the loop is seamless. It is a compositor transform: it never invalidates the canvas or holds a ticker demand, and is not tied to the quality tier.
+- **Reduced motion:** no transition and no drift; the frame appears and vanishes at once.
+
+### 22.5 Tuning (`scene/tuning.ts`)
+
+- `CLOUD_FRAME_ALPHA` 0.7, `CLOUD_FRAME_CLEAR` 0.6, `CLOUD_FRAME_ISLAND_SCALE` 1.08, `CLOUD_FRAME_MS` 600, `CLOUD_FRAME_DRIFT_S` 60, `CLOUD_TEXTURE_SIZE` 128 (noise tile in px), `CLOUD_TEXTURE_PX` 384 (its drawn size, CSS px), `CLOUD_TEXTURE_SEED` 7.
+
+### 22.6 Testing
+
+- State: each focus kind maps to its `shown` and `scale`.
+- Noise: deterministic for a size and seed; every value 0–255; wraps (column 0 differs from the last column by no more than neighbouring columns do, and likewise rows); not flat (variance above a floor); a different seed gives a different tile.
+- Frame (RTL): opacity 0 on the archipelago, `CLOUD_FRAME_ALPHA` on an island and in a district; scale `CLOUD_FRAME_ISLAND_SCALE` on an island and 1 in a district; `bottom` equals `coveredBottom`; `aria-hidden` and `pointer-events-none`; reduced motion has no transition and no drift animation; in jsdom (no 2D context) the inner div falls back to the plain cloud colour. Mounted in `world-view` after the vignette; absent from the card view.
+- Removal: the ticker demand has no `clouds`; `world-scene` mounts no `CloudLayer`; nothing in `src/` references `cloudMaterial`, `CloudLayer` or a `CLOUD_` value of 21.
+- Gate: tests, typecheck, lint, build; three.js only in the world-scene chunk.
+- Owner's check: `bun run seed:demo`, phone and desktop; archipelago → island → district tightens the frame; the drift is smooth; `?perf` shows no canvas frames while idle inside a layer and no tier drop; judge `CLOUD_FRAME_ALPHA` and `CLOUD_FRAME_CLEAR`.
