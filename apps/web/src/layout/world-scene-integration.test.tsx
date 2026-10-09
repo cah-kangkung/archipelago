@@ -153,6 +153,8 @@ describe('World screen with the 3D scene', () => {
     const vignette = screen.getByTestId('vignette')
     const cloud = screen.getByTestId('cloud-frame')
     expect(vignette.nextElementSibling).toBe(cloud)
+    const hud = screen.getByRole('button', { name: 'New island' })
+    expect(cloud.compareDocumentPosition(hud) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   test('recent progress reaches the scene as boats and gulls', async () => {

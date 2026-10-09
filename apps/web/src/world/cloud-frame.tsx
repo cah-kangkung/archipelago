@@ -33,6 +33,8 @@ export function CloudFrame({ focus, coveredBottom }: { focus: Focus; coveredBott
       : { backgroundColor: scenePalette.cloud }),
     '--cloud-tile': `${CLOUD_TEXTURE_PX}px`,
     animation: reduced ? 'none' : `cloud-drift ${CLOUD_FRAME_DRIFT_S}s linear infinite`,
+    // Paused (not 'none') while hidden: no compositor frames, and no snap back mid-fade-out.
+    animationPlayState: shown ? 'running' : 'paused',
   }
   return (
     <div

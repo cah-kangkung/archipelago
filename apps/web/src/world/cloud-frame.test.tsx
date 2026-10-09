@@ -6,6 +6,7 @@ import {
   CLOUD_FRAME_DRIFT_S,
   CLOUD_FRAME_ISLAND_SCALE,
   CLOUD_FRAME_MS,
+  CLOUD_TEXTURE_PX,
 } from '../scene/tuning'
 import { setReducedMotion } from '../test/viewport'
 import { CloudFrame } from './cloud-frame'
@@ -62,6 +63,18 @@ describe('CloudFrame', () => {
   test('drifts one tile per loop', () => {
     render(<CloudFrame focus={island} coveredBottom={0} />)
     expect(wisps().style.animation).toBe(`cloud-drift ${CLOUD_FRAME_DRIFT_S}s linear infinite`)
+    expect(wisps().style.getPropertyValue('--cloud-tile')).toBe(`${CLOUD_TEXTURE_PX}px`)
+    expect(wisps().style.top).toBe(`-${CLOUD_TEXTURE_PX}px`)
+    expect(wisps().style.left).toBe(`-${CLOUD_TEXTURE_PX}px`)
+  })
+
+  test('the drift is paused while the frame is hidden, running inside a layer', () => {
+    const { rerender } = render(<CloudFrame focus={archipelago} coveredBottom={0} />)
+    expect(wisps().style.animationPlayState).toBe('paused')
+    rerender(<CloudFrame focus={island} coveredBottom={0} />)
+    expect(wisps().style.animationPlayState).toBe('running')
+    rerender(<CloudFrame focus={district} coveredBottom={0} />)
+    expect(wisps().style.animationPlayState).toBe('running')
   })
 
   test('under reduced motion it neither eases nor drifts, even when switched on live', () => {
