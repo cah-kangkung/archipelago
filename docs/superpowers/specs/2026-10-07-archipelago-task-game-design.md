@@ -1113,6 +1113,8 @@ Phase 5h replaces 21's in-scene cloud ring with a cloud frame drawn over the cam
 
 > **Revised by 23.7** (a veil on the archipelago and island layers, a hole only in a district, and a more spread-out, random pattern). Where 23.1–23.6 disagree with 23.7, 23.7 wins.
 
+> **Revised again by 23.8** (procedural clouds; the archipelago lighter and sparser than an island). Where earlier parts disagree with 23.8, 23.8 wins.
+
 The owner wanted the cloud to stay with the world instead of the camera. The screen-space frame of 22.2–22.6 is replaced by a cloud deck: one flat cloud layer over the world with a hole in the shape of the current layer. Panning and zooming move it with the tiles. It is in the scene again, but as a single textured plane, not puffs. Where it disagrees with section 22, this section wins. 22.1 (ring removed) and 22.7 (haze removed) stand. No API or DTO change.
 
 ### 23.1 The hole (`scene/model/cloud-deck.ts`, pure)
@@ -1193,3 +1195,34 @@ The owner wanted cloud on every layer and a less regular pattern.
 - Material: the texture is `RGFormat` with R = wisps and G = raw cover noise; the fragment contains the two layers, the warp and the coverage terms with the tuning constants; `writeDeck` with no hole sets `uRound` to `-CLOUD_DECK_FEATHER` and opacity `CLOUD_DECK_ALPHA · CLOUD_VEIL`.
 - Deck: on the archipelago and an island the mesh is visible at the veil's opacity; island → district runs one leg ending at full opacity with the district box; district → island ends at the veil; archipelago → island starts nothing; first mount instant; drift writes the four layer offsets only while drifting, each in [0, 1).
 - Owner's check: `bun run seed:demo`; the veil reads as clouds on the archipelago and island without hiding them; a district opens its hole; `?perf` on a phone with the veil's full-screen pass.
+
+### 23.8 Revision: procedural clouds, per-layer veil (approved 2026-10-09)
+
+On screen, the 23.7 look ("X") was nearly invisible on the island and in a district: its coverage map cleared whole views, and the warped 128 px texture smeared into streaks. The owner chose procedural clouds, previewed over real screenshots: "pa" on the island and in a district, "pb_both" on the archipelago.
+
+**Clouds (fragment shader, no texture).** At world `p` (x/z), with `s = (p + uDrift) / CLOUD_DECK_SCALE`:
+- value noise from a hash: `hash(v) = fract(w.x · w.y)` where `w = fract(v · (123.34, 456.21))`, then `w += dot(w, w + 45.32)`; `noise` is the smoothstep-blended lattice of `hash`; `fbm` sums `CLOUD_DECK_OCTAVES` (5) octaves, amplitude halving from 0.5, each octave's point turned and scaled by `mat2(1.6, 1.2, −1.2, 1.6)`;
+- warp: `s += CLOUD_DECK_WARP · (fbm(s · 0.5 + 3.1), fbm(s · 0.5 − 7.7))`; `d = fbm(s)`;
+- banks: `bank = fbm((p + uDrift) / CLOUD_DECK_BANK_SCALE + 11.0)`; threshold `t = uThreshold − CLOUD_DECK_BANK · (bank − 0.5)`;
+- `cloud = smoothstep(t, t + CLOUD_DECK_SOFT, d)`; alpha `= cloud · edge · uOpacity` (the hole's `edge` as before, on `p` without the drift).
+- Never a cleared view: unlike 23.7's coverage map, the banks only shift the threshold, so every view keeps some cloud.
+
+**Per-layer look.** `Deck` gains `threshold`:
+- **Archipelago** (and an unknown island, which falls back to it): `{ hole: null, strength: CLOUD_ARCHIPELAGO_VEIL (0.47), threshold: CLOUD_ARCHIPELAGO_THRESHOLD (0.58) }` (opacity ≈ 0.40, sparser).
+- **Island** (and a district whose milestone is unknown): `{ hole: null, strength: CLOUD_VEIL (0.65), threshold: CLOUD_THRESHOLD (0.5) }` (opacity ≈ 0.55).
+- **District:** `{ hole: layerArea, strength: 1, threshold: CLOUD_THRESHOLD }` (opacity 0.85).
+- `deckTarget(model, focus): Deck` replaces `deckFor`. `deckLeg` keeps 23.7's rules and carries the target's threshold (closing to a veil takes the veil's strength and threshold; opening keeps the current threshold in `from`). `deckAt` lerps `threshold` with strength. `sameDeck` also compares `threshold`. Archipelago ↔ island is now a 600 ms leg (strength and threshold tween); the component's trigger key is the target deck's value (`deckKey`: hole key, strength and threshold), so a refetch that keeps all three starts nothing.
+
+**Drift.** One offset again: `uDrift = (w, w)` with `w = along mod CLOUD_DECK_DRIFT_WRAP` (4500 world units, about 6 h at 0.2 u/s), keeping the hash's inputs small enough for float precision; at the wrap the pattern jumps once. Drift still runs only on the `high` tier.
+
+**Removed.** The cloud texture and `scene/model/cloud-noise.ts` (`cloudNoise`, `wispAlpha`) with their tests; `layerOffset`, `Turn`, `LAYER_B_TURN`, `COVER_TURN`; uniforms `uMap`, `uOffA`, `uOffB`, `uOffCover`, `uWarpOff`; tuning `CLOUD_TEXTURE_SIZE`, `CLOUD_TEXTURE_SEED`, `CLOUD_WISP_LO`, `CLOUD_WISP_HI`, `CLOUD_DECK_TILE`, `CLOUD_DECK_TILE_B`, `CLOUD_DECK_WARP_SCALE`, `CLOUD_DECK_COVER_SCALE`, `CLOUD_DECK_COVER_LO`, `CLOUD_DECK_COVER_HI`, `CLOUD_COVER_SEED`. `CLOUD_DECK_WARP` is kept with the new value.
+
+**Tuning.** `CLOUD_DECK_SCALE` 9, `CLOUD_DECK_OCTAVES` 5, `CLOUD_DECK_WARP` 0.6, `CLOUD_DECK_BANK_SCALE` 60, `CLOUD_DECK_BANK` 0.25, `CLOUD_DECK_SOFT` 0.18, `CLOUD_THRESHOLD` 0.5, `CLOUD_ARCHIPELAGO_THRESHOLD` 0.58, `CLOUD_VEIL` 0.65 (was 0.4), `CLOUD_ARCHIPELAGO_VEIL` 0.47, `CLOUD_DECK_DRIFT_WRAP` 4500. Unchanged: `CLOUD_DECK_ALPHA` 0.85, `CLOUD_DECK_FEATHER`, `CLOUD_DECK_DRIFT` 0.2, `CLOUD_MS` 600, `SEA_MARGIN` 250.
+
+**Cost.** About 4 fbm evaluations (20 noise lookups of 4 hashes) per covered pixel, full screen on every layer, against 5 texture reads before. The owner's `?perf` phone check decides whether the low tier needs fewer octaves.
+
+**Testing.**
+- Model: `deckTarget` per layer (archipelago, island, district, unknown island → archipelago, unknown milestone → island); legs archipelago ↔ island tween strength and threshold; island → district opens with the island's threshold in `from`; district → archipelago closes to the archipelago's strength and threshold; `sameDeck` compares threshold; `deckKey` changes with any of the three; `driftWrap` stays in [0, `CLOUD_DECK_DRIFT_WRAP`).
+- Material: the fragment contains the hash, the fbm loop with `CLOUD_DECK_OCTAVES`, the warp, the banks and the soft threshold with the tuning constants; `writeDeck` writes `uThreshold`; `writeDrift` writes the wrapped offset; no texture uniform.
+- Deck: archipelago shows opacity `CLOUD_DECK_ALPHA · CLOUD_ARCHIPELAGO_VEIL` and threshold `CLOUD_ARCHIPELAGO_THRESHOLD`; archipelago → island runs one leg to the island's values; the existing district, refetch, reduced-motion, remount and lifecycle tests keep passing with the new values.
+- The shader compiles in headless Chromium; the controller previews it over real screenshots.
