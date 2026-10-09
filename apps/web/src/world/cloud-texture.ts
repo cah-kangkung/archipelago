@@ -1,6 +1,11 @@
 import { scenePalette } from '../scene/model/palette'
 import { hashInts, mulberry32 } from '../scene/model/random'
-import { CLOUD_TEXTURE_SEED, CLOUD_TEXTURE_SIZE } from '../scene/tuning'
+import {
+  CLOUD_TEXTURE_SEED,
+  CLOUD_TEXTURE_SIZE,
+  CLOUD_WISP_HI,
+  CLOUD_WISP_LO,
+} from '../scene/tuning'
 
 const OCTAVES = 4
 /** Lattice cells across the tile at the first octave; each octave doubles them. */
@@ -45,7 +50,17 @@ export function cloudNoise(size: number, seed: number): Uint8ClampedArray {
   return out
 }
 
-/** The noise as the alpha of the cloud colour, as a PNG data URL; null without a 2D canvas. */
+/** Noise reshaped into wisps: clear below `lo`, solid above `hi` (both 0–1), smooth between. */
+export function wispAlpha(noise: Uint8ClampedArray, lo: number, hi: number): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(noise.length)
+  for (let i = 0; i < noise.length; i++) {
+    const t = Math.min(1, Math.max(0, ((noise[i] ?? 0) / 255 - lo) / (hi - lo)))
+    out[i] = Math.round(smooth(t) * 255)
+  }
+  return out
+}
+
+/** The noise, shaped into wisps, as the alpha of the cloud colour, as a PNG data URL; null without a 2D canvas. */
 export function paintCloudTexture(size: number, seed: number): string | null {
   try {
     const canvas = document.createElement('canvas')
@@ -56,7 +71,7 @@ export function paintCloudTexture(size: number, seed: number): string | null {
     const image = ctx.createImageData(size, size)
     const hex = scenePalette.cloud
     const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16))
-    const alpha = cloudNoise(size, seed)
+    const alpha = wispAlpha(cloudNoise(size, seed), CLOUD_WISP_LO, CLOUD_WISP_HI)
     for (let p = 0; p < alpha.length; p++) {
       image.data[p * 4] = r ?? 0
       image.data[p * 4 + 1] = g ?? 0

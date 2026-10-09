@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest'
 import { scenePalette } from '../scene/model/palette'
 import {
   CLOUD_FRAME_ALPHA,
+  CLOUD_FRAME_CLEAR,
   CLOUD_FRAME_DRIFT_S,
   CLOUD_FRAME_ISLAND_SCALE,
   CLOUD_FRAME_MS,
@@ -41,6 +42,12 @@ describe('CloudFrame', () => {
     rerender(<CloudFrame focus={district} coveredBottom={0} />)
     expect(frame().style.opacity).toBe(String(CLOUD_FRAME_ALPHA))
     expect(frame().style.transform).toBe('scale(1)')
+  })
+
+  test('clears the centre out to the nearest edges, not the corners', () => {
+    render(<CloudFrame focus={island} coveredBottom={0} />)
+    expect(frame().style.maskImage).toContain('closest-side')
+    expect(frame().style.maskImage).toContain(`transparent ${Math.round(CLOUD_FRAME_CLEAR * 100)}%`)
   })
 
   test('never catches taps and is hidden from assistive tech', () => {

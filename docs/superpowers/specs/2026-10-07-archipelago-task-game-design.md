@@ -1063,7 +1063,7 @@ Phase 5h replaces 21's in-scene cloud ring with a cloud frame drawn over the cam
 
 - Deleted: `scene/model/clouds.ts`, `scene/model/cloud-motion.ts` and their tests; `scene/clouds.tsx`; `scene/models/cloud.ts`.
 - Removed from shared files: `cloudMaterial` (`scene/materials.ts`) and its spotlight test; the `clouds` field of `TickerDemand` (`scene/ticker.ts`) and its tests; the `CloudLayer` mount and its `clouding` state in `world-scene.tsx`; every `CLOUD_*` value of 21 in `scene/tuning.ts`.
-- Kept: the palette key `cloud = mix(surfacePrimary, brandSecondary, 0.15)` (21.2), now the frame's colour.
+- Kept: the palette key `cloud`, now the frame's colour and changed to `surfacePrimary` (white): the pale blue blend vanished on the light sea.
 
 ### 22.2 State (`world/cloud-frame-state.ts`, pure)
 
@@ -1075,19 +1075,21 @@ Phase 5h replaces 21's in-scene cloud ring with a cloud frame drawn over the cam
 ### 22.3 Texture (`world/cloud-texture.ts`)
 
 - `cloudNoise(size: number, seed: number): Uint8ClampedArray` — pure, `size × size` alpha values (0–255) of fractal value noise (4 octaves) that wraps at the tile edges, so the tile repeats without a seam. Same size and seed → the same values.
-- `cloudTextureUrl(): string | null` — paints `cloudNoise(CLOUD_TEXTURE_SIZE, CLOUD_TEXTURE_SEED)` as the alpha of `scenePalette.cloud` onto a 2D canvas and returns its PNG data URL. Memoised at module level (built once per page). Returns `null` when no 2D context exists (jsdom, or a failure).
+- `wispAlpha(noise, lo, hi): Uint8ClampedArray` — pure: clear below `lo`, solid above `hi` (0–1 of the noise), smoothstep between, so the even haze becomes puffs with gaps.
+- `cloudTextureUrl(): string | null` — paints `wispAlpha(cloudNoise(CLOUD_TEXTURE_SIZE, CLOUD_TEXTURE_SEED), CLOUD_WISP_LO, CLOUD_WISP_HI)` as the alpha of `scenePalette.cloud` onto a 2D canvas and returns its PNG data URL. Memoised at module level (built once per page). Returns `null` when no 2D context exists (jsdom, or a failure).
 
 ### 22.4 Frame (`world/cloud-frame.tsx`)
 
 - `CloudFrame({ focus, coveredBottom }: { focus: Focus; coveredBottom: number })`, mounted in `world/world-view.tsx` directly after `<Vignette />`: above the canvas and vignette, below the edge markers and HUD (DOM order). Not rendered in the card view (no WebGL, or the scene failed), which has no world to frame.
-- **Outer div** (`data-testid="cloud-frame"`): `aria-hidden`, `pointer-events-none`, absolute with `top/left/right: 0` and `bottom: coveredBottom` px (it frames only the visible canvas, above the phone sheet; no transition on `bottom`, so it tracks a dragged sheet). Opacity `CLOUD_FRAME_ALPHA` when shown, 0 when hidden; `transform: scale(<scale>)`. Opacity and transform transition over `CLOUD_FRAME_MS` (600), ease-out. A radial mask (`mask-image: radial-gradient(ellipse at center, transparent <CLOUD_FRAME_CLEAR × 100>%, black 100%)`) keeps the centre clear and the edges cloudy; the ellipse follows the frame's aspect.
+- **Outer div** (`data-testid="cloud-frame"`): `aria-hidden`, `pointer-events-none`, absolute with `top/left/right: 0` and `bottom: coveredBottom` px (it frames only the visible canvas, above the phone sheet; no transition on `bottom`, so it tracks a dragged sheet). Opacity `CLOUD_FRAME_ALPHA` when shown, 0 when hidden; `transform: scale(<scale>)`. Opacity and transform transition over `CLOUD_FRAME_MS` (600), ease-out. A radial mask (`mask-image: radial-gradient(closest-side, transparent <CLOUD_FRAME_CLEAR × 100>%, black 100%)`) keeps the centre clear and the edges cloudy; the ellipse reaches the nearest edges (not the corners, which left the side midpoints nearly clear), so the corners beyond it are solid cloud.
 - **Inner div:** extends `CLOUD_TEXTURE_PX` beyond the outer div on the top and left; `background-image` is the texture tiled at `CLOUD_TEXTURE_PX` (`background-size`). Without a texture its background is plain `scenePalette.cloud`, which the mask turns into a soft radial gradient.
 - **Drift:** the inner div runs `cloud-drift` (`@keyframes` in `src/styles.css`: translate by one tile, `CLOUD_TEXTURE_PX` in x and y, linear, infinite) over `CLOUD_FRAME_DRIFT_S` (60 s). One tile per loop, so the loop is seamless. It is a compositor transform: it never invalidates the canvas or holds a ticker demand, and is not tied to the quality tier.
 - **Reduced motion:** no transition and no drift; the frame appears and vanishes at once.
 
 ### 22.5 Tuning (`scene/tuning.ts`)
 
-- `CLOUD_FRAME_ALPHA` 0.7, `CLOUD_FRAME_CLEAR` 0.6, `CLOUD_FRAME_ISLAND_SCALE` 1.08, `CLOUD_FRAME_MS` 600, `CLOUD_FRAME_DRIFT_S` 60, `CLOUD_TEXTURE_SIZE` 128 (noise tile in px), `CLOUD_TEXTURE_PX` 384 (its drawn size, CSS px), `CLOUD_TEXTURE_SEED` 7.
+- `CLOUD_FRAME_ALPHA` 0.85, `CLOUD_FRAME_CLEAR` 0.65, `CLOUD_FRAME_ISLAND_SCALE` 1.08, `CLOUD_FRAME_MS` 600, `CLOUD_FRAME_DRIFT_S` 60, `CLOUD_TEXTURE_SIZE` 128 (noise tile in px), `CLOUD_TEXTURE_PX` 512 (its drawn size, CSS px), `CLOUD_TEXTURE_SEED` 7, `CLOUD_WISP_LO` 0.45, `CLOUD_WISP_HI` 0.75.
+- Tuned 2026-10-09 after the owner's check: the first values (alpha 0.7, clear 0.6 to the corners, raw noise, the pale blue blend, 384 px) were barely visible. The chosen look ("C") was previewed over a real screenshot first.
 
 ### 22.6 Testing
 

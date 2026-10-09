@@ -57,7 +57,7 @@ describe('palette', () => {
     expect(scenePalette.sea).toBe(mix(colors.brandSecondary, colors.surfacePrimary, 0.3))
     expect(scenePalette.seaDeep).toBe(mix(colors.brandSecondary, colors.surfacePrimary, 0.15))
     expect(scenePalette.grass).toBe(colors.success)
-    expect(scenePalette.cloud).toBe(mix(colors.surfacePrimary, colors.brandSecondary, 0.15))
+    expect(scenePalette.cloud).toBe(colors.surfacePrimary)
     for (const value of Object.values(scenePalette)) expect(value).toMatch(/^#[0-9a-f]{6}$/)
   })
 

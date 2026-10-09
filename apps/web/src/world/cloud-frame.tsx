@@ -12,7 +12,7 @@ import { cloudFrameState } from './cloud-frame-state'
 import { cloudTextureUrl } from './cloud-texture'
 import type { Focus } from './selectors'
 
-const mask = `radial-gradient(ellipse at center, transparent ${CLOUD_FRAME_CLEAR * 100}%, black 100%)`
+const mask = `radial-gradient(closest-side, transparent ${Math.round(CLOUD_FRAME_CLEAR * 100)}%, black 100%)`
 
 /**
  * Soft cloud round the screen edges while inside an island or district (spec 22.4): a DOM overlay,

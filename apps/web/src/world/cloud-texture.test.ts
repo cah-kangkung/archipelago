@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { scenePalette } from '../scene/model/palette'
-import { cloudNoise, paintCloudTexture } from './cloud-texture'
+import { CLOUD_WISP_HI, CLOUD_WISP_LO } from '../scene/tuning'
+import { cloudNoise, paintCloudTexture, wispAlpha } from './cloud-texture'
 
 const SIZE = 64
 const at = (n: Uint8ClampedArray, x: number, y: number) => n[y * SIZE + x] ?? Number.NaN
@@ -40,6 +41,32 @@ describe('cloudNoise', () => {
   })
 })
 
+describe('wispAlpha', () => {
+  const ramp = Uint8ClampedArray.from({ length: 256 }, (_, i) => i)
+  const shaped = wispAlpha(ramp, 0.45, 0.75)
+
+  test('clears below the low edge and is solid above the high edge', () => {
+    expect(shaped[Math.floor(0.45 * 255)]).toBe(0)
+    expect(shaped[0]).toBe(0)
+    expect(shaped[Math.ceil(0.75 * 255)]).toBe(255)
+    expect(shaped[255]).toBe(255)
+  })
+
+  test('rises smoothly in between, never falling', () => {
+    for (let i = 1; i < 256; i++) expect(shaped[i] ?? 0).toBeGreaterThanOrEqual(shaped[i - 1] ?? 0)
+    expect(shaped[Math.round(0.6 * 255)]).toBeGreaterThan(100)
+    expect(shaped[Math.round(0.6 * 255)]).toBeLessThan(155)
+  })
+
+  test('turns the even haze into puffs with clear gaps', () => {
+    const wisps = wispAlpha(cloudNoise(64, 7), CLOUD_WISP_LO, CLOUD_WISP_HI)
+    const clear = wisps.filter((v) => v === 0).length / wisps.length
+    const solid = wisps.filter((v) => v > 200).length / wisps.length
+    expect(clear).toBeGreaterThan(0.2)
+    expect(solid).toBeGreaterThan(0.05)
+  })
+})
+
 describe('paintCloudTexture', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -49,7 +76,7 @@ describe('paintCloudTexture', () => {
     expect(paintCloudTexture(4, 7)).toBeNull()
   })
 
-  test('paints the noise as the alpha of the cloud colour', () => {
+  test('paints the noise, shaped into wisps, as the alpha of the cloud colour', () => {
     const image = { data: new Uint8ClampedArray(4 * 4 * 4) }
     const put = vi.fn()
     const ctx = { createImageData: () => image, putImageData: put }
@@ -61,7 +88,7 @@ describe('paintCloudTexture', () => {
     expect(put).toHaveBeenCalledWith(image, 0, 0)
     const hex = scenePalette.cloud
     const rgb = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16))
-    const alpha = cloudNoise(4, 7)
+    const alpha = wispAlpha(cloudNoise(4, 7), CLOUD_WISP_LO, CLOUD_WISP_HI)
     for (let p = 0; p < 16; p++) {
       expect([...image.data.slice(p * 4, p * 4 + 3)]).toEqual(rgb)
       expect(image.data[p * 4 + 3]).toBe(alpha[p])

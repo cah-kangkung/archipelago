@@ -147,9 +147,9 @@ export const SPOTLIGHT_LABEL_OPACITY = 0.6
 
 // Cloud frame (spec 22): soft cloud round the screen edges inside an island or district.
 /** The frame's opacity while shown. */
-export const CLOUD_FRAME_ALPHA = 0.7
-/** Where the clear centre ends, as a share of the mask ellipse (0 centre, 1 the corners). */
-export const CLOUD_FRAME_CLEAR = 0.6
+export const CLOUD_FRAME_ALPHA = 0.85
+/** Where the clear centre ends, as a share of the mask ellipse (0 centre, 1 the nearest edges). */
+export const CLOUD_FRAME_CLEAR = 0.65
 /** On an island the wisps sit this much further out; in a district they are drawn in (scale 1). */
 export const CLOUD_FRAME_ISLAND_SCALE = 1.08
 /** Fade and tighten between layers, in ms. */
@@ -159,5 +159,12 @@ export const CLOUD_FRAME_DRIFT_S = 60
 /** The noise tile, in texture pixels. */
 export const CLOUD_TEXTURE_SIZE = 128
 /** The tile's drawn size, in CSS px. */
-export const CLOUD_TEXTURE_PX = 384
+export const CLOUD_TEXTURE_PX = 512
+/** Fixes the texture's pattern. */
 export const CLOUD_TEXTURE_SEED = 7
+/**
+ * Noise below the low edge is clear sky and above the high edge solid cloud (0–1 of the noise),
+ * which turns the even haze into puffs with gaps.
+ */
+export const CLOUD_WISP_LO = 0.45
+export const CLOUD_WISP_HI = 0.75
