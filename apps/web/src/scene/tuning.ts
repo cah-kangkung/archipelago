@@ -140,6 +140,16 @@ export const GROW_IN_MS = 600
 export const SPOTLIGHT_LABEL_OPACITY = 0.6
 
 // Cloud deck (spec 23): a cloud layer over the world with a hole the shape of the current layer.
+/** The deck's opacity at full strength. */
+export const CLOUD_DECK_ALPHA = 0.85
+/** From the hole's edge to full cloud, in world units: two hexes. */
+export const CLOUD_DECK_FEATHER = 2 * Math.sqrt(3)
+/** World units per texture tile. */
+export const CLOUD_DECK_TILE = 12
+/** Drift speed along (1, 1), world units per second (`high` tier only). */
+export const CLOUD_DECK_DRIFT = 0.2
+/** The deck fading or its hole sliding between layers, in ms. */
+export const CLOUD_MS = 600
 /** The noise tile, in texture pixels. */
 export const CLOUD_TEXTURE_SIZE = 128
 /** Fixes the texture's pattern. */
