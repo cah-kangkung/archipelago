@@ -135,13 +135,7 @@ export const CLUSTER_OFFSET = 0.55
 export const SCENERY_SCALE: readonly [min: number, max: number] = [0.8, 1.2]
 export const GROW_IN_MS = 600
 
-// Spotlight (spec 20.3): outside the current layer, colours fade into the sea's haze.
-/** The fade or slide between layers, in ms. */
-export const SPOTLIGHT_MS = 300
-/** How far colours outside the layer blend toward the haze colour (the sea's mid blue). */
-export const SPOTLIGHT_HAZE = 0.2
-/** The soft edge, in world units: two hexes. */
-export const SPOTLIGHT_FEATHER = 2 * Math.sqrt(3)
+// Labels: outside the current layer they fade.
 /** Labels whose anchor is outside the layer. */
 export const SPOTLIGHT_LABEL_OPACITY = 0.6
 

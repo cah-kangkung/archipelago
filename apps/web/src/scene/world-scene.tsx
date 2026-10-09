@@ -17,7 +17,6 @@ import { nextQuality, qualityDpr, START_QUALITY } from './model/quality'
 import type { SceneModel } from './model/scene-model'
 import { PerfProbe } from './perf-probe'
 import type { PerfStore } from './perf-store'
-import { SpotlightRig } from './spotlight-rig'
 import { startTicker, tickerWanted } from './ticker'
 import { usePrefersReducedMotion } from './use-reduced-motion'
 import { type Placement, type SceneHandlers, WorldContents } from './world-contents'
@@ -57,7 +56,6 @@ export function WorldScene(props: WorldSceneProps) {
   const [quality, setQuality] = useState(START_QUALITY)
   const [cameraMoving, setCameraMoving] = useState(false)
   const [growing, setGrowing] = useState(false)
-  const [spotting, setSpotting] = useState(false)
   const cranes = useMemo(
     () => props.model.islands.some((i) => i.structures.some((s) => s.kind === 'crane')),
     [props.model],
@@ -72,7 +70,6 @@ export function WorldScene(props: WorldSceneProps) {
     camera: cameraMoving,
     life: seaWave && hasLife(props.life),
     growth: growing,
-    spotlight: spotting,
   })
   return (
     <Canvas
@@ -97,12 +94,6 @@ export function WorldScene(props: WorldSceneProps) {
         seaWave={seaWave}
         lowTier={quality.tier === 'low'}
         onGrowth={setGrowing}
-      />
-      <SpotlightRig
-        model={props.model}
-        focus={props.focus}
-        animate={animate}
-        onRunning={setSpotting}
       />
       <Labels model={props.model} focus={props.focus} />
       <CameraRig

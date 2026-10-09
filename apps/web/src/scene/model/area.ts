@@ -7,7 +7,7 @@ import type { Bounds } from './scene-model'
  */
 export type Area = Bounds & { round?: number }
 
-/** Signed distance from `p` to the area's edge, negative inside. The spotlight shader matches it. */
+/** Signed distance from `p` to the area's edge, negative inside. */
 export function areaDistance(area: Area, p: Point): number {
   const qx = Math.abs(p.x - (area.minX + area.maxX) / 2) - (area.maxX - area.minX) / 2
   const qz = Math.abs(p.z - (area.minZ + area.maxZ) / 2) - (area.maxZ - area.minZ) / 2
