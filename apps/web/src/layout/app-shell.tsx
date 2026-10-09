@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { useApi } from '../api/context'
-import { useToast } from '../app/toast'
 import { EconomyBar } from '../economy/economy-bar'
+import { useToast } from '../ui/toast'
 
 export function AppShell() {
   const api = useApi()

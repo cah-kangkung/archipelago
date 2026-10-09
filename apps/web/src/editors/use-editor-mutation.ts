@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { ApiError } from '../api/api'
 import { useApi } from '../api/context'
-import { useToast } from '../app/toast'
+import { useToast } from '../ui/toast'
 import { worldQuery } from '../world/use-world'
 
 type Options = {

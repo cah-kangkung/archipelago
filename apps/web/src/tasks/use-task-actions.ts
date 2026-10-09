@@ -7,9 +7,9 @@ import type {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type Api, ApiError } from '../api/api'
 import { useApi } from '../api/context'
-import { useToast } from '../app/toast'
 import { formatReversals, formatRewards } from '../economy/format'
 import { useRewardStore } from '../rewards/reward-context'
+import { useToast } from '../ui/toast'
 import { worldQuery } from '../world/use-world'
 
 type Snapshot = { previousTask: TaskDto | undefined; index: number }

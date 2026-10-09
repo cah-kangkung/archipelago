@@ -4,7 +4,7 @@ import type { Api } from '../api/api'
 import { ApiProvider } from '../api/context'
 import { RewardProvider } from '../rewards/reward-context'
 import type { RewardStore } from '../rewards/reward-store'
-import { ToastProvider } from './toast'
+import { ToastProvider } from '../ui/toast'
 
 export function AppProviders({
   api,
