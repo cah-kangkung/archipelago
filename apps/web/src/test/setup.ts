@@ -31,3 +31,17 @@ afterEach(() => {
 // jsdom has no canvas contexts. Answer null quietly so the WebGL probe falls back to the card view.
 HTMLCanvasElement.prototype.getContext = (() =>
   null) as typeof HTMLCanvasElement.prototype.getContext
+
+// jsdom lacks ResizeObserver and pointer capture; Radix's popper and dismiss layers call them.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver
+}
+if (typeof Element.prototype.hasPointerCapture !== 'function') {
+  Element.prototype.hasPointerCapture = () => false
+  Element.prototype.releasePointerCapture = () => {}
+  Element.prototype.setPointerCapture = () => {}
+}

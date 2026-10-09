@@ -1,0 +1,58 @@
+import { X } from '@phosphor-icons/react'
+import * as D from '@radix-ui/react-dialog'
+import { type ReactNode, useRef } from 'react'
+import { Icon } from './icon'
+
+/** A centred modal: focuses the first field, Escape and Close dismiss, focus returns (spec 25.1). */
+export function Dialog({
+  open,
+  onOpenChange,
+  title,
+  testId,
+  children,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: string
+  testId?: string
+  children: ReactNode
+}) {
+  const content = useRef<HTMLDivElement>(null)
+  const opener = useRef<HTMLElement | null>(null)
+  return (
+    <D.Root open={open} onOpenChange={onOpenChange}>
+      <D.Portal>
+        <D.Overlay className="fixed inset-0 z-40 bg-text-primary/40" />
+        <D.Content
+          ref={content}
+          data-testid={testId}
+          aria-describedby={undefined}
+          onOpenAutoFocus={(event) => {
+            // The dialog is controlled, with no Radix trigger, so remember the opener here.
+            opener.current = document.activeElement as HTMLElement | null
+            const field = content.current?.querySelector<HTMLElement>('input, textarea, select')
+            if (!field) return
+            event.preventDefault()
+            field.focus()
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            opener.current?.focus()
+          }}
+          className="fixed top-1/2 left-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-surface-primary p-6 shadow-3"
+        >
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <D.Title className="text-heading font-heading text-text-primary">{title}</D.Title>
+            <D.Close
+              aria-label="Close"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-text-secondary hover:bg-surface-secondary"
+            >
+              <Icon icon={X} />
+            </D.Close>
+          </div>
+          {children}
+        </D.Content>
+      </D.Portal>
+    </D.Root>
+  )
+}
