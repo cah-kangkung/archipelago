@@ -1,7 +1,7 @@
 import type { WorldDto } from '@archipelago/shared'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import type * as THREE from 'three'
-import { describe, expect, test, vi } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { fakeProject, fakeTask } from '../test/fake-api'
 import { quietEconomy } from '../test/sea-worlds'
 import type { Focus } from '../world/selectors'
@@ -10,8 +10,10 @@ import {
   CLOUD_DECK_RENDER_ORDER,
   cloudDeckMaterial,
   cloudDeckUniforms,
+  writeDeck,
 } from './cloud-deck-material'
-import { deckHole } from './model/cloud-deck'
+import { DECK_OFF, deckHole } from './model/cloud-deck'
+import { LAND_HEIGHT } from './model/hex-space'
 import { buildSceneModel, type SceneModel } from './model/scene-model'
 import { CLOUD_DECK_ALPHA, CLOUD_DECK_DRIFT, CLOUD_MS, FOG_DEPTH, FOG_MARGIN } from './tuning'
 
@@ -45,6 +47,13 @@ const box = () => cloudDeckUniforms.uBox.value.toArray()
 const frames = Math.ceil(CLOUD_MS / 100) + 1
 
 describe('CloudDeck', () => {
+  beforeEach(() => {
+    writeDeck(DECK_OFF)
+    cloudDeckUniforms.uBox.value.set(0, 0, 0, 0)
+    cloudDeckUniforms.uRound.value = 0
+    cloudDeckUniforms.uOffset.value.set(0, 0)
+  })
+
   test('one untappable plane over the whole world, drawn above everything', async () => {
     const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta }))
     const meshes = r.scene.findAllByType('Mesh')
@@ -65,6 +74,8 @@ describe('CloudDeck', () => {
     expect(size?.max.x).toBeCloseTo(b.maxX + m)
     expect(size?.min.z).toBeCloseTo(b.minZ - m)
     expect(size?.max.z).toBeCloseTo(b.maxZ + m)
+    expect(size?.min.y).toBeCloseTo(LAND_HEIGHT)
+    expect(size?.max.y).toBeCloseTo(LAND_HEIGHT)
   })
 
   test('the first mount shows its deck at once, even on a deep link', async () => {
@@ -138,6 +149,48 @@ describe('CloudDeck', () => {
     await r.update(tree({ model: refetched, focus: onBeta, onRunning }))
     expect(opacity()).toBe(CLOUD_DECK_ALPHA)
     expect(onRunning).not.toHaveBeenCalledWith(true)
+  })
+
+  test('the mesh is hidden while the deck shows nothing', async () => {
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: archipelago }))
+    const mesh = r.scene.findAllByType('Mesh')[0]?.instance as THREE.Mesh
+    expect(mesh.visible).toBe(false)
+    await r.update(tree({ model, focus: onBeta }))
+    await r.advanceFrames(2, 0.1)
+    expect(mesh.visible).toBe(true)
+    await r.advanceFrames(frames, 0.1)
+    expect(mesh.visible).toBe(true)
+    await r.update(tree({ model, focus: archipelago }))
+    await r.advanceFrames(2, 0.1)
+    expect(mesh.visible).toBe(true)
+    await r.advanceFrames(frames, 0.1)
+    expect(mesh.visible).toBe(false)
+  })
+
+  test('a deep link to an island is visible from the first render', async () => {
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: onBeta }))
+    const mesh = r.scene.findAllByType('Mesh')[0]?.instance as THREE.Mesh
+    expect(mesh.visible).toBe(true)
+  })
+
+  test('unmounting mid-leg releases the ticker demand', async () => {
+    const onRunning = vi.fn()
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: archipelago, onRunning }))
+    await r.update(tree({ model, focus: onBeta, onRunning }))
+    expect(onRunning).toHaveBeenLastCalledWith(true)
+    await r.unmount()
+    expect(onRunning).toHaveBeenLastCalledWith(false)
+  })
+
+  test('turning animation off mid-leg finishes the leg at once', async () => {
+    const onRunning = vi.fn()
+    const r = await ReactThreeTestRenderer.create(tree({ model, focus: archipelago, onRunning }))
+    await r.update(tree({ model, focus: onBeta, onRunning }))
+    await r.advanceFrames(2, 0.1)
+    expect(opacity()).toBeLessThan(CLOUD_DECK_ALPHA)
+    await r.update(tree({ model, focus: onBeta, animate: false, onRunning }))
+    expect(opacity()).toBe(CLOUD_DECK_ALPHA)
+    expect(onRunning).toHaveBeenLastCalledWith(false)
   })
 
   test('drifts only while drifting is on', async () => {

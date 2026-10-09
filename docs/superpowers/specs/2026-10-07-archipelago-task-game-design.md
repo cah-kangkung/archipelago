@@ -1129,12 +1129,12 @@ The owner wanted the cloud to stay with the world instead of the camera. The scr
 
 ### 23.3 The deck (`scene/cloud-deck.tsx`)
 
-- One horizontal plane at ground level covering `model.bounds` grown by `FOG_MARGIN + FOG_DEPTH` on every side. `renderOrder` above every other mesh; `depthTest` and `depthWrite` off, transparent, no fog: it draws over everything outside the hole. Raycast disabled, so taps pass through. Not frustum-culled.
+- One horizontal plane at land height (`LAND_HEIGHT`) covering `model.bounds` grown by `FOG_MARGIN + FOG_DEPTH` on every side. `renderOrder` above every other mesh; `depthTest` and `depthWrite` off, transparent, no fog: it draws over everything outside the hole. Raycast disabled, so taps pass through. Not frustum-culled. The mesh is hidden while the deck's strength is 0 (or it has no hole), so the archipelago pays no full-screen pass.
 - A custom shader material (`cloudDeckMaterial` in `scene/cloud-deck-material.ts`, with its uniforms and `writeDeck`), uniforms `uMap`, `uBox` (vec4 minX, minZ, maxX, maxZ), `uRound`, `uFeather`, `uOpacity`, `uTile`, `uOffset` (vec2), `uColor`. Per fragment, at world x/z: `d` = signed distance to the hole (the maths of `areaDistance`); `edge = smoothstep(0, CLOUD_DECK_FEATHER, d)`; `a = texture(uMap, (xz + uOffset) / uTile).r · edge · uOpacity`; colour `uColor` = `scenePalette.cloud`. With no hole (`uOpacity` 0) nothing shows.
 - `uOpacity = CLOUD_DECK_ALPHA · strength`. The deck component tweens the `Deck` over `CLOUD_MS` (600) and holds a `clouds` ticker demand only while a leg runs; the first mount shows its deck at once; reduced motion is instant.
 - **Drift:** on the `high` tier only (the sea wave already ticks), `uOffset` advances by `CLOUD_DECK_DRIFT` world units per second along (1, 1), wrapping at `CLOUD_DECK_TILE`. On `low` and under reduced motion it stays still.
 - Labels (drei `Html`) stay above the canvas; those outside the layer keep 0.6 opacity (22.7).
-- Known limit: the deck is drawn at ground level, so a tall building right at the hole's edge can show partly under cloud.
+- Known limit: the deck is drawn at land height, so a tall building right at the hole's edge can show partly under cloud.
 
 ### 23.4 Removed (the frame of 22.2–22.6)
 

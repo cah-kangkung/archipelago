@@ -37,7 +37,7 @@ function wispTexture(): THREE.DataTexture {
   return texture
 }
 
-// sRGB straight through: the canvas is `flat` and the shader writes gl_FragColor as given.
+// A ShaderMaterial without `colorspace_fragment` writes gl_FragColor unconverted, so the sRGB value goes straight through.
 const rgb = (hex: string) =>
   new THREE.Vector3(...[1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255))
 
@@ -95,6 +95,7 @@ export const cloudDeckMaterial = new THREE.ShaderMaterial({
 
 export function writeDeck(deck: Deck): void {
   const { hole } = deck
+  // With no hole the box is left as it was on purpose, so a fade-out keeps its hole.
   if (hole) {
     cloudDeckUniforms.uBox.value.set(hole.minX, hole.minZ, hole.maxX, hole.maxZ)
     cloudDeckUniforms.uRound.value = hole.round ?? 0

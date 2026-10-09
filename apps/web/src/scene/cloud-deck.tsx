@@ -1,5 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, useRef } from 'react'
+import type { Mesh } from 'three'
 import type { Focus } from '../world/selectors'
 import {
   CLOUD_DECK_RENDER_ORDER,
@@ -17,6 +18,7 @@ import {
   driftStep,
   sameDeck,
 } from './model/cloud-deck'
+import { LAND_HEIGHT } from './model/hex-space'
 import type { SceneModel } from './model/scene-model'
 import { areaKey } from './model/spotlight'
 import { CLOUD_MS, clampDelta, FOG_DEPTH, FOG_MARGIN } from './tuning'
@@ -48,6 +50,7 @@ export function CloudDeck({
   const target = useRef(deckFor(hole))
   target.current = deckFor(hole)
   const shown = useRef<Deck>(DECK_OFF)
+  const mesh = useRef<Mesh>(null)
   const mounted = useRef(false)
   const leg = useRef<{ from: Deck; to: Deck; elapsed: number; fresh: boolean } | null>(null)
   const running = useRef(onRunning)
@@ -57,6 +60,8 @@ export function CloudDeck({
   const show = (d: Deck) => {
     shown.current = d
     writeDeck(d)
+    // A deck without a hole or strength shows nothing: skip its full-screen blended pass.
+    if (mesh.current) mesh.current.visible = d.hole !== null && d.strength > 0
   }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the hole's value is the trigger
@@ -119,7 +124,8 @@ export function CloudDeck({
 
   return (
     <mesh
-      position={[plane.x, 0, plane.z]}
+      ref={mesh}
+      position={[plane.x, LAND_HEIGHT, plane.z]}
       rotation-x={-Math.PI / 2}
       renderOrder={CLOUD_DECK_RENDER_ORDER}
       frustumCulled={false}
