@@ -1,3 +1,5 @@
+import { COMMONS_CENTER, type Hex, hexKey, hexRing } from '@archipelago/shared'
+import { eq } from 'drizzle-orm'
 import { hashPassword } from '../src/auth/passwords'
 import type { Config } from '../src/config'
 import type { Db } from '../src/db/client'
@@ -76,18 +78,39 @@ export async function insertMilestone(
   return milestone
 }
 
+async function nearHex(db: Db, projectId: string): Promise<Hex> {
+  const taken = new Set(
+    (
+      await db
+        .select({ q: tasks.plotX, r: tasks.plotY })
+        .from(tasks)
+        .where(eq(tasks.projectId, projectId))
+    ).map(hexKey),
+  )
+  for (let ring = 1; ring <= 3; ring++) {
+    for (const h of hexRing(COMMONS_CENTER, ring)) if (!taken.has(hexKey(h))) return h
+  }
+  throw new Error('insertTask: no free near plot')
+}
+
 export async function insertTask(
   db: Db,
   projectId: string,
   overrides: Partial<typeof tasks.$inferInsert> = {},
 ) {
+  // Unless told otherwise, the nearest free hex around the commons: always inside any island, so
+  // a task the API creates afterwards never makes the island outgrow its size cap.
+  const near =
+    overrides.plotX === undefined && overrides.plotY === undefined
+      ? await nearHex(db, projectId)
+      : null
   const [task] = await db
     .insert(tasks)
     .values({
       projectId,
       title: 'Task',
-      plotX: Math.floor(Math.random() * 1_000_000) + 100,
-      plotY: 0,
+      plotX: near?.q ?? 0,
+      plotY: near?.r ?? 0,
       ...overrides,
     })
     .returning()

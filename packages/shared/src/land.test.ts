@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { COMMONS_CENTER, DISTRICT_SPACING, type Hex, hexKey, seedDirection } from './hex'
-import { islandLand, islandShape, islandSize } from './island-shape'
+import { FREE_PLOTS, islandLand, islandShape, islandSize } from './island-shape'
 import {
   decorationRotation,
   islandRadius,
@@ -150,5 +150,18 @@ describe('placement follows the shape', () => {
     const first = nextDistrictCenter(seed, [])
     const second = nextDistrictCenter(seed, [first])
     expect(nextDistrictCenter(seed, [second])).toEqual(first)
+  })
+})
+
+describe('free plot headroom', () => {
+  test('an island always keeps FREE_PLOTS placeable plots, however many decorations it takes', () => {
+    for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 22, 24]) {
+      const occupied = build(seed, 3, 6)
+      for (let i = 0; i < 10; i++) {
+        const plots = placeablePlots(seed, occupied)
+        expect(plots.length).toBeGreaterThanOrEqual(FREE_PLOTS)
+        occupied.push(plots[(i * 7) % plots.length] as Hex)
+      }
+    }
   })
 })

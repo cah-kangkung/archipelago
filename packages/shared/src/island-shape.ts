@@ -30,6 +30,8 @@ export const MIN_ISLAND_SIZE = 4
 export const MAX_ISLAND_SIZE = 60
 /** Interior hexes a new island has at least, whatever its footprint. */
 export const MIN_INTERIOR = 19
+/** Free interior hexes an island always keeps, so there is always somewhere to build (spec 24.1). */
+export const FREE_PLOTS = 12
 /** Rings of lower shore around the flat interior. */
 export const SHORE_RINGS = 2
 /** Rings always land from size 4 up, so the commons centre and ring 1 are always interior. */
@@ -116,9 +118,9 @@ function footprintDistance(footprint: Footprint, random: () => number, seed: num
     }
     case 'crescent': {
       const outer = 1.3
-      const bite = 0.8 + random() * 0.2
+      const bite = 0.6 + random() * 0.15
       const cut = outer * bite
-      const offset = outer * 0.55
+      const offset = outer * 0.7
       // The arc is thickest opposite the cut; the origin sits mid-way through it.
       const shift = (-outer + (offset - cut)) / 2
       return (p: P) => {
@@ -372,11 +374,18 @@ export function islandLand(seed: number, size: number): IslandLand {
   })
 }
 
-/** The smallest size whose interior holds every occupied hex and at least MIN_INTERIOR hexes. */
+/**
+ * The smallest size whose interior holds every occupied hex and has at least MIN_INTERIOR hexes,
+ * and FREE_PLOTS free ones beyond the occupied hexes and the commons centre.
+ */
 export function islandSize(seed: number, occupied: readonly Hex[]): number {
   for (let size = MIN_ISLAND_SIZE; size <= MAX_ISLAND_SIZE; size++) {
     const { interior } = islandLand(seed, size)
-    if (interior.size >= MIN_INTERIOR && occupied.every((h) => interior.has(hexKey(h)))) return size
+    if (
+      interior.size >= Math.max(MIN_INTERIOR, occupied.length + 1 + FREE_PLOTS) &&
+      occupied.every((h) => interior.has(hexKey(h)))
+    )
+      return size
   }
   throw new Error('Island outgrew MAX_ISLAND_SIZE')
 }

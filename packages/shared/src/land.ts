@@ -8,7 +8,8 @@ export function islandRadius(seed: number, occupied: readonly Hex[]): number {
 
 /**
  * Free interior hexes at the island's current size, ring by ring outward. The size comes from
- * what is already on the island, so a new decoration can never grow it.
+ * what is already on the island and always leaves FREE_PLOTS of them free; placing a decoration
+ * may take the island a step up, never past the plots it was offered.
  */
 export function placeablePlots(seed: number, occupied: readonly Hex[]): Hex[] {
   const { interior, radius } = islandLand(seed, islandSize(seed, occupied))

@@ -109,12 +109,7 @@ describe('POST /tasks', () => {
   test('adding a todo task to a completed milestone reopens it', async () => {
     await withRollback(async (tx) => {
       const { project, milestone, addTask } = await setup(tx)
-      await insertTask(tx, project.id, {
-        milestoneId: milestone.id,
-        status: 'done',
-        plotX: milestone.districtQ + 1,
-        plotY: milestone.districtR,
-      })
+      await insertTask(tx, project.id, { milestoneId: milestone.id, status: 'done' })
       await tx
         .update(milestones)
         .set({ completedAt: new Date() })
@@ -245,12 +240,7 @@ describe('PATCH /tasks/:id', () => {
     await withRollback(async (tx) => {
       const { me, project, milestone, newMilestone, addTask } = await setup(tx)
       const other = await newMilestone(project.id, 'Launch')
-      await insertTask(tx, project.id, {
-        milestoneId: milestone.id,
-        status: 'done',
-        plotX: milestone.districtQ + 1,
-        plotY: milestone.districtR,
-      })
+      await insertTask(tx, project.id, { milestoneId: milestone.id, status: 'done' })
       const open = await addTask({ title: 'Leaver', milestoneId: milestone.id })
       const res = await me.patch(`${TASKS}/${open.id}`, { milestoneId: other.id })
       expect(res.status).toBe(200)
@@ -277,12 +267,7 @@ describe('DELETE /tasks/:id', () => {
   test('deletes the task and re-evaluates its milestone', async () => {
     await withRollback(async (tx) => {
       const { me, project, milestone, addTask } = await setup(tx)
-      await insertTask(tx, project.id, {
-        milestoneId: milestone.id,
-        status: 'done',
-        plotX: milestone.districtQ + 1,
-        plotY: milestone.districtR,
-      })
+      await insertTask(tx, project.id, { milestoneId: milestone.id, status: 'done' })
       const open = await addTask({ title: 'Last open one', milestoneId: milestone.id })
       expect((await me.del(`${TASKS}/${open.id}`)).status).toBe(204)
       expect(await tx.select().from(tasks).where(eq(tasks.id, open.id))).toHaveLength(0)

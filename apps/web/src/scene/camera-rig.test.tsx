@@ -27,6 +27,7 @@ const economy: WorldDto['economy'] = {
   streak: { days: 0, activeToday: false, next: null },
   daily: { amount: 15, claimedToday: false },
 }
+// islandSeed 21 is pinned: a small empty island, so the zoom floor is not hit.
 const beta = fakeProject({ name: 'Beta', archipelagoX: 0, archipelagoY: 0, islandSeed: 21 })
 const gamma = fakeProject({ name: 'Gamma', archipelagoX: 3, archipelagoY: 0, islandSeed: 21 })
 const worldOf = (projects: WorldDto['projects']): WorldDto => ({

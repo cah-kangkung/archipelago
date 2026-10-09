@@ -1276,7 +1276,7 @@ Amplitudes stay small enough that the commons centre and ring 1 are always insid
 
 The candidate hexes searched are those within `ceil(size · footprint extent) + 1` rings, so a size-20 elongated island tests about 3k hexes.
 
-**Size.** `islandSize(seed, occupied)`: the smallest integer `size ≥ MIN_ISLAND_SIZE` (4) whose interior holds every occupied hex and at least `MIN_INTERIOR` (19, the old radius-4 disc's interior) hexes, stepping up by one. It replaces the old `islandRadius` growth rule; growth only ever adds land, because each footprint's distance is scaled uniformly.
+**Size.** `islandSize(seed, occupied)`: the smallest integer `size ≥ MIN_ISLAND_SIZE` (4) whose interior holds every occupied hex and at least `MIN_INTERIOR` (19, the old radius-4 disc's interior) hexes, and at least `FREE_PLOTS` (12) free interior hexes beyond the occupied ones and the commons centre (so the shop never dead-ends; buying a decoration may grow the island a step), stepping up by one. It replaces the old `islandRadius` growth rule; growth only ever adds land, because each footprint's distance is scaled uniformly.
 
 ### 24.2 Placement and growth (`packages/shared`)
 
@@ -1335,7 +1335,7 @@ Every rule takes the seed; the API already has `project.islandSeed` wherever it 
 
 ### 24.6 Tuning
 
-- Shared: `MIN_ISLAND_SIZE` 4 (replaces `MIN_ISLAND_RADIUS`), `MAX_ISLAND_SIZE` 60, footprint weights (round 1, oval 1.2, elongated 1.2, crescent 1, lobed 1.2, spiral 0.8, irregular 1.2), coast and relief chosen uniformly; `SHORE_RINGS` and `DISTRICT_SPACING` unchanged.
+- Shared: `MIN_ISLAND_SIZE` 4 (replaces `MIN_ISLAND_RADIUS`), `MAX_ISLAND_SIZE` 60, `FREE_PLOTS` 12, footprint weights (round 1, oval 1.2, elongated 1.2, crescent 1, lobed 1.2, spiral 0.8, irregular 1.2), coast and relief chosen uniformly; `SHORE_RINGS` and `DISTRICT_SPACING` unchanged.
 - Web: `DISTRICT_RING_WIDTH` 0.15, `DISTRICT_RING_INSET` 0.05, `DISTRICT_RING_LIFT` 0.02, relief factors as 24.3; `scenePalette.districtRing`; `TickerDemand` gains `ring`.
 
 ### 24.7 Testing
