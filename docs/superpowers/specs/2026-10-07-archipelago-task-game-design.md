@@ -1226,3 +1226,125 @@ On screen, the 23.7 look ("X") was nearly invisible on the island and in a distr
 - Material: the fragment contains the hash, the fbm loop with `CLOUD_DECK_OCTAVES`, the warp, the banks and the soft threshold with the tuning constants; `writeDeck` writes `uThreshold`; `writeDrift` writes the wrapped offset; no texture uniform.
 - Deck: archipelago shows opacity `CLOUD_DECK_ALPHA · CLOUD_ARCHIPELAGO_VEIL` and threshold `CLOUD_ARCHIPELAGO_THRESHOLD`; archipelago → island runs one leg to the island's values; the existing district, refetch, reduced-motion, remount and lifecycle tests keep passing with the new values.
 - The shader compiles in headless Chromium; the controller previews it over real screenshots.
+
+## 24. Phase 5i Design Addendum: Island Shapes and the District Ring (approved 2026-10-09)
+
+The owner wanted islands that differ in shape, not only in size, and a visual cue marking the district in view. Every island was a hex disc whose only variation was a ragged outer ring; buildable land was a disc too (`packages/shared/src/land.ts`). This addendum gives each island a seeded silhouette that decides its land, makes placement follow it, and draws a ring along the outer edges of the focused district's tiles. The database is reset for this phase: no migration, no legacy disc path.
+
+### 24.1 Shape model (`packages/shared/src/island-shape.ts`, pure)
+
+**Genome.** `islandShape(seed): IslandShape` draws, each from `islandSeed` with its own salt (`mulberry32(hashInts(seed, SALT))`, the shared copies of the web's `random.ts` helpers):
+
+- `footprint`, weighted: `round`, `oval`, `elongated`, `crescent`, `lobed`, `spiral`, `irregular`;
+- `angle`: a uniform rotation of the whole shape;
+- `symmetric: boolean`: whether the coast modifier is mirrored across the shape's long axis;
+- `coast`: `straight`, `wavy`, `curved`, `angular`, `pointed`, `blunt`;
+- `relief`: `flattened`, `spherical`, `conical`, `cylindrical` (24.3);
+- per-family parameters: oval aspect 1.3–1.6, elongated aspect 2.5–3.5, crescent bite depth, lobe count 2–4 and their angles, spiral turns and taper, irregular warp seed; coast frequency, amplitude, cape angles and cut lines.
+
+**Footprints.** A signed distance at unit size (negative inside) in the shape's frame, where the frame is rotated by `angle` and anchored so the commons centre (origin) sits in the footprint's thickest part:
+
+| Footprint | Distance |
+|---|---|
+| round | circle, radius 1 |
+| oval | ellipse, axes 1 × 1/aspect |
+| elongated | capsule along x, length to width = aspect, origin at its middle |
+| crescent | circle minus an offset circle; origin at the middle of the arc |
+| lobed | smooth union of a central disc and 2–4 discs around it |
+| spiral | smooth union of a central disc and one tapering Archimedean arm |
+| irregular | circle with its sample point warped by low-frequency value noise |
+
+**Coasts.** Added to the distance, as a function of the angle around the origin (mirrored when `symmetric`):
+
+| Coast | Modifier |
+|---|---|
+| blunt | none |
+| wavy | sine around the angle, 5–9 periods, small amplitude |
+| curved | 2–3 broad bulges |
+| angular | a 5–7 corner faceted (triangle-wave) edge |
+| pointed | 2–4 narrow capes |
+| straight | 1–3 seeded half-plane cuts (`max(d, n·p − c)`) |
+
+Amplitudes stay small enough that the commons centre and ring 1 are always inside.
+
+**Land.** `islandLand(seed, size): IslandLand`:
+
+- `land`: hexes whose centre (axial → cartesian, hex units) satisfies `distance(p / size) ≤ 0`, plus the centre and ring 1 always, keeping only the component connected to the centre;
+- `interior`: land hexes with land on every hex within two steps (`SHORE_RINGS`), so the shore is always two rings;
+- `depth`: per land hex, hex steps to the nearest non-land hex (breadth-first from the coast); 1–2 is shore;
+- `radius`: the largest hex distance from the centre to any land hex (the enclosing ring).
+
+The candidate hexes searched are those within `ceil(size · footprint extent) + 1` rings, so a size-20 elongated island tests about 3k hexes.
+
+**Size.** `islandSize(seed, occupied)`: the smallest integer `size ≥ MIN_ISLAND_SIZE` (4) whose interior holds every occupied hex, stepping up by one. It replaces the old `islandRadius` growth rule; growth only ever adds land, because each footprint's distance is scaled uniformly.
+
+### 24.2 Placement and growth (`packages/shared`)
+
+Every rule takes the seed; the API already has `project.islandSeed` wherever it calls them.
+
+- `islandRadius(seed, occupied)` = `islandLand(seed, islandSize(seed, occupied)).radius`. Island spacing (`2 · largest radius + ISLAND_GAP`), gulls, boat loops, sea props and the cloud plane keep using it: a generous bound for long islands.
+- `placeablePlots(seed, occupied)` and `isPlaceable(seed, occupied, plot)`: free interior hexes at the current size, never the commons centre. The building service validates with it; the web's placement mode and the fake API use the same calls.
+- `sizeNeeded(seed, hex)`: the smallest size at which `hex` is interior (searched upward from `MIN_ISLAND_SIZE`, capped at `MAX_ISLAND_SIZE` 60; beyond the cap it is never chosen).
+- `nextDistrictCenter(seed, taken)`: among free spots on the `DISTRICT_SPACING` lattice (`hexScale(unit, DISTRICT_SPACING)` for spiral units), the one with the smallest `sizeNeeded`; ties go by spiral order. Districts thereby fill an elongated island along its axis, a crescent along its arc, a spiral along its arm, lobes one each. A centre that needs a larger size grows the island through `islandSize`.
+- `nearestFreePlot(seed, centre, startDirection, occupied)`: spiral from the district centre (or `COMMONS_CENTER` for a task with no milestone) and take the first free hex that is interior at the current size; if none lies within `DISTRICT_SPACING` rings, retry at size + 1, and so on. Tasks hug their district; the island grows only when the district is boxed in.
+- The API's `assignTaskPlot`, `createMilestone`, building validation and `cli/demo-world.ts` move to these signatures. `land.ts`'s disc rule is deleted.
+
+### 24.3 Terrain and relief (`apps/web/src/scene/model/terrain.ts`)
+
+`islandTerrain(seed, size, stage, paths)` builds one tile per `land` hex:
+
+- **Zones by depth:** shore = depth 1–2 (depth 1 keeps the ragged dropout, 30% left out, never a hex next to an interior hex, and the `rock` tone chance); edge = depth 3; inland = deeper. Scenery zones (`island-growth.ts`) use the same depth instead of rings.
+- **Relief:** with `t = depth / maxDepth` over interior hexes, heights stay quantised to `HILL_STEP` and capped by `HILL_MAX[stage] · factor`:
+
+| Relief | Height before quantising | Factor |
+|---|---|---|
+| flattened | `hillNoise · cap` | 0.5 |
+| spherical | `cap · (0.7 · sqrt(1 − (1 − t)²) + 0.3 · hillNoise)` | 1.0 |
+| conical | `cap · t` with `t` measured from the deepest non-plaza hex | 1.5 |
+| cylindrical | `cap` on inland hexes, `LAND_HEIGHT` on edge hexes (one cliff step), plus `0.2 · hillNoise · cap` | 1.0 |
+
+- The plaza is flat at the relief height of the centre (no longer always `LAND_HEIGHT`).
+- **Paths** keep the hex line from the commons to each district, but only hexes that are land are kept; where the line crosses a bay the path has a gap. Routing around a coast is out of scope.
+- **Dock:** a seeded depth-1 shore hex; its `turn` faces the neighbouring non-land hex nearest the shape's outward direction.
+
+### 24.4 Sea, shallows and camera (`apps/web`)
+
+- **Shallows** follow the coast: `islandGeometry(tiles, land)` lays a `SHALLOWS_HEIGHT` prism on every non-land hex within one ring of land, instead of one hexagon of `shallowsRadius`.
+- **Sea depth:** `Shore` gains `coast: Point[]` (island-local centres of depth-1 hexes). `shoreDistance` keeps the enclosing disc as a fast rejection, then measures to the nearest coast point less one hex and `SHALLOWS_MARGIN`. The uncharted island (17.4) is a round island of radius 1.
+- **Camera:** the island layer's area (`layerArea`, framing, pan bounds) is the bounding box of its tiles' world positions grown by `islandExtent`'s one-hex corner allowance, rounded by `AREA_MARGIN`, instead of the enclosing disc. Districts are unchanged.
+- `SceneIsland` gains `size`, `shape: IslandShape` and `coast`, and keeps `radius` (the enclosing ring) for the consumers listed in 24.2.
+
+### 24.5 The district ring (`apps/web/src/scene/model/district-ring.ts`, `scene/district-ring.tsx`)
+
+**Tiles.** `districtTiles(district, structures): Hex[]`: the landmark hex plus the plots of structures with the district's `milestoneId`, then every hex the set encloses: flood from one hex outside the set's axial bounding box; any hex in the box that the flood cannot reach and that is not in the set is added.
+
+**Loops.** `ringLoops(tiles, heights): Spot[][]`:
+
+- a boundary side is a hex side whose neighbour is not in the set; it runs between the two shared corners at its tile's height;
+- sides chain into closed loops (one per blob, more for detached pieces), each a list of corners in order;
+- where consecutive sides belong to tiles at different heights, the loop holds two points at the shared corner, one at each height, so it drops straight down the terrace step.
+
+**Mesh.** `ringGeometry(loops)`: a flat ribbon on the tile tops, `DISTRICT_RING_WIDTH` (0.15) wide, inset `DISTRICT_RING_INSET` (0.05) from the edge, lifted `DISTRICT_RING_LIFT` (0.02); vertical segments at height steps become a vertical strip of the same width. Unlit, opaque, `scenePalette.districtRing` (a warm gold from the design tokens), depth test on (hills in front hide it), `renderOrder` `CLOUD_DECK_RENDER_ORDER + 1` so the hole's feather never veils it, raycast disabled.
+
+**When it shows.**
+
+- Only when the focus resolves to a district, around that district; an unknown milestone shows none.
+- Entering a district draws it on over `CLOUD_MS` (the ribbon revealed along each loop's length via a `uReveal` uniform), in step with the hole opening; leaving fades it out over `CLOUD_MS`; district to district swaps instantly; reduced motion or the first mount is instant.
+- A refetch that changes the tiles (task added, moved, deleted) rebuilds the geometry without animation; one that doesn't change them does nothing (keyed on the sorted tile keys).
+- A draw-on or fade holds a `ring` ticker demand only while it runs; the ring is otherwise static.
+- A district with no tasks gets a single hexagon round its landmark.
+
+### 24.6 Tuning
+
+- Shared: `MIN_ISLAND_SIZE` 4 (replaces `MIN_ISLAND_RADIUS`), `MAX_ISLAND_SIZE` 60, footprint weights (round 1, oval 1.2, elongated 1.2, crescent 1, lobed 1.2, spiral 0.8, irregular 1.2), coast and relief chosen uniformly; `SHORE_RINGS` and `DISTRICT_SPACING` unchanged.
+- Web: `DISTRICT_RING_WIDTH` 0.15, `DISTRICT_RING_INSET` 0.05, `DISTRICT_RING_LIFT` 0.02, relief factors as 24.3; `scenePalette.districtRing`; `TickerDemand` gains `ring`.
+
+### 24.7 Testing
+
+- **Shape:** the same seed gives the same genome and land; every footprint, coast and relief value occurs across seeds 0–999; the centre and ring 1 are always land; land is connected; interior is exactly land eroded by two; growth only adds land; an elongated seed's land is at least twice as long as it is wide.
+- **Placement:** every plot, centre and decoration lands on interior; `isPlaceable` agrees with `placeablePlots`; size never shrinks as hexes are added; on an elongated seed the first three district centres line up along its axis; the API refuses a building on shore or sea (`not_land`).
+- **Terrain:** each relief profile's heights follow its formula on a fixed seed; zones agree with depth; the dropout never removes a hex next to interior; the dock is a depth-1 hex facing the sea.
+- **Sea:** on an elongated island a point beside its tip is shallow while one at the same distance across its narrow width is deep; shallows prisms ring the coast.
+- **Ring:** one hex → 6 sides; two neighbours → 10; an enclosed gap is filled; a detached plot makes a second loop; a height step adds a vertical drop; loops close; the component renders only on a district focus, draws on over `CLOUD_MS`, holds `ring` only while animating, and a same-tiles refetch does nothing.
+- **Preview:** the controller renders a sheet of seeds (each footprint × a few coasts and reliefs) and a district ring over a real screenshot before calling it done.
+- **Owner's check:** reset the database, `bun run seed:demo`; islands differ in shape; districts sit along each shape; open a district: the ring hugs its tiles; `?perf` no tier drop.
