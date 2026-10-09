@@ -5,12 +5,14 @@ import {
   type Hex,
   hexKey,
 } from '@archipelago/shared'
+import type { ThreeEvent } from '@react-three/fiber'
 import { useEffect, useMemo } from 'react'
 import type { RewardEvent } from '../rewards/reward-store'
 import { CraneJibs } from './crane-jibs'
 import { Landmark } from './landmark'
 import { placementGhostMaterial, plotMaterial, shadowMaterial, solidMaterial } from './materials'
-import { hexToWorld, type Point, type Spot } from './model/hex-space'
+import { districtHexMap } from './model/district-ring'
+import { hexToWorld, type Point, type Spot, worldToHex } from './model/hex-space'
 import { resolvePop } from './model/reward-motion'
 import type { SceneIsland, SceneStructure } from './model/scene-model'
 import { STRUCTURE_KINDS, type StructureKind } from './model/state'
@@ -44,6 +46,7 @@ export function Island({
   onPickPlot,
   onOpenIsland,
   onOpenDistrict,
+  onHoverDistrict,
 }: SceneHandlers & {
   island: SceneIsland
   focused: boolean
@@ -61,6 +64,8 @@ export function Island({
   placement: Placement | null
   animate: boolean
   rewards: readonly RewardEvent[]
+  /** The pointer moved onto a district's tiles (its id) or off them (null); mouse only. */
+  onHoverDistrict?: (milestoneId: string | null) => void
 }) {
   const pathKey = island.paths.map(hexKey).join(';')
   // A refetch builds fresh tiles with the same content; seed, size, stage and paths decide them.
@@ -117,6 +122,15 @@ export function Island({
   const selected =
     island.structures.find((s) => s.taskId === selectedTaskId) ??
     island.decorations.find((d) => d.buildingId === selectedBuildingId)
+  // On the island view a district's tiles answer hover and tap (spec 24.5).
+  const districtMap = useMemo(() => districtHexMap(island), [island])
+  const districtUnder = (event: ThreeEvent<MouseEvent>) => {
+    const p = event.point as { x: number; z: number } | undefined
+    if (!p) return null
+    const hex = worldToHex({ x: p.x - island.origin.x, z: p.z - island.origin.z })
+    return districtMap.get(hexKey(hex)) ?? null
+  }
+  const hoverable = focused && opensDistricts && onHoverDistrict !== undefined
   // Structures, their markers and crane jibs select only on the focused island.
   const picker = (structures: readonly SceneStructure[]) =>
     focused
@@ -135,12 +149,31 @@ export function Island({
           ? undefined
           : onTap<MouseEvent>(() => (opensIsland ? onOpenIsland(island.projectId) : onSelect(null)))
       }
+      // At the group, so pointing at a house or landmark still resolves to its hex.
+      onPointerMove={
+        hoverable
+          ? (event: ThreeEvent<PointerEvent>) => {
+              // Touch has no hover: its tap opens the district.
+              if (event.nativeEvent?.pointerType === 'touch') return
+              onHoverDistrict?.(districtUnder(event))
+            }
+          : undefined
+      }
+      onPointerLeave={hoverable ? () => onHoverDistrict?.(null) : undefined}
     >
       <mesh
         name="terrain"
         geometry={terrain}
         material={solidMaterial}
-        onClick={focused ? onTap<MouseEvent>(() => onSelect(null)) : undefined}
+        onClick={
+          focused
+            ? onTap<MouseEvent>((event) => {
+                const milestoneId = opensDistricts ? districtUnder(event) : null
+                if (milestoneId) onOpenDistrict(island.projectId, milestoneId)
+                else onSelect(null)
+              })
+            : undefined
+        }
       />
       {layers.byKind.map(({ kind, structures, points }) => (
         <ModelInstances

@@ -1324,20 +1324,23 @@ Every rule takes the seed; the API already has `project.islandSeed` wherever it 
 - sides chain into closed loops (one per blob, more for detached pieces), each a list of corners in order;
 - where consecutive sides belong to tiles at different heights, the loop holds two points at the shared corner, one at each height, so it drops straight down the terrace step.
 
-**Mesh.** `ringGeometry(loops)`: a flat ribbon on the tile tops, `DISTRICT_RING_WIDTH` (0.15) wide, inset `DISTRICT_RING_INSET` (0.05) from the edge, lifted `DISTRICT_RING_LIFT` (0.02); vertical segments at height steps become a vertical strip of the same width. Unlit, a transparent ShaderMaterial (`uReveal` reveals it along each loop, `uOpacity` fades it), full opacity when idle, `scenePalette.districtRing` (bright yellow `#ffd84d`, the scene palette's one off-token colour, chosen by the owner so the ring stands out on grass), depth test on (hills in front hide it), `renderOrder` `CLOUD_DECK_RENDER_ORDER + 1` so the hole's feather never veils it, raycast disabled.
+**Mesh.** `ringGeometry(loops)`: a flat ribbon on the tile tops, `DISTRICT_RING_WIDTH` (0.15) wide, inset `DISTRICT_RING_INSET` (0.05) from the edge, lifted `DISTRICT_RING_LIFT` (0.02); vertical segments at height steps become a vertical strip of the same width. Unlit, a transparent ShaderMaterial (`uOpacity` fades it; no per-vertex attribute), full opacity when idle, `scenePalette.districtRing` (bright yellow `#ffd84d`, the scene palette's one off-token colour, chosen by the owner so the ring stands out on grass), depth test on (hills in front hide it), `renderOrder` `CLOUD_DECK_RENDER_ORDER + 1` so the hole's feather never veils it, raycast disabled.
 
 **When it shows.**
 
-- Only when the focus resolves to a district, around that district; an unknown milestone shows none.
-- Entering a district draws it on over `CLOUD_MS` (the ribbon revealed along each loop's length via a `uReveal` uniform), in step with the hole opening; leaving fades it out over `CLOUD_MS`; district to district swaps instantly; reduced motion or the first mount is instant.
+- When the focus resolves to a district, around that district; or on the island view, around the hovered district (below). An unknown milestone shows none.
+- **Hover (island view, focused island only).** `districtHexMap(island)` / `districtAt(island, hex)` map a hex to the milestone whose district tiles (as `ringTarget` clips them to hexes with a drawn tile) contain it. Pointing anywhere on the island group (a house, the landmark or bare terrain) takes the pointer's world point, subtracts the island origin and rounds with `worldToHex`; the hovered milestone fades that district's ring in over `DISTRICT_RING_FADE_MS` (150), moving off fades it out over 150 ms, and moving onto another district swaps at once at full opacity. Hover clears when the pointer leaves the island or canvas, when the focus changes, while placing, and when the model no longer holds the district. Touch has no hover.
+- **Tap.** Tapping a district's tiles on the island view opens the district (`onOpenDistrict`); structures, markers, jibs and decorations keep their own taps and do not also open it. A landmark's own tap stays.
+- Tapping a hovered district leaves the ring exactly as it is through the camera flight: same district key, no leg, opacity stays 1.
+- Entering a district any other way (picker, URL, back or forward) fades the ring in over `DISTRICT_RING_FADE_MS`; leaving fades it out over the same; district to district swaps instantly; reduced motion or the first mount is instant.
 - A refetch that changes the tiles (task added, moved, deleted) rebuilds the geometry without animation; one that doesn't change them does nothing (keyed on the sorted tile keys).
-- A draw-on or fade holds a `ring` ticker demand only while it runs; the ring is otherwise static.
+- A fade holds a `ring` ticker demand only while it runs; the ring is otherwise static.
 - A district with no tasks gets a single hexagon round its landmark.
 
 ### 24.6 Tuning
 
 - Shared: `MIN_ISLAND_SIZE` 4 (replaces `MIN_ISLAND_RADIUS`), `MAX_ISLAND_SIZE` 60, `FREE_PLOTS` 12, footprint weights (round 1, oval 1.2, elongated 1.2, crescent 1, lobed 1.2, spiral 0.8, irregular 1.2), coast and relief chosen uniformly; `SHORE_RINGS` and `DISTRICT_SPACING` unchanged.
-- Web: `DISTRICT_RING_WIDTH` 0.15, `DISTRICT_RING_INSET` 0.05, `DISTRICT_RING_LIFT` 0.02, relief factors as 24.3; `scenePalette.districtRing`; `TickerDemand` gains `ring`.
+- Web: `DISTRICT_RING_WIDTH` 0.15, `DISTRICT_RING_INSET` 0.05, `DISTRICT_RING_LIFT` 0.02, `DISTRICT_RING_FADE_MS` 150, relief factors as 24.3; `scenePalette.districtRing`; `TickerDemand` gains `ring`.
 
 ### 24.7 Testing
 

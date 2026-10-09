@@ -11,9 +11,9 @@ const square: RingPoint[] = [
 ]
 
 describe('ringGeometry', () => {
-  test('two vertices per point plus a closing pair, two triangles per segment', () => {
+  test('two vertices per point, two triangles per segment', () => {
     const g = ringGeometry([square, square])
-    expect(g.getAttribute('position').count).toBe(2 * (2 * (square.length + 1)))
+    expect(g.getAttribute('position').count).toBe(2 * (2 * square.length))
     expect(g.getIndex()?.count).toBe(2 * 6 * square.length)
     g.dispose()
   })
@@ -29,12 +29,12 @@ describe('ringGeometry', () => {
     g.dispose()
   })
 
-  test('aAlong runs 0 → 1 along each loop', () => {
+  test('the last segment closes back onto the first point; no draw-on attribute', () => {
     const g = ringGeometry([square])
-    const a = g.getAttribute('aAlong')
-    expect(a.getX(0)).toBe(0)
-    expect(a.getX(a.count - 1)).toBeCloseTo(1)
-    for (let i = 2; i < a.count; i++) expect(a.getX(i)).toBeGreaterThanOrEqual(a.getX(i - 2))
+    expect(g.getAttribute('aAlong')).toBeUndefined()
+    const index = Array.from(g.getIndex()?.array ?? [])
+    expect(Math.max(...index)).toBe(2 * square.length - 1)
+    expect(index.slice(-6)).toEqual([6, 7, 0, 7, 1, 0])
     g.dispose()
   })
 })

@@ -188,3 +188,5 @@ export const CLOUD_MS = 600
 export const DISTRICT_RING_WIDTH = 0.15
 export const DISTRICT_RING_INSET = 0.05
 export const DISTRICT_RING_LIFT = 0.02
+/** The ring fading in or out as a district is hovered, entered or left, in ms. */
+export const DISTRICT_RING_FADE_MS = 150

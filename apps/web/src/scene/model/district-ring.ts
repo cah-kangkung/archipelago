@@ -1,7 +1,7 @@
 import { HEX_DIRECTIONS, type Hex, hexKey } from '@archipelago/shared'
 import type { Focus } from '../../world/selectors'
 import { hexSide, hexToWorld, type Point, type Spot, worldToHex } from './hex-space'
-import type { SceneDistrict, SceneModel, SceneStructure } from './scene-model'
+import type { SceneDistrict, SceneIsland, SceneModel, SceneStructure } from './scene-model'
 import { heightAt, tileHeights } from './terrain'
 
 /**
@@ -126,17 +126,59 @@ export type RingTarget = {
   loops: RingPoint[][]
 }
 
-/** The ring for a district focus (spec 24.5); none elsewhere or for an unknown id. */
-export function ringTarget(model: SceneModel, focus: Focus): RingTarget | null {
-  if (focus.kind !== 'district') return null
-  const island = model.islands.find((i) => i.projectId === focus.projectId)
-  const district = island?.districts.find((d) => d.milestoneId === focus.milestoneId)
+/** A district's tiles clipped to the hexes the island draws a tile on. */
+function drawnTiles(
+  island: SceneIsland,
+  district: SceneDistrict,
+  heights: ReadonlyMap<string, number>,
+) {
+  // A bay or dropped coast hex inside the district has no tile: the ring would float over water.
+  return districtTiles(district, island.structures).filter((h) => heights.has(hexKey(h)))
+}
+
+/** Hex key → milestone id over every district's drawn tiles; the first district keeps a shared hex. */
+export function districtHexMap(island: SceneIsland): ReadonlyMap<string, string> {
+  const heights = tileHeights(island.tiles)
+  const map = new Map<string, string>()
+  for (const d of island.districts) {
+    for (const h of drawnTiles(island, d, heights)) {
+      const k = hexKey(h)
+      if (!map.has(k)) map.set(k, d.milestoneId)
+    }
+  }
+  return map
+}
+
+/** The milestone whose drawn district tiles contain `hex` (island-local); null for any other hex. */
+export function districtAt(island: SceneIsland, hex: Hex): string | null {
+  return districtHexMap(island).get(hexKey(hex)) ?? null
+}
+
+/**
+ * The ring for a district focus (spec 24.5), or for the `hovered` milestone on that project's
+ * island view; none elsewhere or for an unknown id.
+ */
+export function ringTarget(
+  model: SceneModel,
+  focus: Focus,
+  hovered: string | null = null,
+): RingTarget | null {
+  let projectId: string
+  let milestoneId: string
+  if (focus.kind === 'district') {
+    projectId = focus.projectId
+    milestoneId = focus.milestoneId
+  } else if (focus.kind === 'island' && hovered !== null) {
+    projectId = focus.projectId
+    milestoneId = hovered
+  } else return null
+  const island = model.islands.find((i) => i.projectId === projectId)
+  const district = island?.districts.find((d) => d.milestoneId === milestoneId)
   if (!island || !district) return null
   const heights = tileHeights(island.tiles)
-  // A bay or dropped coast hex inside the district has no tile: the ring would float over water.
-  const tiles = districtTiles(district, island.structures).filter((h) => heights.has(hexKey(h)))
+  const tiles = drawnTiles(island, district, heights)
   return {
-    district: `${focus.projectId}/${focus.milestoneId}`,
+    district: `${projectId}/${milestoneId}`,
     key: `${island.origin.x},${island.origin.z}|${tiles
       .map((h) => `${hexKey(h)}@${heightAt(heights, h)}`)
       .sort()
@@ -146,12 +188,12 @@ export function ringTarget(model: SceneModel, focus: Focus): RingTarget | null {
   }
 }
 
-export type RingLeg = 'none' | 'draw' | 'fade' | 'swap'
+export type RingLeg = 'none' | 'in' | 'out' | 'swap'
 
-/** How the ring moves between two districts (or none): draw on, fade out, or swap at once. */
+/** How the ring moves between two districts (or none): fade in, fade out, or swap at once. */
 export function ringLeg(from: string | null, to: string | null): RingLeg {
   if (from === to) return 'none'
-  if (from === null) return 'draw'
-  if (to === null) return 'fade'
+  if (from === null) return 'in'
+  if (to === null) return 'out'
   return 'swap'
 }

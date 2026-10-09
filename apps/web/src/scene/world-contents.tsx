@@ -51,6 +51,8 @@ export type WorldContentsProps = SceneHandlers & {
   lowTier?: boolean
   /** A scenery grow-in started (true) or ended (false); keeps the ticker running for it. */
   onGrowth?: (running: boolean) => void
+  /** The pointer is over a district's tiles on the island view (its id), or left them (null). */
+  onHoverDistrict?: (milestoneId: string | null) => void
 }
 
 const ignore = () => {}
@@ -69,6 +71,7 @@ export function WorldContents({
   life = NO_LIFE,
   lowTier = false,
   onGrowth,
+  onHoverDistrict,
   ...handlers
 }: WorldContentsProps) {
   // While placing, only a glowing plot answers a tap (spec 15.5).
@@ -127,6 +130,7 @@ export function WorldContents({
           placement={placement?.projectId === island.projectId ? placement : null}
           animate={animate}
           rewards={rewards}
+          onHoverDistrict={placement ? undefined : onHoverDistrict}
           {...live}
         />
       ))}

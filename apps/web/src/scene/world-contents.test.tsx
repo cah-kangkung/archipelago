@@ -104,7 +104,10 @@ async function render(
   focus: Focus,
   selectedTaskId: string | null = null,
   extra: Partial<
-    Pick<WorldContentsProps, 'selectedBuildingId' | 'placement' | 'rewards' | 'animate'>
+    Pick<
+      WorldContentsProps,
+      'selectedBuildingId' | 'placement' | 'rewards' | 'animate' | 'onHoverDistrict'
+    >
   > = {},
 ) {
   const h = handlers()
@@ -117,6 +120,7 @@ async function render(
       placement={extra.placement ?? null}
       rewards={extra.rewards ?? []}
       animate={extra.animate ?? false}
+      onHoverDistrict={extra.onHoverDistrict}
       {...h}
     />,
   )
@@ -308,6 +312,105 @@ describe('WorldContents', () => {
     const fewer = { ...world, tasks: world.tasks.filter((t) => t.status !== 'todo') }
     await renderer.update(<WorldContents model={buildSceneModel(fewer, today)} {...props} />)
     expect(named(one(renderer.scene, `island:${beta.id}`), 'scaffold')).toHaveLength(0)
+  })
+})
+
+describe('district hover and tap on the island view', () => {
+  /** A pointer event over `hex` of beta's island, in world space. */
+  function over(world: WorldDto, projectId: string, hex: { q: number; r: number }) {
+    const island = buildSceneModel(world, today).islands.find((i) => i.projectId === projectId)
+    if (!island) throw new Error('no island')
+    const at = hexToWorld(hex)
+    return {
+      point: new THREE.Vector3(island.origin.x + at.x, 1, island.origin.z + at.z),
+      delta: 0,
+    }
+  }
+  const focus = (projectId: string): Focus => ({ kind: 'island', projectId })
+
+  test('pointing at the landmark, a task plot or a plain hex reports its district or none', async () => {
+    const { world, beta, mvp } = seeded()
+    const onHoverDistrict = vi.fn()
+    const { renderer } = await render(world, focus(beta.id), null, { onHoverDistrict })
+    const island = one(renderer.scene, `island:${beta.id}`)
+    await renderer.fireEvent(island, 'pointerMove', over(world, beta.id, { q: 5, r: 0 }))
+    await renderer.fireEvent(island, 'pointerMove', over(world, beta.id, { q: 6, r: 0 }))
+    await renderer.fireEvent(island, 'pointerMove', over(world, beta.id, { q: 1, r: 0 }))
+    expect(onHoverDistrict.mock.calls).toEqual([[mvp.id], [mvp.id], [null]])
+  })
+
+  test('the pointer leaving the island clears the hover', async () => {
+    const { world, beta } = seeded()
+    const onHoverDistrict = vi.fn()
+    const { renderer } = await render(world, focus(beta.id), null, { onHoverDistrict })
+    await renderer.fireEvent(one(renderer.scene, `island:${beta.id}`), 'pointerLeave', {})
+    expect(onHoverDistrict).toHaveBeenLastCalledWith(null)
+  })
+
+  test('a touch pointer never hovers', async () => {
+    const { world, beta } = seeded()
+    const onHoverDistrict = vi.fn()
+    const { renderer } = await render(world, focus(beta.id), null, { onHoverDistrict })
+    await renderer.fireEvent(one(renderer.scene, `island:${beta.id}`), 'pointerMove', {
+      ...over(world, beta.id, { q: 5, r: 0 }),
+      nativeEvent: { pointerType: 'touch' },
+    })
+    expect(onHoverDistrict).not.toHaveBeenCalled()
+  })
+
+  test('no hover handlers off the island view, on other islands, or while placing', async () => {
+    const { world, beta, gamma } = seeded()
+    const onHoverDistrict = vi.fn()
+    const arch = await render(world, { kind: 'archipelago' }, null, { onHoverDistrict })
+    expect(one(arch.renderer.scene, `island:${beta.id}`).props.onPointerMove).toBeUndefined()
+    const inIsland = await render(world, focus(beta.id), null, { onHoverDistrict })
+    expect(one(inIsland.renderer.scene, `island:${gamma.id}`).props.onPointerMove).toBeUndefined()
+    const inDistrict = await render(
+      world,
+      { kind: 'district', projectId: beta.id, milestoneId: seeded().mvp.id },
+      null,
+      { onHoverDistrict },
+    )
+    expect(one(inDistrict.renderer.scene, `island:${beta.id}`).props.onPointerMove).toBeUndefined()
+    const placing = await render(world, focus(beta.id), null, {
+      onHoverDistrict,
+      placement: { projectId: beta.id, plots: [], ghost: null },
+    })
+    expect(one(placing.renderer.scene, `island:${beta.id}`).props.onPointerMove).toBeUndefined()
+  })
+
+  test('tapping a district tile opens the district; a plain tile only clears', async () => {
+    const { world, beta, mvp } = seeded()
+    const { renderer, onOpenDistrict, onSelect } = await render(world, focus(beta.id))
+    const terrain = one(renderer.scene, 'terrain')
+    await renderer.fireEvent(terrain, 'click', over(world, beta.id, { q: 6, r: 0 }))
+    expect(onOpenDistrict).toHaveBeenCalledWith(beta.id, mvp.id)
+    expect(onSelect).not.toHaveBeenCalled()
+    await renderer.fireEvent(terrain, 'click', over(world, beta.id, { q: 1, r: 0 }))
+    expect(onOpenDistrict).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledWith(null)
+  })
+
+  test('a drag over a district tile does not open it', async () => {
+    const { world, beta } = seeded()
+    const { renderer, onOpenDistrict } = await render(world, focus(beta.id))
+    await renderer.fireEvent(one(renderer.scene, 'terrain'), 'click', {
+      ...over(world, beta.id, { q: 6, r: 0 }),
+      delta: 20,
+    })
+    expect(onOpenDistrict).not.toHaveBeenCalled()
+  })
+
+  test('tapping a structure in the district selects its task and does not open the district', async () => {
+    const { world, beta, tasks } = seeded()
+    const { renderer, onOpenDistrict, onSelect } = await render(world, focus(beta.id))
+    const scaffolds = one(one(renderer.scene, `island:${beta.id}`), 'scaffold')
+    await renderer.fireEvent(scaffolds, 'click', {
+      ...over(world, beta.id, { q: 6, r: 0 }),
+      instanceId: 1,
+    })
+    expect(onSelect).toHaveBeenCalledWith(tasks[3]?.id)
+    expect(onOpenDistrict).not.toHaveBeenCalled()
   })
 })
 

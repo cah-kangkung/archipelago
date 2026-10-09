@@ -21,10 +21,11 @@ describe('district ring material', () => {
     expect(districtRingMaterial.uniforms).toBe(districtRingUniforms)
   })
 
-  test('reveals along aAlong up to uReveal and fades by uOpacity, in the ring colour', () => {
-    expect(DISTRICT_RING_VERTEX).toContain('attribute float aAlong;')
-    expect(DISTRICT_RING_VERTEX).toContain('vAlong = aAlong;')
-    expect(DISTRICT_RING_FRAGMENT).toContain('if ( vAlong > uReveal ) discard;')
+  test('fades by uOpacity in the ring colour, with no draw-on attribute', () => {
+    expect(DISTRICT_RING_VERTEX).not.toContain('aAlong')
+    expect(DISTRICT_RING_FRAGMENT).not.toContain('uReveal')
+    expect(DISTRICT_RING_FRAGMENT).not.toContain('discard')
+    expect('uReveal' in districtRingUniforms).toBe(false)
     expect(DISTRICT_RING_FRAGMENT).toContain('gl_FragColor = vec4( uColor, uOpacity );')
     expect(districtRingUniforms.uColor.value.toArray()).toEqual(
       shaderColor(scenePalette.districtRing).toArray(),

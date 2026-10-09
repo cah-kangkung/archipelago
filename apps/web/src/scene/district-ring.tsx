@@ -9,12 +9,11 @@ import {
 import { type RingTarget, ringLeg, ringTarget } from './model/district-ring'
 import type { SceneModel } from './model/scene-model'
 import { ringGeometry } from './models/district-ring-geometry'
-import { CLOUD_MS, clampDelta } from './tuning'
+import { clampDelta, DISTRICT_RING_FADE_MS } from './tuning'
 
 const noRaycast = () => null
 
-const write = (reveal: number, opacity: number) => {
-  districtRingUniforms.uReveal.value = reveal
+const write = (opacity: number) => {
   districtRingUniforms.uOpacity.value = opacity
 }
 
@@ -23,31 +22,36 @@ const same = (a: RingTarget | null, b: RingTarget | null) =>
   a?.district === b?.district && a?.key === b?.key
 
 /**
- * The district ring (spec 24.5): a gold ribbon along the outer edges of the focused district's
- * tiles. Entering a district draws it on over CLOUD_MS, leaving fades it out, district to
- * district swaps at once; a refetch that changes the tiles redraws it in place.
+ * The district ring (spec 24.5): a gold ribbon along the outer edges of a district's tiles, for
+ * the focused district or the one hovered on the island view. It fades in over
+ * DISTRICT_RING_FADE_MS when it appears and out when it goes; district to district swaps at once,
+ * and tapping a hovered district keeps the ring untouched. A refetch that changes the tiles
+ * redraws it in place.
  */
 export function DistrictRing({
   model,
   focus,
+  hovered = null,
   animate,
   onRunning,
 }: {
   model: SceneModel
   focus: Focus
+  /** The milestone pointed at on the island view; ignored in any other view. */
+  hovered?: string | null
   animate: boolean
-  /** A draw-on or fade started (true) or ended (false); keeps the ticker running for it. */
+  /** A fade started (true) or ended (false); keeps the ticker running for it. */
   onRunning?: (running: boolean) => void
 }) {
   const invalidate = useThree((s) => s.invalidate)
-  const target = useMemo(() => ringTarget(model, focus), [model, focus])
+  const target = useMemo(() => ringTarget(model, focus, hovered), [model, focus, hovered])
   const latest = useRef(target)
   latest.current = target
   const [shown, setShown] = useState<RingTarget | null>(() => target)
   const district = useRef<string | null>(null)
   const mounted = useRef(false)
   const leg = useRef<{
-    kind: 'draw' | 'fade'
+    kind: 'in' | 'out'
     from: number
     elapsed: number
     fresh: boolean
@@ -56,7 +60,7 @@ export function DistrictRing({
   running.current = onRunning
 
   const show = (next: RingTarget | null) => setShown((s) => (same(s, next) ? s : next))
-  const begin = (kind: 'draw' | 'fade', from: number) => {
+  const begin = (kind: 'in' | 'out', from: number) => {
     const was = leg.current !== null
     leg.current = { kind, from, elapsed: 0, fresh: true }
     if (!was) running.current?.(true)
@@ -78,13 +82,15 @@ export function DistrictRing({
     if (instant || move === 'swap') {
       stop()
       show(next)
-      write(1, 1)
-    } else if (move === 'draw') {
+      write(1)
+    } else if (move === 'in') {
+      // A fade-out still running (the pointer came back) is picked up where it is.
+      const from = leg.current ? districtRingUniforms.uOpacity.value : 0
       show(next)
-      write(0, 1)
-      begin('draw', 0)
-    } else if (move === 'fade') {
-      begin('fade', districtRingUniforms.uOpacity.value)
+      write(from)
+      begin('in', from)
+    } else if (move === 'out') {
+      begin('out', districtRingUniforms.uOpacity.value)
     } else {
       // Same district, new tiles or heights: redraw in place.
       show(next)
@@ -97,7 +103,7 @@ export function DistrictRing({
     () => () => {
       if (!leg.current) return
       running.current?.(false)
-      write(1, 1)
+      write(1)
     },
     [],
   )
@@ -108,19 +114,18 @@ export function DistrictRing({
     // The leg began between frames: its first frame's delta spans the idle gap, so it doesn't count.
     if (!l.fresh) l.elapsed += clampDelta(delta) * 1000
     l.fresh = false
-    const t = Math.min(1, l.elapsed / CLOUD_MS)
-    if (l.kind === 'draw') write(t, 1)
-    else write(districtRingUniforms.uReveal.value, l.from * (1 - t))
+    const t = Math.min(1, l.elapsed / DISTRICT_RING_FADE_MS)
+    write(l.kind === 'in' ? l.from + (1 - l.from) * t : l.from * (1 - t))
     if (t < 1) {
       invalidate()
       return
     }
     leg.current = null
     running.current?.(false)
-    if (l.kind === 'fade') {
+    if (l.kind === 'out') {
       // Committed in the frame, so the ribbon is gone the moment the fade ends.
       flushSync(() => setShown(null))
-      write(1, 1)
+      write(1)
     }
   })
 

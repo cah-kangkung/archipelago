@@ -60,10 +60,25 @@ export function WorldScene(props: WorldSceneProps) {
   const [growing, setGrowing] = useState(false)
   const [clouding, setClouding] = useState(false)
   const [ringing, setRinging] = useState(false)
+  const [hovered, setHovered] = useState<string | null>(null)
   const cranes = useMemo(
     () => props.model.islands.some((i) => i.structures.some((s) => s.kind === 'crane')),
     [props.model],
   )
+  // Hover belongs to the island view: leaving it, or a model without the district, clears it.
+  const { focus } = props
+  const focusKey = focus.kind === 'archipelago' ? '' : `${focus.kind}:${focus.projectId}`
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the focus's key is the trigger
+  useEffect(() => setHovered(null), [focusKey])
+  const hoveredExists =
+    focus.kind === 'island' &&
+    props.model.islands.some(
+      (i) => i.projectId === focus.projectId && i.districts.some((d) => d.milestoneId === hovered),
+    )
+  const ringHover = hoveredExists && !props.placement ? hovered : null
+  useEffect(() => {
+    if (hovered !== null && !hoveredExists) setHovered(null)
+  }, [hovered, hoveredExists])
   const seaWave = animate && quality.tier === 'high'
   // Reward floats do not invalidate themselves: a live event keeps the ticker running for them.
   const ticking = tickerWanted({
@@ -100,6 +115,7 @@ export function WorldScene(props: WorldSceneProps) {
         seaWave={seaWave}
         lowTier={quality.tier === 'low'}
         onGrowth={setGrowing}
+        onHoverDistrict={setHovered}
       />
       <CloudDeck
         model={props.model}
@@ -111,6 +127,7 @@ export function WorldScene(props: WorldSceneProps) {
       <DistrictRing
         model={props.model}
         focus={props.focus}
+        hovered={ringHover}
         animate={animate}
         onRunning={setRinging}
       />

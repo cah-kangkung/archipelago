@@ -6,29 +6,21 @@ import { scenePalette } from './model/palette'
 export const DISTRICT_RING_RENDER_ORDER = CLOUD_DECK_RENDER_ORDER + 1
 
 export const districtRingUniforms = {
-  /** How far along each loop (0–1) the ribbon is drawn. */
-  uReveal: { value: 1 },
   uOpacity: { value: 1 },
   uColor: { value: shaderColor(scenePalette.districtRing) },
 }
 
-export const DISTRICT_RING_VERTEX = `attribute float aAlong;
-varying float vAlong;
-void main() {
-  vAlong = aAlong;
+export const DISTRICT_RING_VERTEX = `void main() {
   gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 }`
 
-export const DISTRICT_RING_FRAGMENT = `uniform float uReveal;
-uniform float uOpacity;
+export const DISTRICT_RING_FRAGMENT = `uniform float uOpacity;
 uniform vec3 uColor;
-varying float vAlong;
 void main() {
-  if ( vAlong > uReveal ) discard;
   gl_FragColor = vec4( uColor, uOpacity );
 }`
 
-/** The district ring (spec 24.5): unlit, revealed along its loops, faded as a whole. */
+/** The district ring (spec 24.5): unlit, faded as a whole. */
 export const districtRingMaterial = new THREE.ShaderMaterial({
   uniforms: districtRingUniforms,
   vertexShader: DISTRICT_RING_VERTEX,
